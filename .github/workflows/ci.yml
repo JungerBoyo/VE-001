@@ -18,44 +18,44 @@ jobs:
         - windows-2022
         - ubuntu-22.04
 
-  steps:
-    - uses: actions/checkout@v3
+    steps:
+      - uses: actions/checkout@v3
 
-    - name: Windows setup
-      if: runner.os == 'Windows'
-      run: winget install cmake
-      run: winget install llvm
-      run: winget install pip
-      run: winget install ninja
+      - name: Windows setup
+        if: runner.os == 'Windows'
+        run: winget install cmake
+        run: winget install llvm
+        run: winget install pip
+        run: winget install ninja
 
-    - name: Linux setup
-      if: runner.os == 'Ubuntu'
-      run: sudo apt-get install cmake
-      run: sudo apt-get install llvm
-      run: sudo apt-get install pip
-      run: sudo apt-get install ninja
+      - name: Linux setup
+        if: runner.os == 'Ubuntu'
+        run: sudo apt-get install cmake
+        run: sudo apt-get install llvm
+        run: sudo apt-get install pip
+        run: sudo apt-get install ninja
 
-    - name: Install conan package manager
-      run: pip install conan
+      - name: Install conan package manager
+        run: pip install conan
 
-    - name: Install conan packages
-      run: conan install . --output-folder=build-rel
+      - name: Install conan packages
+        run: conan install . --output-folder=build-rel
 
-    - name: CMake config
-      run: cmake -S . -B build-rel -G Ninja -DCMAKE_TOOLCHAIN_FILE=conan_toolchain.cmake -DCMAKE_BUILD_TYPE=Release
+      - name: CMake config
+        run: cmake -S . -B build-rel -G Ninja -DCMAKE_TOOLCHAIN_FILE=conan_toolchain.cmake -DCMAKE_BUILD_TYPE=Release
 
-    - name: CMake build
-      run: cmake --build build-rel
+      - name: CMake build
+        run: cmake --build build-rel
 
-    - name: CPack project
-      if: startsWith(github.ref, 'refs/tags')
-      working-directory: build-rel
-      run: cpack -G ZIP --config CPackConfig.cmake
+      - name: CPack project
+        if: startsWith(github.ref, 'refs/tags')
+        working-directory: build-rel
+        run: cpack -G ZIP --config CPackConfig.cmake
 
-    - name: Publish release
-      if: startsWith(github.ref, 'refs/tags')
-      uses: softprops/action-gh-release@v1
-      with:
-        files: build-rel/*.zip
+      - name: Publish release
+        if: startsWith(github.ref, 'refs/tags')
+        uses: softprops/action-gh-release@v1
+        with:
+          files: build-rel/*.zip
 
     
