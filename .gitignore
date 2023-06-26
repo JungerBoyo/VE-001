@@ -1,0 +1,4 @@
+*.code-workspace
+CMakeUserPresets.json
+build-rel/
+.vscode/
