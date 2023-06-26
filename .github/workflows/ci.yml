@@ -32,6 +32,9 @@ jobs:
       - name: Install conan package manager
         run: pip install conan
 
+      - name: Detect conan profile
+        run: conan profile detect
+
       - name: Install conan packages
         run: conan install . --output-folder=build-rel
 
