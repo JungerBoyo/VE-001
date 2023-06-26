@@ -25,7 +25,7 @@ jobs:
         if: matrix.os == 'windows-2022'
         uses: crazy-max/ghaction-chocolatey@v2
         with:
-          args: install cmake llvm pip ninja
+          args: install cmake llvm ninja
 
       - name: Linux setup tools
         if: matrix.os == 'ubuntu-22.04'
