@@ -21,12 +21,11 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - name: Windows setup chocolatey package manager
+      - name: Windows setup tools
         if: matrix.os == 'windows-2022'
         uses: crazy-max/ghaction-chocolatey@v2
-
-      - name: Windows setup tools
-        run: choco install cmake llvm pip ninja
+        with:
+          args: install cmake llvm pip ninja
 
       - name: Linux setup tools
         if: matrix.os == 'ubuntu-22.04'
