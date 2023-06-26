@@ -27,7 +27,7 @@ jobs:
 
       - name: Linux setup
         if: matrix.os == 'ubuntu-22.04'
-        run: sudo apt-get install cmake llvm pip ninja
+        run: sudo apt-get install cmake llvm pip ninja-build
 
       - name: Install conan package manager
         run: pip install conan
