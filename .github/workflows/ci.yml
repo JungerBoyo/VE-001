@@ -21,11 +21,14 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - name: Windows setup
+      - name: Windows setup chocolatey package manager
         if: matrix.os == 'windows-2022'
-        run: winget install cmake llvm pip ninja
+        uses: crazy-max/ghaction-chocolatey@v2
 
-      - name: Linux setup
+      - name: Windows setup tools
+        run: choco install cmake llvm pip ninja
+
+      - name: Linux setup tools
         if: matrix.os == 'ubuntu-22.04'
         run: sudo apt-get install cmake llvm pip ninja-build
 
