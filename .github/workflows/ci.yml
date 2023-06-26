@@ -23,17 +23,11 @@ jobs:
 
       - name: Windows setup
         if: runner.os == 'Windows'
-        run: winget install cmake
-        run: winget install llvm
-        run: winget install pip
-        run: winget install ninja
+        run: winget install cmake llvm pip ninja
 
       - name: Linux setup
         if: runner.os == 'Ubuntu'
-        run: sudo apt-get install cmake
-        run: sudo apt-get install llvm
-        run: sudo apt-get install pip
-        run: sudo apt-get install ninja
+        run: sudo apt-get install cmake llvm pip ninja
 
       - name: Install conan package manager
         run: pip install conan
