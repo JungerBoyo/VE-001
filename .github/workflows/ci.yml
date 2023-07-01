@@ -47,10 +47,10 @@ jobs:
 
       - name: CMake config (Windows)
         if: matrix.os == 'windows-2022'
-        run: cmake -S . -B build-rel -G Ninja -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_TOOLCHAIN_FILE=conan_toolchain.cmake -DCMAKE_BUILD_TYPE=Release
+        run: cmake -S . -B build-rel -G Ninja -DCMAKE_TOOLCHAIN_FILE=conan_toolchain.cmake -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_BUILD_TYPE=Release
 
       - name: CMake config (Linux)
-        if: matrix.os == 'ubuntu-2022'
+        if: matrix.os == 'ubuntu-22.04'
         run: cmake -S . -B build-rel -DCMAKE_TOOLCHAIN_FILE=conan_toolchain.cmake -DCMAKE_BUILD_TYPE=Release
 
       - name: CMake build
