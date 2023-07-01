@@ -39,15 +39,15 @@ jobs:
 
       - name: Install conan packages (Windows)
         if: matrix.os == 'windows-2022'
-        run: conan install . --output-folder=build-rel -pr:b conanprofile.windows.txt -pr:b conanprofile.windows.txt
+        run: conan install . --output-folder=build-rel -pr:b conanprofile.windows.txt -pr:h conanprofile.windows.txt --build=missing
 
       - name: Install conan packages (Linux)
         if: matrix.os == 'ubuntu-22.04'
-        run: conan install . --output-folder=build-rel
+        run: conan install . --output-folder=build-rel --build=missing
 
       - name: CMake config (Windows)
         if: matrix.os == 'windows-2022'
-        run: cmake -S . -B build-rel -G Ninja -DCMAKE_TOOLCHAIN_FILE=conan_toolchain.cmake -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_BUILD_TYPE=Release
+        run: cmake -S . -B build-rel -G Ninja -DCMAKE_TOOLCHAIN_FILE="conan_toolchain.cmake" -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_BUILD_TYPE=Release
 
       - name: CMake config (Linux)
         if: matrix.os == 'ubuntu-22.04'
