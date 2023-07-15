@@ -1,10 +1,10 @@
 name: 'install_conan_packages'
 description: 'installs required packages using conan'
 inputs:
-  ${{ inputs.os }}:
+  os 
     required: true
     type: string
-  ${{ intputs.windowing_system }}:
+  windowing_system:
     required: true
     type: string
 

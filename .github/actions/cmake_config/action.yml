@@ -1,10 +1,10 @@
 name: 'cmake_config'
 description: 'configures cmake in respect to OS and windowing system'
 inputs:
-  ${{ inputs.os }}:
+  os:
     required: true
     type: string
-  ${{ inputs.windowing_system }}:
+  windowing_system:
     required: true
     type: string
 
