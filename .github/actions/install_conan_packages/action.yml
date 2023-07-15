@@ -14,12 +14,12 @@ runs:
     - name: Install conan packages (Windows + GLFW3)
       shell: cmd
       if: ${{ inputs.os == 'windows-2022' && inputs.windowing-system == 'glfw3' }}
-      run: conan install . --output-folder=build-rel -g Ninja -pr:b conanprofile.windows.txt -pr:h conanprofile.windows.txt -o use_glfw3=True --build=missing
+      run: conan install . --output-folder=build-rel -g CMakeToolchain -pr:b conanprofile.windows.txt -pr:h conanprofile.windows.txt -o use_glfw3=True --build=missing
 
     - name: Install conan packages (Windows + SDL2)
       shell: cmd 
       if: ${{ inputs.os == 'windows-2022' && inputs.windowing-system == 'sdl2' }}
-      run: conan install . --output-folder=build-rel -g Ninja -pr:b conanprofile.windows.txt -pr:h conanprofile.windows.txt -o use_sdl2=True --build=missing
+      run: conan install . --output-folder=build-rel -g CMakeToolchain -pr:b conanprofile.windows.txt -pr:h conanprofile.windows.txt -o use_sdl2=True --build=missing
 
     - name: Install conan packages (Linux + GLFW3)
       shell: bash 
