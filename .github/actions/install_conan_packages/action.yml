@@ -1,7 +1,7 @@
 name: 'install_conan_packages'
 description: 'installs required packages using conan'
 inputs:
-  os 
+  os: 
     required: true
     type: string
   windowing_system:
