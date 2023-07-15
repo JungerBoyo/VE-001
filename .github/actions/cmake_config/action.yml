@@ -1,0 +1,36 @@
+name: 'cmake_config'
+description: 'configures cmake in respect to OS and windowing system'
+inputs:
+  os:
+    required: true
+    type: string
+  windowing_system:
+    required: true
+    type: string
+
+runs:
+  steps:
+    - name: Install conan packages (Windows + GLFW3)
+      if: | 
+        os == 'windows-2022' &&
+        windowing_system == 'glfw3'
+      run: cmake -S . -B build-rel -G Ninja -DCMAKE_TOOLCHAIN_FILE="conan_toolchain.cmake" -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_BUILD_TYPE=Release -DUSE_GLFW3=ON
+
+    - name: Install conan packages (Windows + SDL2)
+      if: | 
+        os == 'windows-2022' &&
+        windowing_system == 'sdl2'
+      run: 
+      run: cmake -S . -B build-rel -G Ninja -DCMAKE_TOOLCHAIN_FILE="conan_toolchain.cmake" -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_BUILD_TYPE=Release -DUSE_SDL2=ON
+
+    - name: Install conan packages (Linux + GLFW3)
+      if: |
+        os == 'ubuntu-22.04' &&
+        windowing_system == 'glfw3'
+      run: cmake -S . -B build-rel -DCMAKE_TOOLCHAIN_FILE=conan_toolchain.cmake -DCMAKE_BUILD_TYPE=Release -DUSE_GLFW3=ON
+
+    - name: Install conan packages (Linux + SDL2)
+      if: |
+        os == 'ubuntu-22.04' &&
+        windowing_system == 'sdl2'
+      run: cmake -S . -B build-rel -DCMAKE_TOOLCHAIN_FILE=conan_toolchain.cmake -DCMAKE_BUILD_TYPE=Release -DUSE_SDL2=ON

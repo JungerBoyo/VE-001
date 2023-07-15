@@ -1,0 +1,35 @@
+name: 'install_conan_packages'
+description: 'installs required packages using conan'
+inputs:
+  os:
+    required: true
+    type: string
+  windowing_system:
+    required: true
+    type: string
+
+runs:
+  steps:
+    - name: Install conan packages (Windows + GLFW3)
+      if: | 
+        os == 'windows-2022' &&
+        windowing_system == 'glfw3'
+      run: conan install . --output-folder=build-rel -pr:b conanprofile.windows.txt -pr:h conanprofile.windows.txt -o use_glfw3=True --build=missing
+
+    - name: Install conan packages (Windows + SDL2)
+      if: | 
+        os == 'windows-2022' &&
+        windowing_system == 'sdl2'
+      run: conan install . --output-folder=build-rel -pr:b conanprofile.windows.txt -pr:h conanprofile.windows.txt -o use_sdl2=True --build=missing
+
+    - name: Install conan packages (Linux + GLFW3)
+      if: |
+        os == 'ubuntu-22.04' &&
+        windowing_system == 'glfw3'
+      run: conan install . --output-folder=build-rel -o use_glfw3=True --build=missing
+
+    - name: Install conan packages (Linux + SDL2)
+      if: |
+        os == 'ubuntu-22.04' &&
+        windowing_system == 'sdl2'
+      run: conan install . --output-folder=build-rel -o use_sdl2=True --build=missing
