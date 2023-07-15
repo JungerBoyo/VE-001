@@ -13,23 +13,19 @@ runs:
   steps:
     - name: Install conan packages (Windows + GLFW3)
       shell: bash 
-      if: ${{ inputs.os }} == 'windows-2022'
-      if: ${{ inputs.windowing_system }} == 'glfw3'
+      if: ${{ inputs.os == 'windows-2022' && inputs.windowing_system == 'glfw3' }}
       run: cmake -S . -B build-rel -G Ninja -DCMAKE_TOOLCHAIN_FILE="conan_toolchain.cmake" -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_BUILD_TYPE=Release -DUSE_GLFW3=ON
 
     - name: Install conan packages (Windows + SDL2)
       shell: bash 
-      if: ${{ inputs.os }} == 'windows-2022'
-      if: ${{ inputs.windowing_system }} == 'sdl2'
+      if: ${{ inputs.os == 'windows-2022' && inputs.windowing_system == 'sdl2' }}
       run: cmake -S . -B build-rel -G Ninja -DCMAKE_TOOLCHAIN_FILE="conan_toolchain.cmake" -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_BUILD_TYPE=Release -DUSE_SDL2=ON
 
     - name: Install conan packages (Linux + GLFW3)
       shell: bash 
-      if: ${{ inputs.os }} == 'ubuntu-22.04'
-      if: ${{ inputs.windowing_system }} == 'glfw3'
+      if: ${{ inputs.os == 'ubuntu-22.04' && inputs.windowing_system == 'glfw3' }}
       run: cmake -S . -B build-rel -DCMAKE_TOOLCHAIN_FILE=conan_toolchain.cmake -DCMAKE_BUILD_TYPE=Release -DUSE_GLFW3=ON
 
     - name: Install conan packages (Linux + SDL2)
-      if: ${{ inputs.os }} == 'ubuntu-22.04'
-      if: ${{ inputs.windowing_system }} == 'sdl2'
+      if: ${{ inputs.os == 'ubuntu-22.04' && inputs.windowing_system == 'sdl2' }}
       run: cmake -S . -B build-rel -DCMAKE_TOOLCHAIN_FILE=conan_toolchain.cmake -DCMAKE_BUILD_TYPE=Release -DUSE_SDL2=ON
