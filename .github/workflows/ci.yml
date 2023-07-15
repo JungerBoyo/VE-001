@@ -44,13 +44,13 @@ jobs:
         uses: ./.github/actions/install_conan_packages
         with:
           os: ${{ matrix.os }}
-          windowing_system: ${{ matrix.windowing_system }}
+          windowing-system: ${{ matrix.windowing-system }}
 
       - name: CMake config
         uses: ./.github/actions/cmake_config
         with:
           os: ${{ matrix.os }}
-          windowing_system: ${{ matrix.windowing_system }}
+          windowing-system: ${{ matrix.windowing-system }}
 
       - name: CMake build
         run: cmake --build build-rel
