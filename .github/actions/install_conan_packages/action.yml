@@ -9,7 +9,7 @@ inputs:
     type: string
 
 runs:
-  using: shell
+  using: "composite"
   steps:
     - name: Install conan packages (Windows + GLFW3)
       if: | 
