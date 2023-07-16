@@ -20,6 +20,9 @@ jobs:
         windowing-system:
           - glfw3
           - sdl2
+        exclude:
+          - os: windows-2022
+            windowing-system: sdl2
 
     steps:
       - uses: actions/checkout@v3
