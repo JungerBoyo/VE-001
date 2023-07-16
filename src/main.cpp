@@ -3,10 +3,16 @@
 
 #include <gl_context.h>
 #include <window/window.h>
+#include <vmath/vmath.h>
 
 using namespace ve001;
 
 int main() {
+    vmath::Vec3f32 a(3.2F);
+    vmath::Vec3f32 b(2.55F);
+
+    [[maybe_unused]] const auto c = vmath::cross(a, b);
+
     fmt::print("Hello {}!\n", "Woorld");
 
     ve001::Window window("demo", 640, 480, nullptr);

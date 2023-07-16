@@ -5,6 +5,8 @@ cmake_minimum_required(VERSION 3.20)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+add_compile_options(-fconcepts)
+
 #############################
 
 
@@ -20,6 +22,13 @@ project(VE001
 
 ### sub dirs ###
 
+include_directories(
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}/res
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+
+add_subdirectory(res)
 add_subdirectory(shaders)
 add_subdirectory(src)
 

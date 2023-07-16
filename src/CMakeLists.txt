@@ -10,10 +10,10 @@ elseif (USE_GLFW3)
     find_package(glfw3 REQUIRED)
 endif()
 
+include_directories(${CMAKE_CURRENT_SOURCE_DIR})
+
 add_library(types INTERFACE types.h)
 link_libraries(types)
-
-include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 
 add_subdirectory(window)
 
@@ -27,7 +27,7 @@ endif()
 
 add_executable(${PROJECT_NAME} main.cpp)
 
-target_link_libraries(${PROJECT_NAME} PRIVATE fmt::fmt window gl_context)
+target_link_libraries(${PROJECT_NAME} PRIVATE fmt::fmt window gl_context vmath)
 
 
 
