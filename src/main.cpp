@@ -6,12 +6,13 @@
 #include <vmath/vmath.h>
 
 using namespace ve001;
+using namespace vmath;
 
 int main() {
-    vmath::Vec3f32 a(3.2F);
-    vmath::Vec3f32 b(2.55F);
+    Vec3f32 a(3.2F);
+    Vec3f32 b(2.55F);
 
-    [[maybe_unused]] const auto c = vmath::cross(a, b);
+    [[maybe_unused]] const auto c = cross(a, b);
 
     fmt::print("Hello {}!\n", "Woorld");
 

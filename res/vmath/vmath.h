@@ -395,6 +395,10 @@ struct misc {
             rotated_q_point.k + origin[2]
         );
     }
+
+    static T wrap(T value, T abs_limit, T wrap_to) {
+        return std::abs(value) > abs_limit ? wrap_to : value;
+    }
 };
 
 }

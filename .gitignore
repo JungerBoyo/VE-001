@@ -3,3 +3,4 @@ CMakeUserPresets.json
 build*/
 .vscode/
 notes.txt
+conanprofile.txt

@@ -12,10 +12,11 @@ endif()
 
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 
-add_library(types INTERFACE types.h)
-link_libraries(types)
+# add_library(types INTERFACE types.h)
+# link_libraries(types)
 
 add_subdirectory(window)
+add_subdirectory(sandbox_utils)
 
 add_library(gl_context STATIC gl_context.h gl_context.cpp)
 target_link_libraries(gl_context PUBLIC glad::glad)
@@ -27,7 +28,7 @@ endif()
 
 add_executable(${PROJECT_NAME} main.cpp)
 
-target_link_libraries(${PROJECT_NAME} PRIVATE fmt::fmt window gl_context vmath)
+target_link_libraries(${PROJECT_NAME} PRIVATE fmt::fmt window gl_context vmath sandbox_utils)
 
 
 
