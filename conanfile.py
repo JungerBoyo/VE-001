@@ -24,7 +24,6 @@ class VE001Recipe(ConanFile):
         self.options["glad"].gl_version = "4.5"
 
     def requirements(self):
-        self.requires("fmt/8.1.1")
         self.requires("glad/0.1.36")
         self.requires("stb/cci.20220909")
         self.requires("spdlog/1.11.0") 
