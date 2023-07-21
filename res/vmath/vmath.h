@@ -6,7 +6,7 @@
 #include <type_traits>
 #include <concepts>
 #include <tuple>
-#include <cstdint>
+#include "vmath_types.h"
 
 namespace vmath {
 

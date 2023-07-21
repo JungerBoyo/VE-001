@@ -1,4 +1,4 @@
-add_library(vmath STATIC vmath.h vmath.cpp)
+add_library(vmath STATIC vmath_types.h vmath.h vmath.cpp)
 
 target_compile_options(vmath PRIVATE
     -funroll-loops

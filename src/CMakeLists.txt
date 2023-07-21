@@ -17,6 +17,7 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 
 add_subdirectory(window)
 add_subdirectory(sandbox_utils)
+add_subdirectory(gl_boilerplate)
 
 add_library(gl_context STATIC gl_context.h gl_context.cpp)
 target_link_libraries(gl_context PUBLIC glad::glad)

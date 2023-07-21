@@ -27,6 +27,7 @@ class VE001Recipe(ConanFile):
         self.requires("fmt/8.1.1")
         self.requires("glad/0.1.36")
         self.requires("stb/cci.20220909")
+        self.requires("spdlog/1.11.0") 
         if self.options.use_sdl2:
             self.requires("sdl/2.26.5")
         if self.options.use_glfw3:    
