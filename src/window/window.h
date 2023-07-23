@@ -11,10 +11,12 @@ struct Window {
 	struct WinNativeData;
 
 private:
-	WinNativeData* _win_native_data;
+	WinNativeData* _win_native_data{ nullptr };
 
 public:
-	Window(std::string_view title, i32 w, i32 h, void (*win_error_callback)(i32, const char *));
+	static bool init(std::string_view title, i32 w, i32 h, void (*win_error_callback)(i32, const char *));
+
+	Window() = default;
 
 	[[nodiscard]] void* native();
 	[[nodiscard]] std::pair<i32, i32> size() const;
@@ -35,6 +37,8 @@ public:
 
 	void deinit();
 };
+
+extern Window window;
 
 }
 

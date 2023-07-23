@@ -1,19 +1,21 @@
 #include "window.h"
 
-#include <stdexcept>
-
 #include <GLFW/glfw3.h>
 
+#include <logger/logger.h>
+
 using namespace ve001;
+
+Window ve001::window{};
 
 struct Window::WinNativeData {
 	GLFWwindow *win_handle{nullptr};
 };
 
-Window::Window(std::string_view title, i32 w, i32 h, void (*win_error_callback)(i32, const char *)) {
-	/// GLFW INIT
+bool Window::init(std::string_view title, i32 w, i32 h, void (*win_error_callback)(i32, const char *)) {
 	if (glfwInit() != GLFW_TRUE) {
-		throw std::runtime_error("glfw init failed");
+		logger->critical("[glfw3] init failed");
+		return false;
 	}
 
 	// TODO: wykrywanie wersji
@@ -21,19 +23,22 @@ Window::Window(std::string_view title, i32 w, i32 h, void (*win_error_callback)(
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 5);
 	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
-	_win_native_data = new WinNativeData{};
+	window._win_native_data = new WinNativeData{};
 
-	_win_native_data->win_handle = glfwCreateWindow(w, h, title.data(), nullptr, nullptr);
-	if (_win_native_data->win_handle == nullptr) {
-		throw std::runtime_error("window creation failed");
+	window._win_native_data->win_handle = glfwCreateWindow(w, h, title.data(), nullptr, nullptr);
+	if (window._win_native_data->win_handle == nullptr) {
+		logger->critical("[glfw3] window creation failed");
+		return false;
 	}
-	glfwMakeContextCurrent(_win_native_data->win_handle);
+	glfwMakeContextCurrent(window._win_native_data->win_handle);
 
 	if (win_error_callback != nullptr) {
 		glfwSetErrorCallback(win_error_callback);
 	}
 
-	glfwSetInputMode(_win_native_data->win_handle, GLFW_CURSOR, GLFW_CURSOR_HIDDEN);
+	glfwSetInputMode(window._win_native_data->win_handle, GLFW_CURSOR, GLFW_CURSOR_HIDDEN);
+
+	return true;
 }
 
 void* Window::native() {

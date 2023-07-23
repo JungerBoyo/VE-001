@@ -1,0 +1,19 @@
+#ifndef VE001_ERRORS_H
+#define VE001_ERRORS_H
+
+namespace ve001 {
+
+enum class Error {
+    NO_ERROR,
+    FAILED_TO_MAP_VBO_BUFFER,
+    CPU_MEMORY_ALLOCATION_FAILED,
+    INVALID_CHUNK_SIZE,
+    INVALID_SUBMESH_SIZE,
+    INVALID_SUBMESH_PTR,
+    NO_FREE_CHUNKS,
+
+};
+
+};
+
+#endif

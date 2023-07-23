@@ -17,16 +17,22 @@ struct Shader {
     u32 _shader_ids[2] = { 0U, 0U }; // compute shader id or vertex + fragment shader id
 
     /**
-     * @brief compute shader constructor
+     * @brief initialize program
+    */
+    Shader();
+
+    /**
+     * @brief attach compute shader
      * @param csh_path compute shader path
     */
-    Shader(const std::filesystem::path& csh_path);
+    bool attach(const std::filesystem::path& csh_path);
+
     /**
-     * @brief vertex-fragment shader constructor
+     * @brief attach vertex-fragment shader
      * @param vsh_path vertex shader path
      * @param fsh_path fragment shader path
     */
-    Shader(const std::filesystem::path& vsh_path, const std::filesystem::path& fsh_path);
+    bool attach(const std::filesystem::path& vsh_path, const std::filesystem::path& fsh_path);
 
     /**
      * @brief binds shader program

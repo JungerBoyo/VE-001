@@ -1,10 +1,12 @@
 #include "window.h"
 
-#include <stdexcept>
-
 #include <SDL2/SDL.h>
 
+#include <logger/logger.h>
+
 using namespace ve001;
+
+Window ve001::window{};
 
 struct Window::WinNativeData {
 	SDL_Window *win_handle{ nullptr };
@@ -18,14 +20,15 @@ struct Window::WinNativeData {
 	void* user_data_ptr{ nullptr };
 };
 
-Window::Window(std::string_view title, i32 w, i32 h, void (*win_error_callback)(i32, const char *)) {
-	/// GLFW INIT
+bool Window::init(std::string_view title, i32 w, i32 h, void (*win_error_callback)(i32, const char *)) {
 	if (SDL_Init(SDL_INIT_VIDEO) != 0) {
-		throw std::runtime_error("[sdl] init failed");
+		logger->critical("[sdl2] init failed");	
+		return false;
 	}
 
 	if (SDL_GL_LoadLibrary(nullptr) != 0) {
-		throw std::runtime_error("[sdl] gl lib load failed");
+		logger->critical("[sdl2] gl lib load failed");	
+		return false;
 	}
 
 	SDL_GL_SetAttribute(SDL_GL_ACCELERATED_VISUAL, 1);
@@ -37,21 +40,23 @@ Window::Window(std::string_view title, i32 w, i32 h, void (*win_error_callback)(
 
 	SDL_ShowCursor(SDL_DISABLE);
 
-	_win_native_data = new WinNativeData{};
+	window._win_native_data = new WinNativeData{};
 
-	_win_native_data->win_handle = SDL_CreateWindow(title.data(), 0, 0, w, h, SDL_WINDOW_OPENGL);
-	if (_win_native_data->win_handle == nullptr) {
-		throw std::runtime_error("[sdl] window creation failed");
+	window._win_native_data->win_handle = SDL_CreateWindow(title.data(), 0, 0, w, h, SDL_WINDOW_OPENGL);
+	if (window._win_native_data->win_handle == nullptr) {
+		logger->critical("[sdl2] window creation failed");
+		return false;
 	}
 
-	_win_native_data->context = SDL_GL_CreateContext(_win_native_data->win_handle);
-	if (_win_native_data->context == nullptr) {
-		throw std::runtime_error("[sdl] GL context creation failed");
+	window._win_native_data->context = SDL_GL_CreateContext(window._win_native_data->win_handle);
+	if (window._win_native_data->context == nullptr) {
+		logger->critical("[sdl2] GL context creation failed");
+		return false;
 	}
 
 	SDL_GL_SetSwapInterval(1);
 
-	_win_native_data->win_error_callback = win_error_callback;
+	window._win_native_data->win_error_callback = win_error_callback;
 }
 
 void* Window::native() {

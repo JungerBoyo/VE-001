@@ -6,7 +6,10 @@
 namespace ve001 {
 
 void glInit();
-void setGLDebugCallback(void (*gl_error_callback)(u32, u32, u32, u32, i32, const char *, const void *));
+
+#ifndef DEBUG
+    void setGLDebugCallback(void (*gl_error_callback)(u32, u32, u32, u32, i32, const char *, const void *));
+#endif
 
 }
 

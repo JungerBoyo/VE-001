@@ -29,9 +29,35 @@ static bool createShaderFromSpirv(const std::filesystem::path &path, u32 shader_
 */
 static bool compileShader(const std::filesystem::path &path, u32 shader_id);
 
-Shader::Shader(const std::filesystem::path& vsh_path, const std::filesystem::path& fsh_path) {
-	_prog_id = glCreateProgram();
+Shader::Shader() :
+    _prog_id(glCreateProgram()) {}
 
+
+bool Shader::attach(const std::filesystem::path& csh_path) {
+	_shader_ids[COMPUTE] = glCreateShader(GL_COMPUTE_SHADER);
+
+    const bool is_csh_spirv = csh_path.extension().string() == ".spv";
+
+    if (is_csh_spirv) {
+        if (!createShaderFromSpirv(csh_path, _shader_ids[COMPUTE])) {
+            return false;
+        }
+        glAttachShader(_prog_id, _shader_ids[COMPUTE]);
+    } else {
+        if (!compileShader(csh_path, _shader_ids[COMPUTE])) {
+            return false;
+        }
+
+        glAttachShader(_prog_id, _shader_ids[COMPUTE]);
+    }
+
+	glValidateProgram(_prog_id);
+	glLinkProgram(_prog_id);
+    
+    return true;
+}
+
+bool Shader::attach(const std::filesystem::path& vsh_path, const std::filesystem::path& fsh_path) {
 	_shader_ids[VERTEX] = glCreateShader(GL_VERTEX_SHADER);
 	_shader_ids[FRAGMENT] = glCreateShader(GL_FRAGMENT_SHADER);
 
@@ -40,21 +66,21 @@ Shader::Shader(const std::filesystem::path& vsh_path, const std::filesystem::pat
 
     if (is_vsh_spirv && is_fsh_spirv) {
         if (!createShaderFromSpirv(vsh_path, _shader_ids[VERTEX])) {
-            // TODO: err
+            return false;
         }
         if (!createShaderFromSpirv(fsh_path, _shader_ids[FRAGMENT])) {
-            // TODO: err
+            return false;
         }
         glAttachShader(_prog_id, _shader_ids[VERTEX]);
         glAttachShader(_prog_id, _shader_ids[FRAGMENT]);
     } else if (is_vsh_spirv != is_fsh_spirv) {
-        // TODO: err
+        return false;
     } else {
         if (!compileShader(vsh_path, _shader_ids[VERTEX])) {
-            // TODO: err
+            return false;
         }
         if (!compileShader(fsh_path, _shader_ids[FRAGMENT])) {
-            // TODO: err
+            return false;
         }
 
         glAttachShader(_prog_id, _shader_ids[VERTEX]);
@@ -63,29 +89,8 @@ Shader::Shader(const std::filesystem::path& vsh_path, const std::filesystem::pat
 
 	glValidateProgram(_prog_id);
 	glLinkProgram(_prog_id);
-}
-Shader::Shader(const std::filesystem::path& csh_path) {
-	_prog_id = glCreateProgram();
 
-	_shader_ids[COMPUTE] = glCreateShader(GL_COMPUTE_SHADER);
-
-    const bool is_csh_spirv = csh_path.extension().string() == ".spv";
-
-    if (is_csh_spirv) {
-        if (!createShaderFromSpirv(csh_path, _shader_ids[COMPUTE])) {
-            // TODO: err
-        }
-        glAttachShader(_prog_id, _shader_ids[COMPUTE]);
-    } else {
-        if (!compileShader(csh_path, _shader_ids[COMPUTE])) {
-            // TODO: err
-        }
-
-        glAttachShader(_prog_id, _shader_ids[COMPUTE]);
-    }
-
-	glValidateProgram(_prog_id);
-	glLinkProgram(_prog_id);
+    return true;
 }
 void Shader::bind() const {
 	glUseProgram(_prog_id);

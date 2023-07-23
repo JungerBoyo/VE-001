@@ -1,6 +1,7 @@
 find_package(fmt REQUIRED)
 find_package(glad REQUIRED)
 find_package(stb REQUIRED)
+find_package(spdlog REQUIRED)
 
 if (USE_SDL2)
     add_compile_definitions(${PROJECT_NAME}_USE_SDL2=1)
@@ -12,12 +13,11 @@ endif()
 
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 
-# add_library(types INTERFACE types.h)
-# link_libraries(types)
-
 add_subdirectory(window)
 add_subdirectory(sandbox_utils)
+add_subdirectory(logger)
 add_subdirectory(gl_boilerplate)
+add_subdirectory(engine)
 
 add_library(gl_context STATIC gl_context.h gl_context.cpp)
 target_link_libraries(gl_context PUBLIC glad::glad)
@@ -27,9 +27,13 @@ elseif (USE_GLFW3)
     target_link_libraries(gl_context PRIVATE glfw)
 endif()
 
+# if (DEBUG)
+    target_link_libraries(gl_context PRIVATE logger)
+# endif()
+
 add_executable(${PROJECT_NAME} main.cpp)
 
-target_link_libraries(${PROJECT_NAME} PRIVATE fmt::fmt window gl_context vmath sandbox_utils)
+target_link_libraries(${PROJECT_NAME} PRIVATE window gl_context vmath sandbox_utils)
 
 
 
