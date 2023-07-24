@@ -17,9 +17,14 @@ struct ChunkMeshPool {
         void (*vertex_layout_config)(u32 vao, u32 vbo);
     };
 
+    enum SubmeshOrientation : u32 {
+        X_POS, X_NEG, Y_POS, Y_NEG, Z_POS, Z_NEG
+    };
+    
     struct SubmeshData {
-        void *ptr{ nullptr };
+        void* ptr{ nullptr };
         i32 vertex_count{ 0 };
+        SubmeshOrientation orientation;
     };
 
     struct ChunkData {
@@ -28,13 +33,11 @@ struct ChunkMeshPool {
     };
 
 private:
-    enum SubmeshOrientation : u32 {
-        X_POS, X_NEG, Y_POS, Y_NEG, Z_POS, Z_NEG
-    };
 
     struct ChunkMetadata {
         Vec3f32 position;
-        i32 chunk_id;
+        u32 draw_cmd_indices[6];
+        void* region;
     };
 
     struct DrawArraysIndirectCmd {
@@ -44,11 +47,12 @@ private:
         u32 base_instance;
         
         SubmeshOrientation orientation;
-        std::size_t chunk_metadata_index{ 0U };
+        u32 chunk_index{ 0U };
     };
 
     u32 _vbo_id{ 0U };
     u32 _vao_id{ 0U };
+    u32 _dibo_id{ 0U };
 
     i32 _max_chunk_size{ 0 };
     i32 _chunks_count{ 0 };
@@ -63,14 +67,19 @@ private:
 
     std::vector<DrawArraysIndirectCmd> _draw_cmds;
 
-    std::vector<ChunkMetadata> _chunk_submesh_metadata;
-    i32 _submeshes_scheduled_for_draw_count{ 0 };
+    std::vector<ChunkMetadata> _chunk_metadata;
+    // i32 _submeshes_scheduled_for_draw_count{ 0 };
 
 public:
     ChunkMeshPool() = default;
 
     Error init(Config config) noexcept;
-    Error allocateChunk(i32& chunk_id, ChunkData chunk_data, Vec3f32 position) noexcept;
+    Error allocateChunk(u32& chunk_id, ChunkData chunk_data, Vec3f32 position) noexcept;
+    Error deallocateChunk(u32 chunk_id) noexcept;
+
+    void drawAll() noexcept;
+
+    void deinit() noexcept;
 };
 
 }

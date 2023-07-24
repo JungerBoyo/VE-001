@@ -41,6 +41,12 @@ struct RingBuffer {
     bool empty() const {
         return _writer_index == _reader_index;
     }
+
+    void clear() {
+        _buffer.clear();
+        _writer_index = 0U;
+        _reader_index = 0U;
+    }
 };
 
 }
