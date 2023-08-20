@@ -29,6 +29,9 @@ concept is_valid_vec_size = (S >= 2 && S <= 4);
 template<typename T>
 concept is_valid_vec_type = (std::is_floating_point_v<T> || std::is_integral_v<T>);
 
+template<typename T, typename SameType>
+concept is_valid_vec_type_or_same = (is_valid_vec_type<T> || std::is_same_v<T, SameType>);
+
 template<typename T, std::size_t S> 
 requires is_valid_vec_type<T> && is_valid_vec_size<S>
 struct Vec {
@@ -53,23 +56,15 @@ struct Vec {
         }
     }
 
-    template<typename ...Args>
-    Vec(Args... args) {
-        static_assert(sizeof...(Args) == S || sizeof...(Args) == 1, "Incorrect number of arguments provided for Vec constructor or 1.");
-        static_assert((is_valid_vec_type<Args> && ...), "All arguments must have floating or integral type.");
-
-        if constexpr (sizeof...(Args) == 1) {
-            T tmp[sizeof...(Args)] = { args... };
-            for (std::size_t i{ 0 }; i < S; ++i) {
-                values[i] = tmp[0];
-            }
-        } else {
-            T tmp[sizeof...(Args)] = { args... };
-            for (std::size_t i{ 0 }; i < S; ++i) {
-                values[i] = tmp[i];
-            }
+    Vec(T value) {
+        for (std::size_t i{ 0U }; i < S; ++i) {
+            values[i] = value;
         }
     }
+
+    template<typename ...Args>
+    requires (sizeof...(Args) == S && (std::is_same_v<T, Args> && ...))
+    constexpr Vec(Args... args) : values{ args... } {}
 
     static T dot(Vec<T, S> lhs, Vec<T, S> rhs) {
         T sum{ 0 };
@@ -78,6 +73,18 @@ struct Vec {
         }
         return sum;
     }
+
+    template<typename _T>
+    requires is_valid_vec_type<_T>
+    static Vec<T, S> cast(Vec<_T, S> vec) {
+        Vec<T, S> result;
+        for (std::size_t i{ 0U }; i < S; ++i) {
+            result[i] = static_cast<T>(vec[i]);
+        }
+        return result;
+    }
+
+
 
     T len() const {
         return std::sqrt(Vec<T, S>::dot(*this, *this));

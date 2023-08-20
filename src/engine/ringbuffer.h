@@ -11,6 +11,8 @@ struct RingBuffer {
     std::size_t _writer_index{ 0U };
     std::size_t _reader_index{ 0U };
 
+    RingBuffer() = default;
+
     RingBuffer(std::size_t size, T fill_value) 
         : _buffer(size, fill_value) {}
 

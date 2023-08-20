@@ -4,3 +4,6 @@ build*/
 .vscode/
 notes.txt
 conanprofile.txt
+conanprofile.dbg.txt
+.ninja_log
+ve001_log

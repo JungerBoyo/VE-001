@@ -128,6 +128,9 @@ std::vector<char> parseAsSpirv(const std::filesystem::path &path) {
 
 bool createShaderFromSpirv(const std::filesystem::path &path, u32 shader_id) {
     const auto sh_binary = parseAsSpirv(path);
+    if (sh_binary.empty()) {
+        return false; 
+    }
     glShaderBinary(
         1, static_cast<const GLuint *>(&shader_id),
         GL_SHADER_BINARY_FORMAT_SPIR_V_ARB,
@@ -136,15 +139,21 @@ bool createShaderFromSpirv(const std::filesystem::path &path, u32 shader_id) {
     );
     glSpecializeShaderARB(shader_id, "main", 0, nullptr, nullptr);
 
-    return glGetError() != GL_NO_ERROR;
+    return true;
 }
 bool compileShader(const std::filesystem::path &path, u32 shader_id) {
 	std::ifstream stream(path.c_str());
+    if (!stream.good()) {
+       return false; 
+    }
 	std::stringstream sstream;
 	for (std::string line; std::getline(stream, line);) {
 		sstream << line << '\n';
 	}
 	const auto shader_src = sstream.str();
+    if (shader_src.empty()) {
+        return false;
+    }
 
 	const char* shader_src_cstr = shader_src.c_str();
 	const auto len = static_cast<i32>(shader_src.length());
@@ -152,5 +161,5 @@ bool compileShader(const std::filesystem::path &path, u32 shader_id) {
 	glShaderSource(shader_id, 1, &shader_src_cstr, &len);
 	glCompileShader(shader_id);
 
-    return glGetError() != GL_NO_ERROR;
+    return true;
 }

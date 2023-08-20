@@ -17,6 +17,7 @@ add_subdirectory(window)
 add_subdirectory(sandbox_utils)
 add_subdirectory(logger)
 add_subdirectory(gl_boilerplate)
+add_subdirectory(voxel_terrain_generator)
 add_subdirectory(engine)
 
 add_library(gl_context STATIC gl_context.h gl_context.cpp)
@@ -33,7 +34,17 @@ endif()
 
 add_executable(${PROJECT_NAME} main.cpp)
 
-target_link_libraries(${PROJECT_NAME} PRIVATE window gl_context vmath sandbox_utils)
+target_link_libraries(${PROJECT_NAME} PRIVATE 
+    window 
+    gl_context 
+    gl_boilerplate
+    vmath 
+    sandbox_utils 
+    voxel_terrain_generator
+    ve001_engine    
+)
+
+add_dependencies(${PROJECT_NAME} compile_and_copy_shaders_dirs)
 
 
 
