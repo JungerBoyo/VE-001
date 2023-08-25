@@ -1,3 +1,5 @@
+#define GLFW_INCLUDE_NONE
+#include <GLFW/glfw3.h>
 #include <glad/glad.h>
 
 #include <gl_context.h>
@@ -74,10 +76,10 @@ std::array<Vertex, 6> genFace(u8 face, Vec3f32 offset, Vec3f32 scale, Vec2f32 fa
     case 1: //NEG_X: 
         faces[0].position = Vec3f32::add(offset, genPosition(0U, scale));
         faces[1].position = Vec3f32::add(offset, genPosition(1U, scale));
-        faces[2].position = Vec3f32::add(offset, genPosition(2U, scale));
+        faces[2].position = Vec3f32::add(offset, genPosition(3U, scale));
         faces[3].position = Vec3f32::add(offset, genPosition(0U, scale));
-        faces[4].position = Vec3f32::add(offset, genPosition(2U, scale));
-        faces[5].position = Vec3f32::add(offset, genPosition(3U, scale));
+        faces[4].position = Vec3f32::add(offset, genPosition(3U, scale));
+        faces[5].position = Vec3f32::add(offset, genPosition(2U, scale));
     break;
     case 2: //POS_Y: 
         faces[0].position = Vec3f32::add(offset, genPosition(2U, scale));
@@ -136,6 +138,31 @@ TextureRGBA8Array createCubeMapTextureArray(const std::filesystem::path& img_pat
     return texture_rgba8_array;
 }
 
+static constexpr Vec3i32 EXTENT(30, 40, 50);
+
+static f32 timestep{ 0U };
+static Camera camera{};
+
+void keyCallback(GLFWwindow* window_handle, i32 key, i32, i32 action, i32) {
+    if (action == GLFW_PRESS || action == GLFW_REPEAT) {
+        constexpr f32 step{ 24.0 };
+        switch(key) {
+        case GLFW_KEY_W: camera.move(Vec3f32(0.F, 0.F, timestep * -step)); break;
+        case GLFW_KEY_A: camera.move(Vec3f32(timestep * -step, 0.F, 0.F)); break;
+        case GLFW_KEY_Q: camera.move(Vec3f32(0.F, timestep * -step, 0.F)); break;
+        case GLFW_KEY_S: camera.move(Vec3f32(0.F, 0.F, timestep *  step)); break;
+        case GLFW_KEY_D: camera.move(Vec3f32(timestep *  step, 0.F, 0.F)); break;
+        case GLFW_KEY_E: camera.move(Vec3f32(0.F, timestep *  step, 0.F)); break;
+        case GLFW_KEY_L: camera.rotate(Vec3f32(0.F,-timestep * std::numbers::pi_v<f32>/2.F, 0.F)); break;
+        case GLFW_KEY_H: camera.rotate(Vec3f32(0.F, timestep * std::numbers::pi_v<f32>/2.F, 0.F)); break;
+        case GLFW_KEY_K: camera.rotate(Vec3f32( timestep * std::numbers::pi_v<f32>/2.F, 0.F, 0.F)); break;
+        case GLFW_KEY_J: camera.rotate(Vec3f32(-timestep * std::numbers::pi_v<f32>/2.F, 0.F, 0.F)); break;
+        case GLFW_KEY_I: camera.rotate(Vec3f32(0.F, 0.F, timestep * std::numbers::pi_v<f32>/2.F)); break;
+        case GLFW_KEY_O: camera.rotate(Vec3f32(0.F, 0.F,-timestep * std::numbers::pi_v<f32>/2.F)); break;
+        }
+    }
+}
+
 int main() {
     if (!ve001::window.init("demo", 640, 480, nullptr)) {
         return 1;
@@ -151,28 +178,28 @@ int main() {
 
     ve001::ChunkMeshPool chunk_mesh_pool{};
     chunk_mesh_pool.init({
-        .chunk_dimensions = Vec3i32(16, 256, 16),
-        .max_chunks = 9,
+        .chunk_dimensions = EXTENT,
+        .max_chunks = 1,
         .vertex_size = sizeof(Vertex),
         .vertex_layout_config = setVertexLayout
     });
 
     ve001::MeshingEngine meshing_engine({
        .executor = MeshingEngine::Config::Executor::CPU,
-       .chunk_size = Vec3i32(16, 256, 16) 
+       .chunk_size = EXTENT
     });
 
     ve001::VoxelTerrainGenerator terrain_generator({
-        .terrain_size = Vec3i32(16, 256, 16),
-        .terrain_density = 4U,
+        .terrain_size = EXTENT,
+        .terrain_density = 10U,
         .noise_type = VoxelTerrainGenerator::Config::NoiseType::PERLIN,
         .quantize_values = 1U,
-        .quantized_value_size = 1U,
-        .seed = 0x42422424
+        .quantized_value_size = sizeof(u8),
+        .seed = 0x2223128
     });
     terrain_generator.init();
 
-    std::vector<u8> noise(16 * 256 * 16, 0U);
+    std::vector<u8> noise(EXTENT[0] * EXTENT[1] * EXTENT[2], 0U);
     terrain_generator.next(static_cast<void*>(noise.data()), 0U, 0U, Vec3i32(0));
     
     u32 chunk_id{ 0U };
@@ -185,10 +212,11 @@ int main() {
         chunk_dst_ptr, 0U, sizeof(Vertex), chunk_mesh_pool.submeshStride(),
         Vec3f32(0.F), 
         [&noise](i32 x, i32 y, i32 z) {
-            const auto index = static_cast<std::size_t>(x + y * 16 + z * 16 * 256);
+            // return true;
+            const auto index = static_cast<std::size_t>(x + y * EXTENT[0] + z * EXTENT[0] * EXTENT[1]);
             return noise[index] > 0U;
         },
-        [&](void* dst, MeshingEngine::MeshedRegionDescriptor descriptor) {
+        [](void* dst, MeshingEngine::MeshedRegionDescriptor descriptor) -> u32 {
             const auto region_offset = Vec3f32::cast(descriptor.region_offset);
             const auto region_extent = Vec3f32::cast(descriptor.region_extent);
             const auto squashed_region_offset = Vec2f32::cast(descriptor.squashed_region_extent);
@@ -201,6 +229,8 @@ int main() {
             );
 
             std::memcpy(dst, static_cast<const void*>(face.data()), face.size() * sizeof(Vertex));
+
+            return 6U;
         }
     );
 
@@ -226,9 +256,7 @@ int main() {
     glNamedBufferStorage(ubo, sizeof(Mat4f32), nullptr, GL_DYNAMIC_STORAGE_BIT);
     glBindBufferBase(GL_UNIFORM_BUFFER, CONFIG_MVP_UBO_BINDING, ubo);
 
-    Camera camera{};
-
-    camera.move({0.F, 0.F, 10.F});
+    window.setKeyCallback(keyCallback);
 
     glClearColor(.22F, .61F, .78F, 1.F);
 
@@ -237,14 +265,14 @@ int main() {
         const auto [window_width, window_height] = window.size();
 
         const auto frame_time = window.time();
-        const auto timestep = frame_time - prev_frame_time;
+        timestep = frame_time - prev_frame_time;
         prev_frame_time = frame_time;
 
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         glViewport(0, 0, window_width, window_height);
 
         const auto proj_mat = misc<f32>::symmetricPerspectiveProjection(
-            .25F * std::numbers::pi_v<f32>, .1F, 1000.F, 
+            .25F * std::numbers::pi_v<f32>, .1F, 100.F, 
             static_cast<f32>(window_width), static_cast<f32>(window_height)
         );
 

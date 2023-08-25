@@ -327,9 +327,9 @@ requires std::is_floating_point_v<T>
 struct misc {
     static Mat4<T> symmetricPerspectiveProjection(T fov, T near, T far, T width, T height) {
         return Mat4<T>(
-            Vec4<T>(static_cast<T>(1.0)/(width/height) * fov, static_cast<T>(0.0), static_cast<T>(0.0), static_cast<T>(0.0)),
+            Vec4<T>(static_cast<T>(1.0)/((width/height) * fov), static_cast<T>(0.0), static_cast<T>(0.0), static_cast<T>(0.0)),
             Vec4<T>(static_cast<T>(0.0), static_cast<T>(1.0)/fov, static_cast<T>(0.0), static_cast<T>(0.0)),
-            Vec4<T>(static_cast<T>(0.0), static_cast<T>(0.0), (-far - near)/(far - near), -static_cast<T>(1.0)),
+            Vec4<T>(static_cast<T>(0.0), static_cast<T>(0.0), (-far - near)/(far - near), static_cast<T>(-1.0)),
             Vec4<T>(static_cast<T>(0.0), static_cast<T>(0.0), -(static_cast<T>(2.0) * far * near)/(far - near), static_cast<T>(0.0))
         );
     }

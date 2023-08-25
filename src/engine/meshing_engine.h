@@ -50,7 +50,7 @@ public:
         u32 face_stride, 
         Vec3f32 position, 
         const std::function<bool(i32, i32, i32)>& fn_state_query,
-        const std::function<void(void*, MeshedRegionDescriptor)>& fn_write_quad
+        const std::function<u32(void*, MeshedRegionDescriptor)>& fn_write_quad
     );
 
 private:
@@ -63,7 +63,7 @@ private:
         u32 stride, 
         Vec3f32 position, 
         const std::function<bool(i32, i32, i32)>& fn_state_query,
-        const std::function<void(void*, MeshedRegionDescriptor)>& fn_write_quad
+        const std::function<u32(void*, MeshedRegionDescriptor)>& fn_write_quad
     );
 };
 

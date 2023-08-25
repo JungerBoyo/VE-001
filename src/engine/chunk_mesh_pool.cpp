@@ -39,10 +39,11 @@ Error ChunkMeshPool::init(Config config) noexcept {
     glCreateVertexArrays(1, &_vao_id);
     config.vertex_layout_config(_vao_id, _vbo_id);
 
-    _vbo_ptr = glMapNamedBuffer(
+    _vbo_ptr = glMapNamedBufferRange(
         _vbo_id,
-        GL_WRITE_ONLY
-        // GL_MAP_WRITE_BIT|GL_MAP_PERSISTENT_BIT|GL_MAP_COHERENT_BIT
+        0U,
+        _max_chunk_size * config.max_chunks,
+        GL_MAP_WRITE_BIT|GL_MAP_PERSISTENT_BIT|GL_MAP_COHERENT_BIT
     );
 
     if (_vbo_ptr == nullptr) {
@@ -372,6 +373,7 @@ void ChunkMeshPool::drawAll() noexcept {
 
         glBindBuffer(GL_DRAW_INDIRECT_BUFFER, _dibo_id);
         glBindVertexArray(_vao_id);
+        glBindBuffer(GL_ARRAY_BUFFER, _vbo_id);
 
         glMultiDrawArraysIndirect(
             GL_TRIANGLES, 

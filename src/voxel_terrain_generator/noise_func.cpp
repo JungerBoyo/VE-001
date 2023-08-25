@@ -38,7 +38,7 @@ static f32 dotGradient3dPerlin(u32 seed, Vec3i32 index, Vec3f32 point) {
     random_index = murmur3(index[2], random_index);
     random_index = murmur3(seed, random_index);
 
-    const auto gradient = gradients[random_index & 0xF];
+    const auto gradient = gradients[random_index % 12];
 
     const auto dist = Vec3f32::sub(
         point,
@@ -58,7 +58,7 @@ static f32 dotGradient3dSimplex(u32 seed, Vec3i32 index, Vec3f32 point) {
     random_index = murmur3(index[2], random_index);
     random_index = murmur3(seed, random_index);
 
-    const auto gradient = gradients[random_index & 0xF];
+    const auto gradient = gradients[random_index % 12];
 
     return Vec3f32::dot(gradient, point);
 }
@@ -76,6 +76,8 @@ f32 PerlinNoiseFunc3D::invoke(Vec3f32 point, u32 grid_density) {
     };
 
     const auto p111 = Vec3i32::add(p000, {1});
+
+    point = Vec3f32::divScalar(point, static_cast<f32>(grid_density));
 
     const auto interpolation_weights = Vec3f32::sub(
         point, 

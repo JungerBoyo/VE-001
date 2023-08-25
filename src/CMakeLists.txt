@@ -41,7 +41,8 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
     vmath 
     sandbox_utils 
     voxel_terrain_generator
-    ve001_engine    
+    ve001_engine
+    glfw    
 )
 
 add_dependencies(${PROJECT_NAME} compile_and_copy_shaders_dirs)
