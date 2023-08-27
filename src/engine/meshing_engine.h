@@ -48,20 +48,19 @@ public:
         u32 offset, 
         u32 stride, 
         u32 face_stride, 
-        Vec3f32 position, 
+        Vec3i32 position, 
         const std::function<bool(i32, i32, i32)>& fn_state_query,
         const std::function<u32(void*, MeshedRegionDescriptor)>& fn_write_quad
     );
 
 private:
-
     u32 meshAxis(
         MeshingFace meshing_face, 
         void* face_dst, 
         u32 face_dst_max_size,
         u32 offset, 
         u32 stride, 
-        Vec3f32 position, 
+        Vec3i32 position, 
         const std::function<bool(i32, i32, i32)>& fn_state_query,
         const std::function<u32(void*, MeshedRegionDescriptor)>& fn_write_quad
     );

@@ -23,7 +23,7 @@ std::shared_ptr<spdlog::logger> ve001::logger(std::make_shared<spdlog::logger>(
         std::make_shared<spdlog::sinks::wincolor_stdout_sink_mt>().
     #endif
 #endif
-#ifdef VE001_LOG_TO_FILE
+#if defined(VE001_LOG_TO_FILE) && !defined(WINDOWS) // for now disable on windows
     std::make_shared<spdlog::sinks::rotating_file_sink_st>("ve001_log", 4096, 1)
 #endif
     })

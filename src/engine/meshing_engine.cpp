@@ -10,7 +10,7 @@ std::array<u32, 6> MeshingEngine::mesh(
     u32 offset, 
     u32 stride, 
     u32 face_stride, 
-    Vec3f32 position, 
+    Vec3i32 position, 
     const std::function<bool(i32, i32, i32)>& fn_visibility_query,
     const std::function<u32(void*, MeshedRegionDescriptor)>& fn_write_quad
 ) {
@@ -37,7 +37,7 @@ u32 MeshingEngine::meshAxis(
     u32 face_dst_max_size,
     u32 offset, 
     u32 stride, 
-    Vec3f32 position, 
+    Vec3i32 position, 
     const std::function<bool(i32, i32, i32)>& fn_visibility_query,
     const std::function<u32(void*, MeshedRegionDescriptor)>& fn_write_quad
 ) {
@@ -121,10 +121,14 @@ u32 MeshingEngine::meshAxis(
                         mesh_region[axis_id == 0 ? 0 : 1]
                     );                    
 
-                    Vec3i32 region_offset(0);
-                    region_offset[logical_indices[2]] = i[2];
-                    region_offset[logical_indices[1]] = i[1];
-                    region_offset[logical_indices[0]] = i[0];
+                    Vec3i32 region_offset(
+                        position[0] * config.chunk_size[0], 
+                        position[1] * config.chunk_size[1], 
+                        position[2] * config.chunk_size[2]
+                    );
+                    region_offset[logical_indices[2]] += i[2];
+                    region_offset[logical_indices[1]] += i[1];
+                    region_offset[logical_indices[0]] += i[0];
 
                     const auto vertex_count = fn_write_quad(static_cast<void*>(face_dst_u8), {
                         .face = meshing_face,

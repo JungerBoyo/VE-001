@@ -1,5 +1,5 @@
 // linter doesn't detect compile time definitions
-#ifndef VE001_USE_GLFW3
+#if !defined(VE001_USE_GLFW3) && !defined(VE001_USE_SDL2)
 #define VE001_USE_GLFW3
 #endif
 
@@ -73,7 +73,7 @@ TextureRGBA8Array createCubeMapTextureArray(const std::filesystem::path& img_pat
     return texture_rgba8_array;
 }
 
-static constexpr Vec3i32 EXTENT(4, 2, 2);
+static constexpr Vec3i32 EXTENT(16, 256, 16);
 
 static f32 timestep{ 0U };
 static Camera camera{};
@@ -135,7 +135,7 @@ int main() {
     ve001::ChunkMeshPool chunk_mesh_pool{};
     chunk_mesh_pool.init({
         .chunk_dimensions = EXTENT,
-        .max_chunks = 1,
+        .max_chunks = 9,
         .vertex_size = sizeof(Vertex),
         .vertex_layout_config = setVertexLayout
     });
@@ -147,7 +147,7 @@ int main() {
 
     ve001::VoxelTerrainGenerator terrain_generator({
         .terrain_size = EXTENT,
-        .terrain_density = 2U,
+        .terrain_density = 4U,
         .noise_type = VoxelTerrainGenerator::Config::NoiseType::PERLIN,
         .quantize_values = 1U,
         .quantized_value_size = sizeof(u8),
@@ -156,7 +156,11 @@ int main() {
     terrain_generator.init();
 
     std::vector<u8> noise(EXTENT[0] * EXTENT[1] * EXTENT[2], 0U);
-    terrain_generator.next(static_cast<void*>(noise.data()), 0U, 0U, Vec3i32(0));
+
+    for (i32 z{ 0 }; z < 3; ++z) {
+    for (i32 x{ 0 }; x < 3; ++x) {
+
+    terrain_generator.next(static_cast<void*>(noise.data()), 0U, 0U, Vec3i32(x, 0, z));
     
     u32 chunk_id{ 0U };
     chunk_mesh_pool.allocateEmptyChunk(chunk_id, Vec3f32(0.F));
@@ -166,7 +170,7 @@ int main() {
 
     const auto per_face_vertex_count = meshing_engine.mesh(
         chunk_dst_ptr, 0U, sizeof(Vertex), chunk_mesh_pool.submeshStride(),
-        Vec3f32(0.F), 
+        Vec3i32(x, 0, z), 
         [&noise](i32 x, i32 y, i32 z) {
             // return true;
             const auto index = static_cast<std::size_t>(x + y * EXTENT[0] + z * EXTENT[0] * EXTENT[1]);
@@ -193,6 +197,8 @@ int main() {
     chunk_mesh_pool.freeChunkWritePtr(chunk_id);
 
     chunk_mesh_pool.updateChunkSubmeshVertexCounts(chunk_id, per_face_vertex_count);
+
+    }}
 
     auto texture_rgba8_array = createCubeMapTextureArray(
         "/home/regu/codium_repos/VE-001/assets/textures/mcgrasstexture.png"

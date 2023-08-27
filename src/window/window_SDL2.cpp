@@ -57,6 +57,8 @@ bool Window::init(std::string_view title, i32 w, i32 h, void (*win_error_callbac
 	SDL_GL_SetSwapInterval(1);
 
 	window._win_native_data->win_error_callback = win_error_callback;
+
+	return true;
 }
 
 void* Window::native() {
