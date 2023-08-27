@@ -105,7 +105,7 @@ u32 MeshingEngine::meshAxis(
 
                     for ( ;i[1] + mesh_region[1] < logical_extent[1]; ++mesh_region[1]) {
                         for (i32 tmp_mesh_region{ 0 }; i[0] + tmp_mesh_region < i[0] + mesh_region[0]; ++tmp_mesh_region) {
-                            if (!plane_of_states[(i[0] + mesh_region[0]) + i[1] * logical_extent[0]]) {
+                            if (!plane_of_states[(i[0] + tmp_mesh_region) + (i[1] + mesh_region[1]) * logical_extent[0]]) {
                                 goto break_outer;
                             }
                         }

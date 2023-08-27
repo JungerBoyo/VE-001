@@ -1,5 +1,13 @@
+// linter doesn't detect compile time definitions
+#ifndef VE001_USE_GLFW3
+#define VE001_USE_GLFW3
+#endif
+
+#ifdef VE001_USE_GLFW3
 #define GLFW_INCLUDE_NONE
 #include <GLFW/glfw3.h>
+#endif
+
 #include <glad/glad.h>
 
 #include <gl_context.h>
@@ -12,117 +20,44 @@
 #include <engine/cubemap.h>
 #include <engine/texture_rgba8_array.h>
 #include <sandbox_utils/camera.h>
+#include <sandbox_utils/face_gen.h>
 #include <gl_boilerplate/shader.h>
 
 #include <cstring>
 #include <numbers>
 
+// linter doesn't detect compile time definitions
+#ifndef SH_CONFIG_POSITION_ATTRIB_INDEX
+#define SH_CONFIG_POSITION_ATTRIB_INDEX 0
+#endif
+#ifndef SH_CONFIG_TEXCOORD_ATTRIB_INDEX
+#define SH_CONFIG_TEXCOORD_ATTRIB_INDEX 1
+#endif
+#ifndef SH_CONFIG_2D_TEX_ARRAY_BINDING
+#define SH_CONFIG_2D_TEX_ARRAY_BINDING 1
+#endif
+#ifndef SH_CONFIG_MVP_UBO_BINDING
+#define SH_CONFIG_MVP_UBO_BINDING 0
+#endif
+
 using namespace ve001;
 using namespace vmath;
-
-constexpr u32 POSITION_ATTRIB_INDEX{ 0U };
-constexpr u32 TEXCOORD_ATTRIB_INDEX{ 1U };
-
-constexpr u32 CONFIG_2D_TEX_ARRAY_BINDING{ 1U };
-constexpr u32 CONFIG_MVP_UBO_BINDING{ 0 };
-
-struct Vertex {
-    Vec3f32 position;
-    Vec3f32 texcoord;
-};
 
 void setVertexLayout(u32 vao, u32 vbo) {
     const u32 vertex_attrib_binding = 0U;
 
-    glEnableVertexArrayAttrib(vao, POSITION_ATTRIB_INDEX);
-    glEnableVertexArrayAttrib(vao, TEXCOORD_ATTRIB_INDEX);
+    glEnableVertexArrayAttrib(vao, SH_CONFIG_POSITION_ATTRIB_INDEX);
+    glEnableVertexArrayAttrib(vao, SH_CONFIG_TEXCOORD_ATTRIB_INDEX);
 
-    glVertexArrayAttribFormat(vao, POSITION_ATTRIB_INDEX, 3, GL_FLOAT, GL_FALSE, offsetof(Vertex, position));
-    glVertexArrayAttribFormat(vao, TEXCOORD_ATTRIB_INDEX, 3, GL_FLOAT, GL_FALSE, offsetof(Vertex, texcoord));
+    glVertexArrayAttribFormat(vao, SH_CONFIG_POSITION_ATTRIB_INDEX, 3, GL_FLOAT, GL_FALSE, offsetof(Vertex, position));
+    glVertexArrayAttribFormat(vao, SH_CONFIG_TEXCOORD_ATTRIB_INDEX, 3, GL_FLOAT, GL_FALSE, offsetof(Vertex, texcoord));
     
-    glVertexArrayAttribBinding(vao, POSITION_ATTRIB_INDEX, vertex_attrib_binding);
-    glVertexArrayAttribBinding(vao, TEXCOORD_ATTRIB_INDEX, vertex_attrib_binding);
+    glVertexArrayAttribBinding(vao, SH_CONFIG_POSITION_ATTRIB_INDEX, vertex_attrib_binding);
+    glVertexArrayAttribBinding(vao, SH_CONFIG_TEXCOORD_ATTRIB_INDEX, vertex_attrib_binding);
 
     glVertexArrayBindingDivisor(vao, vertex_attrib_binding, 0);
 
     glVertexArrayVertexBuffer(vao, vertex_attrib_binding, vbo, 0, sizeof(Vertex));
-}
-
-constexpr Vec3f32 genPosition(u8 bin, Vec3f32 scale) { switch (bin) {
-    case 0: return Vec3f32(0.F,         0.F,        0.F);       // --- 
-    case 1: return Vec3f32(0.F,         0.F,        scale[2]);  // --+
-    case 2: return Vec3f32(0.F,         scale[1],   0.F);       // -+-
-    case 3: return Vec3f32(0.F,         scale[1],   scale[2]);  // -++
-    case 4: return Vec3f32(scale[0],    0.F,        0.F);       // +--
-    case 5: return Vec3f32(scale[0],    0.F,        scale[2]);  // +-+
-    case 6: return Vec3f32(scale[0],    scale[1],   0.F);       // ++-
-    case 7: return Vec3f32(scale[0],    scale[1],   scale[2]);  // +++
-
-    default: return Vec3f32(0.F, 0.F, 0.F);
-}}
-
-std::array<Vertex, 6> genFace(u8 face, Vec3f32 offset, Vec3f32 scale, Vec2f32 face_scale) {
-    std::array<Vertex, 6> faces;
-    switch (face) {
-    case 0: //POS_X: 
-        faces[0].position = Vec3f32::add(offset, genPosition(5U, scale)); 
-        faces[1].position = Vec3f32::add(offset, genPosition(4U, scale));
-        faces[2].position = Vec3f32::add(offset, genPosition(6U, scale));
-        faces[3].position = Vec3f32::add(offset, genPosition(5U, scale));
-        faces[4].position = Vec3f32::add(offset, genPosition(6U, scale));
-        faces[5].position = Vec3f32::add(offset, genPosition(7U, scale));
-
-    break;
-    case 1: //NEG_X: 
-        faces[0].position = Vec3f32::add(offset, genPosition(0U, scale));
-        faces[1].position = Vec3f32::add(offset, genPosition(1U, scale));
-        faces[2].position = Vec3f32::add(offset, genPosition(3U, scale));
-        faces[3].position = Vec3f32::add(offset, genPosition(0U, scale));
-        faces[4].position = Vec3f32::add(offset, genPosition(3U, scale));
-        faces[5].position = Vec3f32::add(offset, genPosition(2U, scale));
-    break;
-    case 2: //POS_Y: 
-        faces[0].position = Vec3f32::add(offset, genPosition(2U, scale));
-        faces[1].position = Vec3f32::add(offset, genPosition(3U, scale));
-        faces[2].position = Vec3f32::add(offset, genPosition(7U, scale));
-        faces[3].position = Vec3f32::add(offset, genPosition(2U, scale));
-        faces[4].position = Vec3f32::add(offset, genPosition(7U, scale));
-        faces[5].position = Vec3f32::add(offset, genPosition(6U, scale));
-    break;
-    case 3: //NEG_Y: 
-        faces[0].position = Vec3f32::add(offset, genPosition(4U, scale));
-        faces[1].position = Vec3f32::add(offset, genPosition(5U, scale));
-        faces[2].position = Vec3f32::add(offset, genPosition(1U, scale));
-        faces[3].position = Vec3f32::add(offset, genPosition(4U, scale));
-        faces[4].position = Vec3f32::add(offset, genPosition(1U, scale));
-        faces[5].position = Vec3f32::add(offset, genPosition(0U, scale));
-    break;
-    case 4: //POS_Z: 
-        faces[0].position = Vec3f32::add(offset, genPosition(1U, scale));
-        faces[1].position = Vec3f32::add(offset, genPosition(5U, scale));
-        faces[2].position = Vec3f32::add(offset, genPosition(7U, scale));
-        faces[3].position = Vec3f32::add(offset, genPosition(1U, scale));
-        faces[4].position = Vec3f32::add(offset, genPosition(7U, scale));
-        faces[5].position = Vec3f32::add(offset, genPosition(3U, scale));
-    break;
-    case 5: //NEG_Z: 
-        faces[0].position = Vec3f32::add(offset, genPosition(4U, scale));
-        faces[1].position = Vec3f32::add(offset, genPosition(0U, scale));
-        faces[2].position = Vec3f32::add(offset, genPosition(2U, scale));
-        faces[3].position = Vec3f32::add(offset, genPosition(4U, scale));
-        faces[4].position = Vec3f32::add(offset, genPosition(2U, scale));
-        faces[5].position = Vec3f32::add(offset, genPosition(6U, scale));
-    break;
-    }
-
-    faces[0].texcoord = Vec3f32(0.F,            0.F,            static_cast<f32>(face));
-    faces[1].texcoord = Vec3f32(face_scale[0],  0.F,            static_cast<f32>(face));
-    faces[2].texcoord = Vec3f32(face_scale[0],  face_scale[1],  static_cast<f32>(face));
-    faces[3].texcoord = Vec3f32(0.F,            0.F,            static_cast<f32>(face));
-    faces[4].texcoord = Vec3f32(face_scale[0],  face_scale[1],  static_cast<f32>(face));
-    faces[5].texcoord = Vec3f32(0.F,            face_scale[1],  static_cast<f32>(face));
-
-    return faces;
 }
 
 TextureRGBA8Array createCubeMapTextureArray(const std::filesystem::path& img_path) {
@@ -138,30 +73,51 @@ TextureRGBA8Array createCubeMapTextureArray(const std::filesystem::path& img_pat
     return texture_rgba8_array;
 }
 
-static constexpr Vec3i32 EXTENT(30, 40, 50);
+static constexpr Vec3i32 EXTENT(4, 2, 2);
 
 static f32 timestep{ 0U };
 static Camera camera{};
 
+Vec2f32 prev_mouse_pos(0.F);
+
+#ifdef VE001_USE_GLFW3
 void keyCallback(GLFWwindow* window_handle, i32 key, i32, i32 action, i32) {
     if (action == GLFW_PRESS || action == GLFW_REPEAT) {
         constexpr f32 step{ 24.0 };
         switch(key) {
-        case GLFW_KEY_W: camera.move(Vec3f32(0.F, 0.F, timestep * -step)); break;
-        case GLFW_KEY_A: camera.move(Vec3f32(timestep * -step, 0.F, 0.F)); break;
-        case GLFW_KEY_Q: camera.move(Vec3f32(0.F, timestep * -step, 0.F)); break;
-        case GLFW_KEY_S: camera.move(Vec3f32(0.F, 0.F, timestep *  step)); break;
-        case GLFW_KEY_D: camera.move(Vec3f32(timestep *  step, 0.F, 0.F)); break;
-        case GLFW_KEY_E: camera.move(Vec3f32(0.F, timestep *  step, 0.F)); break;
-        case GLFW_KEY_L: camera.rotate(Vec3f32(0.F,-timestep * std::numbers::pi_v<f32>/2.F, 0.F)); break;
-        case GLFW_KEY_H: camera.rotate(Vec3f32(0.F, timestep * std::numbers::pi_v<f32>/2.F, 0.F)); break;
-        case GLFW_KEY_K: camera.rotate(Vec3f32( timestep * std::numbers::pi_v<f32>/2.F, 0.F, 0.F)); break;
-        case GLFW_KEY_J: camera.rotate(Vec3f32(-timestep * std::numbers::pi_v<f32>/2.F, 0.F, 0.F)); break;
-        case GLFW_KEY_I: camera.rotate(Vec3f32(0.F, 0.F, timestep * std::numbers::pi_v<f32>/2.F)); break;
-        case GLFW_KEY_O: camera.rotate(Vec3f32(0.F, 0.F,-timestep * std::numbers::pi_v<f32>/2.F)); break;
+        case GLFW_KEY_W: camera.move({0.F, 0.F, timestep * step}); break;
+        case GLFW_KEY_A: camera.move({timestep * -step, 0.F, 0.F}); break;
+        case GLFW_KEY_Q: camera.move({0.F, timestep * -step, 0.F}); break;
+        case GLFW_KEY_S: camera.move({0.F, 0.F, timestep * -step}); break;
+        case GLFW_KEY_D: camera.move({timestep *  step, 0.F, 0.F}); break;
+        case GLFW_KEY_E: camera.move({0.F, timestep *  step, 0.F}); break;
+        case GLFW_KEY_L: camera.rotate({0.F,-timestep * std::numbers::pi_v<f32>/2.F, 0.F}); break;
+        case GLFW_KEY_H: camera.rotate({0.F, timestep * std::numbers::pi_v<f32>/2.F, 0.F}); break;
+        case GLFW_KEY_K: camera.rotate({ timestep * std::numbers::pi_v<f32>/2.F, 0.F, 0.F}); break;
+        case GLFW_KEY_J: camera.rotate({-timestep * std::numbers::pi_v<f32>/2.F, 0.F, 0.F}); break;
+        case GLFW_KEY_I: camera.rotate({0.F, 0.F, timestep * std::numbers::pi_v<f32>/2.F}); break;
+        case GLFW_KEY_O: camera.rotate({0.F, 0.F,-timestep * std::numbers::pi_v<f32>/2.F}); break;
         }
     }
 }
+
+void mousePosCallback(GLFWwindow* win_handle, f64 x_pos, f64 y_pos) {
+    i32 w{ 0 };
+    i32 h{ 0 };
+    glfwGetWindowSize(win_handle, &w, &h);
+    const auto dw = static_cast<f64>(w);
+    const auto dh = static_cast<f64>(h);
+    glfwSetCursorPos(win_handle, dw/2.0, dh/2.0);
+
+    const auto aspect_ratio = static_cast<f32>(dw)/static_cast<f32>(dh);
+
+    const auto x_step = static_cast<f32>(x_pos) - (static_cast<f32>(w)/2.F);
+    const auto y_step = aspect_ratio * (static_cast<f32>(y_pos) - (static_cast<f32>(h)/2.F));
+
+    static constexpr auto step{ 0.012F };
+    camera.rotateXYPlane({timestep * step * x_step, timestep * step * y_step});
+}
+#endif
 
 int main() {
     if (!ve001::window.init("demo", 640, 480, nullptr)) {
@@ -191,7 +147,7 @@ int main() {
 
     ve001::VoxelTerrainGenerator terrain_generator({
         .terrain_size = EXTENT,
-        .terrain_density = 10U,
+        .terrain_density = 2U,
         .noise_type = VoxelTerrainGenerator::Config::NoiseType::PERLIN,
         .quantize_values = 1U,
         .quantized_value_size = sizeof(u8),
@@ -249,20 +205,26 @@ int main() {
     );
     shader.bind();
     
-    texture_rgba8_array.bind(CONFIG_2D_TEX_ARRAY_BINDING);
+    texture_rgba8_array.bind(SH_CONFIG_2D_TEX_ARRAY_BINDING);
 
     u32 ubo{ 0U };
     glCreateBuffers(1, &ubo);
     glNamedBufferStorage(ubo, sizeof(Mat4f32), nullptr, GL_DYNAMIC_STORAGE_BIT);
-    glBindBufferBase(GL_UNIFORM_BUFFER, CONFIG_MVP_UBO_BINDING, ubo);
+    glBindBufferBase(GL_UNIFORM_BUFFER, SH_CONFIG_MVP_UBO_BINDING, ubo);
 
+#ifdef VE001_USE_GLFW3
     window.setKeyCallback(keyCallback);
+    window.setMousePositionCallback(mousePosCallback);
+#endif
 
     glClearColor(.22F, .61F, .78F, 1.F);
 
     f32 prev_frame_time{ 0.F };
     while(!window.shouldClose()) {
         const auto [window_width, window_height] = window.size();
+
+        prev_mouse_pos[0] = static_cast<f32>(window_width)/2.F;
+        prev_mouse_pos[1] = static_cast<f32>(window_height)/2.F;
 
         const auto frame_time = window.time();
         timestep = frame_time - prev_frame_time;

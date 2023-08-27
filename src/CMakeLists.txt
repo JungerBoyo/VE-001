@@ -42,9 +42,9 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
     sandbox_utils 
     voxel_terrain_generator
     ve001_engine
-    glfw    
+    glfw
+    sh_config
 )
-
 add_dependencies(${PROJECT_NAME} compile_and_copy_shaders_dirs)
 
 

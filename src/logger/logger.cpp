@@ -24,7 +24,7 @@ std::shared_ptr<spdlog::logger> ve001::logger(std::make_shared<spdlog::logger>(
     #endif
 #endif
 #ifdef VE001_LOG_TO_FILE
-    std::make_shared<spdlog::sinks::rotating_file_sink_mt>("ve001_log", 4096, 1)
+    std::make_shared<spdlog::sinks::rotating_file_sink_st>("ve001_log", 4096, 1)
 #endif
     })
 );

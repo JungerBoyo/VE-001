@@ -1,5 +1,7 @@
 #include "noise_func.h"
 
+#include <iostream>
+
 using namespace ve001;
 using namespace vmath;
 
@@ -125,9 +127,9 @@ f32 SimplexNoiseFunc3D::invoke(Vec3f32 point, u32 grid_density) {
     const f32 s{ (point[0] + point[1] + point[2]) * skew_factor };
 
     const Vec3i32 ijk { 
-        point[0]+s > 0.F ? static_cast<i32>(point[0]) : static_cast<i32>(point[0]) - 1,
-        point[1]+s > 1.F ? static_cast<i32>(point[1]) : static_cast<i32>(point[1]) - 1,
-        point[2]+s > 2.F ? static_cast<i32>(point[2]) : static_cast<i32>(point[2]) - 1
+        point[0]+s > 0.F ? static_cast<i32>(point[0] + s) : static_cast<i32>(point[0] + s) - 1,
+        point[1]+s > 0.F ? static_cast<i32>(point[1] + s) : static_cast<i32>(point[1] + s) - 1,
+        point[2]+s > 0.F ? static_cast<i32>(point[2] + s) : static_cast<i32>(point[2] + s) - 1
     };
 
     const f32 t{ 
@@ -182,16 +184,20 @@ f32 SimplexNoiseFunc3D::invoke(Vec3f32 point, u32 grid_density) {
     const auto last_corner_offset = Vec3f32::add(Vec3f32::sub(dist, Vec3f32(1.F)), Vec3f32(3.F * unskew_factor));
 
     const auto t0 = .5F - Vec3f32::dot(dist, dist);
-    const auto n0 = (t0 < 0.F) ? 0.F : t0 * t0 * t0 * dotGradient3dSimplex(this->seed, ijk, dist);
+    const auto n0 = (t0 < 0.F) ? 0.F : t0 * t0 * t0 * t0 *  dotGradient3dSimplex(this->seed, ijk, dist);
 
     const auto t1 = .5F - Vec3f32::dot(second_corner_offset, second_corner_offset);
-    const auto n1 = (t1 < 0.F) ? 0.F : t1 * t1 * t1 * dotGradient3dSimplex(this->seed, ijk, second_corner_offset);
+    const auto n1 = (t1 < 0.F) ? 0.F : t1 * t1 * t1 * t1 *  dotGradient3dSimplex(this->seed, ijk, second_corner_offset);
 
     const auto t2 = .5F - Vec3f32::dot(third_corner_offset, third_corner_offset);
-    const auto n2 = (t2 < 0.F) ? 0.F : t2 * t2 * t2 * dotGradient3dSimplex(this->seed, ijk, third_corner_offset);
+    const auto n2 = (t2 < 0.F) ? 0.F : t2 * t2 * t2 * t2 * dotGradient3dSimplex(this->seed, ijk, third_corner_offset);
 
     const auto t3 = .5F - Vec3f32::dot(last_corner_offset, last_corner_offset);
-    const auto n3 = (t3 < 0.F) ? 0.F : t3 * t3 * t3 * dotGradient3dSimplex(this->seed, ijk, last_corner_offset);
+    const auto n3 = (t3 < 0.F) ? 0.F : t3 * t3 * t3 * t3 * dotGradient3dSimplex(this->seed, ijk, last_corner_offset);
 
-    return 32.F * (n0 + n1 + n2 + n3);
+    const auto result = 32.F * (n0 + n1 + n2 + n3);
+
+    std::cout << result << std::endl;
+
+    return result; //32.F * (n0 + n1 + n2 + n3);
 }

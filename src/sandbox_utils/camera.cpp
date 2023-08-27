@@ -25,8 +25,12 @@ void Camera::rotate(Vec3f32 angles) {
     neg_looking_dir = vmath::misc<f32>::rotatePoint3D(angles, neg_looking_dir, Vec3f32(0.F), basis);
 }
 void Camera::rotateXYPlane(Vec2f32 vec) {
-    neg_looking_dir_angles[0] = vmath::misc<f32>::wrap(neg_looking_dir[0] + vec[0], 2.F*std::numbers::pi_v<f32>, 0.F);
-    neg_looking_dir_angles[1] = vmath::misc<f32>::wrap(neg_looking_dir[1] + vec[1], 2.F*std::numbers::pi_v<f32>, 0.F);
+    neg_looking_dir_angles[0] = vmath::misc<f32>::wrap(
+        neg_looking_dir_angles[0] + vec[1], 2.F*std::numbers::pi_v<f32>, 0.F
+    );
+    neg_looking_dir_angles[1] = vmath::misc<f32>::wrap(
+        neg_looking_dir_angles[1] + vec[0], 2.F*std::numbers::pi_v<f32>, 0.F
+    );
                         // rot around Y in XZ plane (x value)  // scale by rot around X becuase vec len changed from x/z perspective
     neg_looking_dir[0] = std::cos(neg_looking_dir_angles[1]) * std::cos(neg_looking_dir_angles[0]);
     neg_looking_dir[1] = std::sin(neg_looking_dir_angles[0]);
