@@ -1,7 +1,8 @@
 #ifndef VE001_LOGGING_H
 #define VE001_LOGGING_H
 
-#include <spdlog/spdlog.h>
+#include <memory>
+#include <spdlog/logger.h>
 
 namespace ve001 {
 

@@ -24,7 +24,7 @@ constexpr Vec3f32 genPosition(u8 bin, Vec3f32 scale) { switch (bin) {
     default: return Vec3f32(0.F, 0.F, 0.F);
 }}
 
-std::array<Vertex, 6> genFace(u8 face, Vec3f32 offset, Vec3f32 scale, Vec2f32 face_scale) {
+constexpr std::array<Vertex, 6> genFace(u8 face, Vec3f32 offset, Vec3f32 scale, Vec2f32 face_scale) {
     std::array<Vertex, 6> faces;
     switch (face) {
     case 0: //POS_X: 
@@ -87,7 +87,6 @@ std::array<Vertex, 6> genFace(u8 face, Vec3f32 offset, Vec3f32 scale, Vec2f32 fa
 
     return faces;
 }
-
 
 }
 

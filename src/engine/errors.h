@@ -3,9 +3,13 @@
 
 namespace ve001 {
 
+// TODO: revise errors and think about error handling
+// - split errors into categories
+
 enum class Error {
     NO_ERROR,
     FAILED_TO_MAP_VBO_BUFFER,
+    FAILED_TO_MAP_SSBO_BUFFER,
     CPU_MEMORY_ALLOCATION_FAILED,
     INVALID_CHUNK_SIZE,
     INVALID_SUBMESH_SIZE,
@@ -14,9 +18,10 @@ enum class Error {
     USED_UNINITIALIZED,
     CHUNK_DOES_NOT_EXIST,
     CHUNK_POINTER_AQUIRED,
-
     FAILED_TO_LOAD_IMAGE,
-    TEXTURE_INDEX_OUT_OF_RANGE, 
+    TEXTURE_INDEX_OUT_OF_RANGE,
+
+    GPU_DYNAMIC_ARRAY_WRITE_OVERFLOW
 };
 
 };

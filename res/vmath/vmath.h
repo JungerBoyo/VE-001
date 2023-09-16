@@ -50,13 +50,13 @@ struct Vec {
     static constexpr std::size_t size = S;
     using ValueType = T;
 
-    Vec() {
+    constexpr Vec() {
         for (std::size_t i{ 0U }; i < S; ++i) {
             values[i] = 0U;
         }
     }
 
-    Vec(T value) {
+    constexpr Vec(T value) {
         for (std::size_t i{ 0U }; i < S; ++i) {
             values[i] = value;
         }

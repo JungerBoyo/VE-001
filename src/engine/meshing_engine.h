@@ -4,6 +4,8 @@
 #include <vmath/vmath.h>
 #include <functional>
 
+#include "enums.h"
+
 using namespace vmath;
 
 namespace ve001 {
@@ -21,14 +23,8 @@ struct MeshingEngine {
         Vec3i32 chunk_size;
     };
 
-    enum MeshingFace : u8 { 
-        POS_X, NEG_X, 
-        POS_Y, NEG_Y, 
-        POS_Z, NEG_Z 
-    };
-
     struct MeshedRegionDescriptor {
-        MeshingFace face;
+        Face face;
         Vec3i32 region_extent;
         Vec3i32 region_offset;
         Vec2i32 squashed_region_extent;
@@ -55,7 +51,7 @@ public:
 
 private:
     u32 meshAxis(
-        MeshingFace meshing_face, 
+        Face meshing_face, 
         void* face_dst, 
         u32 face_dst_max_size,
         u32 offset, 

@@ -18,10 +18,13 @@
 #include <engine/meshing_engine.h>
 #include <engine/chunk_mesh_pool.h>
 #include <engine/cubemap.h>
-#include <engine/texture_rgba8_array.h>
+#include <engine/texture_array.h>
+#include <engine/material_allocator.h>
 #include <sandbox_utils/camera.h>
 #include <sandbox_utils/face_gen.h>
-#include <gl_boilerplate/shader.h>
+#include <engine/shader.h>
+
+#include <logger/logger.h>
 
 #include <cstring>
 #include <numbers>
@@ -38,6 +41,12 @@
 #endif
 #ifndef SH_CONFIG_MVP_UBO_BINDING
 #define SH_CONFIG_MVP_UBO_BINDING 0
+#endif
+#ifndef SH_CONFIG_MATERIAL_PARAMS_SSBO_BINDING
+#define SH_CONFIG_MATERIAL_PARAMS_SSBO_BINDING 2
+#endif
+#ifndef SH_CONFIG_MATERIAL_DESCRIPTORS_SSBO_BINDING
+#define SH_CONFIG_MATERIAL_DESCRIPTORS_SSBO_BINDING 3
 #endif
 
 using namespace ve001;
@@ -60,17 +69,13 @@ void setVertexLayout(u32 vao, u32 vbo) {
     glVertexArrayVertexBuffer(vao, vertex_attrib_binding, vbo, 0, sizeof(Vertex));
 }
 
-TextureRGBA8Array createCubeMapTextureArray(const std::filesystem::path& img_path) {
+void createCubeMapTextureArray(MaterialAllocator& material_allocator, const std::filesystem::path& img_path) {
     CubeMap cubemap{};
     CubeMap::load(cubemap, img_path);
 
-    auto texture_rgba8_array = TextureRGBA8Array::init(cubemap.width, cubemap.height, 6);
-    i32 i{ 0 }; 
     for (const auto& face : cubemap.faces) {
-        texture_rgba8_array.writeData(static_cast<const void*>(face.data()), i++);
+        material_allocator.addTexture(static_cast<const void*>(face.data()));
     }
-    
-    return texture_rgba8_array;
 }
 
 static constexpr Vec3i32 EXTENT(16, 256, 16);
@@ -157,51 +162,64 @@ int main() {
 
     std::vector<u8> noise(EXTENT[0] * EXTENT[1] * EXTENT[2], 0U);
 
+    u32 mesh_memory_footprint{ 0U };
+
     for (i32 z{ 0 }; z < 3; ++z) {
     for (i32 x{ 0 }; x < 3; ++x) {
 
-    terrain_generator.next(static_cast<void*>(noise.data()), 0U, 0U, Vec3i32(x, 0, z));
-    
-    u32 chunk_id{ 0U };
-    chunk_mesh_pool.allocateEmptyChunk(chunk_id, Vec3f32(0.F));
+        terrain_generator.next(static_cast<void*>(noise.data()), 0U, 0U, Vec3i32(x, 0, z));
+        
+        u32 chunk_id{ 0U };
+        chunk_mesh_pool.allocateEmptyChunk(chunk_id, Vec3f32(0.F));
 
-    void* chunk_dst_ptr{ nullptr };
-    chunk_mesh_pool.aquireChunkWritePtr(chunk_id, chunk_dst_ptr);
+        void* chunk_dst_ptr{ nullptr };
+        chunk_mesh_pool.aquireChunkWritePtr(chunk_id, chunk_dst_ptr);
 
-    const auto per_face_vertex_count = meshing_engine.mesh(
-        chunk_dst_ptr, 0U, sizeof(Vertex), chunk_mesh_pool.submeshStride(),
-        Vec3i32(x, 0, z), 
-        [&noise](i32 x, i32 y, i32 z) {
-            // return true;
-            const auto index = static_cast<std::size_t>(x + y * EXTENT[0] + z * EXTENT[0] * EXTENT[1]);
-            return noise[index] > 0U;
-        },
-        [](void* dst, MeshingEngine::MeshedRegionDescriptor descriptor) -> u32 {
-            const auto region_offset = Vec3f32::cast(descriptor.region_offset);
-            const auto region_extent = Vec3f32::cast(descriptor.region_extent);
-            const auto squashed_region_offset = Vec2f32::cast(descriptor.squashed_region_extent);
+        const auto per_face_vertex_count = meshing_engine.mesh(
+            chunk_dst_ptr, 0U, sizeof(Vertex), chunk_mesh_pool.submeshStride(),
+            Vec3i32(x, 0, z), 
+            [&noise](i32 x, i32 y, i32 z) {
+                // return true;
+                const auto index = static_cast<std::size_t>(x + y * EXTENT[0] + z * EXTENT[0] * EXTENT[1]);
+                return noise[index] > 0U;
+            },
+            [](void* dst, MeshingEngine::MeshedRegionDescriptor descriptor) -> u32 {
+                const auto region_offset = Vec3f32::cast(descriptor.region_offset);
+                const auto region_extent = Vec3f32::cast(descriptor.region_extent);
+                const auto squashed_region_offset = Vec2f32::cast(descriptor.squashed_region_extent);
 
-            const auto face = genFace(
-                descriptor.face,
-                region_offset,
-                region_extent,
-                squashed_region_offset
-            );
+                const auto face = genFace(
+                    descriptor.face,
+                    region_offset,
+                    region_extent,
+                    squashed_region_offset
+                );
 
-            std::memcpy(dst, static_cast<const void*>(face.data()), face.size() * sizeof(Vertex));
+                std::memcpy(dst, static_cast<const void*>(face.data()), face.size() * sizeof(Vertex));
 
-            return 6U;
-        }
-    );
+                return 6U;
+            }
+        );
 
-    chunk_mesh_pool.freeChunkWritePtr(chunk_id);
+        chunk_mesh_pool.freeChunkWritePtr(chunk_id);
 
-    chunk_mesh_pool.updateChunkSubmeshVertexCounts(chunk_id, per_face_vertex_count);
+        chunk_mesh_pool.updateChunkSubmeshVertexCounts(chunk_id, per_face_vertex_count);
 
+        mesh_memory_footprint += 
+            per_face_vertex_count[0] + 
+            per_face_vertex_count[1] +
+            per_face_vertex_count[2] +
+            per_face_vertex_count[3] +
+            per_face_vertex_count[4] +
+            per_face_vertex_count[5];
     }}
 
-    auto texture_rgba8_array = createCubeMapTextureArray(
-        "/home/regu/codium_repos/VE-001/assets/textures/mcgrasstexture.png"
+    mesh_memory_footprint *= sizeof(Vertex);
+    //info("mesh memory footprint = {}B = {}kB = {}MB", )
+    logger->info("mesh memory footprint = {}B = {}kB = {}MB", 
+        mesh_memory_footprint,
+        mesh_memory_footprint / 1024,
+        mesh_memory_footprint / (1024 * 1024)
     );
 
     Shader shader{};
@@ -210,12 +228,35 @@ int main() {
         "/home/regu/codium_repos/VE-001/shaders/bin/basic_shader/frag.spv"
     );
     shader.bind();
+
+    MaterialAllocator material_allocator(1U, 1U, 6U, 96U, 96U);
+
+    material_allocator.init();
+
+    material_allocator.addMaterialParams(MaterialParams{
+        .color = Vec4f32(1.F),
+        .diffuse = Vec3f32(.55F),
+        .shininess = .1F,
+        .specular = Vec3f32(.2F)
+    });
+
+    createCubeMapTextureArray(
+        material_allocator,
+        "/home/regu/codium_repos/VE-001/assets/textures/mcgrasstexture_small.png"
+    );
     
-    texture_rgba8_array.bind(SH_CONFIG_2D_TEX_ARRAY_BINDING);
+    material_allocator.addMaterial(MaterialDescriptor{
+        .material_texture_index = {0U, 1U, 2U, 3U, 4U, 5U},
+        .material_params_index = {0U, 0U, 0U, 0U, 0U, 0U}
+    });
+
+    material_allocator._texture_rgba8_array.bind(SH_CONFIG_2D_TEX_ARRAY_BINDING);
+    material_allocator._material_params_array.bind(SH_CONFIG_MATERIAL_PARAMS_SSBO_BINDING);
+    material_allocator._material_descriptors_array.bind(SH_CONFIG_MATERIAL_DESCRIPTORS_SSBO_BINDING);
 
     u32 ubo{ 0U };
     glCreateBuffers(1, &ubo);
-    glNamedBufferStorage(ubo, sizeof(Mat4f32), nullptr, GL_DYNAMIC_STORAGE_BIT);
+    glNamedBufferStorage(ubo, sizeof(Mat4f32) + sizeof(Vec4f32) + sizeof(Vec4f32), nullptr, GL_DYNAMIC_STORAGE_BIT);
     glBindBufferBase(GL_UNIFORM_BUFFER, SH_CONFIG_MVP_UBO_BINDING, ubo);
 
 #ifdef VE001_USE_GLFW3
@@ -245,7 +286,18 @@ int main() {
         );
 
         const auto mvp = Mat4f32::mul(proj_mat, camera.lookAt());
-        glNamedBufferSubData(ubo, 0, sizeof(Mat4f32), static_cast<const void*>(&mvp));
+
+        struct {
+            Mat4f32 mvp;
+            alignas(sizeof(Vec4f32)) Vec3f32 camera_pos;
+            alignas(sizeof(Vec4f32)) Vec3f32 camera_dir;
+        } ubo_data {
+            .mvp = mvp,
+            .camera_pos = camera.position,
+            .camera_dir = camera.neg_looking_dir
+        };
+
+        glNamedBufferSubData(ubo, 0, sizeof(ubo_data), static_cast<const void*>(&ubo_data));
 
         chunk_mesh_pool.drawAll();
 
@@ -256,7 +308,7 @@ int main() {
     glDeleteBuffers(1, &ubo);
     shader.deinit();
     chunk_mesh_pool.deinit();
-    texture_rgba8_array.deinit();
+    material_allocator.deinit();
     window.deinit();
 
     return 0;

@@ -185,7 +185,7 @@ Error ChunkMeshPool::allocateEmptyChunk(u32& chunk_id, Vec3f32 position) noexcep
             1U, 
             (static_cast<u8*>(submesh_offset) - static_cast<u8*>(_vbo_ptr)) / _vertex_size, 
             0U, 
-            static_cast<SubmeshOrientation>(i),
+            static_cast<Face>(i),
             free_chunk.chunk_id
         );
     }
@@ -270,7 +270,7 @@ Error ChunkMeshPool::updateChunkSubmeshVertexCounts(u32 chunk_id, std::array<u32
         auto& draw_cmd = _draw_cmds[chunk_metadata.draw_cmd_indices[i]];
 
         draw_cmd.count = counts[i];
-        draw_cmd.orientation = static_cast<SubmeshOrientation>(i);
+        draw_cmd.orientation = static_cast<Face>(i);
     }
 
     if (result != Error::NO_ERROR) {

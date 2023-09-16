@@ -16,7 +16,6 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 add_subdirectory(window)
 add_subdirectory(sandbox_utils)
 add_subdirectory(logger)
-add_subdirectory(gl_boilerplate)
 add_subdirectory(voxel_terrain_generator)
 add_subdirectory(engine)
 
@@ -37,13 +36,13 @@ add_executable(${PROJECT_NAME} main.cpp)
 target_link_libraries(${PROJECT_NAME} PRIVATE 
     window 
     gl_context 
-    gl_boilerplate
     vmath 
     sandbox_utils 
     voxel_terrain_generator
     ve001_engine
     glfw
     sh_config
+    logger
 )
 add_dependencies(${PROJECT_NAME} compile_and_copy_shaders_dirs)
 

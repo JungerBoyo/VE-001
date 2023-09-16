@@ -18,7 +18,7 @@ std::array<u32, 6> MeshingEngine::mesh(
     std::array<u32, 6> result;
     for (u32 i{ 0U }; i < 6U; ++i) {
         result[i] = meshAxis(
-            static_cast<MeshingFace>(i), 
+            static_cast<Face>(i), 
             static_cast<void*>(static_cast<u8*>(dst) + i * face_stride), 
             face_stride, 
             offset, 
@@ -32,7 +32,7 @@ std::array<u32, 6> MeshingEngine::mesh(
 }
 
 u32 MeshingEngine::meshAxis(
-    MeshingFace meshing_face, 
+    Face meshing_face, 
     void* face_dst, 
     u32 face_dst_max_size,
     u32 offset, 

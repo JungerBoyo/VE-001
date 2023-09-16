@@ -4,6 +4,7 @@
 #include <vmath/vmath.h>
 #include "ringbuffer.h"
 #include "errors.h"
+#include "enums.h"
 
 #include <array>
 
@@ -19,14 +20,10 @@ struct ChunkMeshPool {
         void (*vertex_layout_config)(u32 vao, u32 vbo);
     };
 
-    enum SubmeshOrientation : u32 {
-        X_POS, X_NEG, Y_POS, Y_NEG, Z_POS, Z_NEG
-    };
-    
     struct SubmeshData {
         void* ptr{ nullptr };
         i32 vertex_count{ 0 };
-        SubmeshOrientation orientation;
+        Face orientation;
     };
 
     struct ChunkData {
@@ -56,7 +53,7 @@ private:
         u32 first;
         u32 base_instance;
         
-        SubmeshOrientation orientation;
+        Face orientation;
         u32 chunk_id{ 0U };
     };
 
