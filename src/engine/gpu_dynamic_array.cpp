@@ -36,6 +36,9 @@ Error GPUDynamicArray::init(u32 capacity) noexcept {
 }
 
 void GPUDynamicArray::deinit() noexcept {
+    if (_ssbo_ptr != nullptr) {
+        glUnmapNamedBuffer(_ssbo_id);
+    }
     glDeleteBuffers(1, &_ssbo_id);
 }
 

@@ -79,7 +79,7 @@ struct VoxelTerrainGenerator {
 private:
     Config config;
     std::unique_ptr<NoiseFunc3D> noise_func_3d{ nullptr };
-    Vec3i32 current_location{ 0 };
+    // Vec3i32 current_location{ 0 };
     std::function<void(void*, f32)> fn_write_value;
 
 public:    
@@ -94,11 +94,9 @@ public:
      * @param stride in bytes, if step == 0 assuming tighly packed data,
      * otherwise it specifies the relative position of generated values in dst buffer
      * (eg. if values in the buffer have interleaved layout)
-     * @param terrain_step this offset is added to the terrain block position 
-     * in order to generate "next" logical terrain block. It is added to internally
-     * stored location!
+     * @param chunk_position discrete position of the chunk in chunk extents
     */
-    void next(void* dst, u32 offset, u32 stride, Vec3i32 terrain_step);
+    void next(void* dst, u32 offset, u32 stride, Vec3i32 chunk_position);
 
     /**
      * @brief deinitializes generator

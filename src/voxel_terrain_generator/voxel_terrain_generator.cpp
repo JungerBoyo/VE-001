@@ -29,11 +29,9 @@ void VoxelTerrainGenerator::init() {
     }
 }
 
-void VoxelTerrainGenerator::next(void* dst, u32 offset, u32 stride, Vec3i32 terrain_step) {
-    const auto p0 = Vec3i32::mul(current_location, config.terrain_size);
+void VoxelTerrainGenerator::next(void* dst, u32 offset, u32 stride, Vec3i32 chunk_position) {
+    const auto p0 = Vec3i32::mul(chunk_position, config.terrain_size);
     const auto p1 = Vec3i32::add(p0, config.terrain_size);
-
-    current_location = Vec3i32::add(current_location, terrain_step);
 
     u8* dst_u8 = static_cast<u8*>(dst);
     dst_u8 += offset;

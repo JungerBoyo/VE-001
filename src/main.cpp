@@ -78,10 +78,13 @@ void createCubeMapTextureArray(MaterialAllocator& material_allocator, const std:
     }
 }
 
-static constexpr Vec3i32 EXTENT(16, 256, 16);
+static constexpr Vec3i32 EXTENT(16, 32, 16);
 
 static f32 timestep{ 0U };
 static Camera camera{};
+// static Vec3f32 light_pos(1.F, 0.F, 0.F); // ~light_pos~ light_dir
+static Camera dir_light{};
+bool rotate_dir_light{ false };
 
 Vec2f32 prev_mouse_pos(0.F);
 
@@ -96,12 +99,21 @@ void keyCallback(GLFWwindow* window_handle, i32 key, i32, i32 action, i32) {
         case GLFW_KEY_S: camera.move({0.F, 0.F, timestep * -step}); break;
         case GLFW_KEY_D: camera.move({timestep *  step, 0.F, 0.F}); break;
         case GLFW_KEY_E: camera.move({0.F, timestep *  step, 0.F}); break;
-        case GLFW_KEY_L: camera.rotate({0.F,-timestep * std::numbers::pi_v<f32>/2.F, 0.F}); break;
-        case GLFW_KEY_H: camera.rotate({0.F, timestep * std::numbers::pi_v<f32>/2.F, 0.F}); break;
-        case GLFW_KEY_K: camera.rotate({ timestep * std::numbers::pi_v<f32>/2.F, 0.F, 0.F}); break;
-        case GLFW_KEY_J: camera.rotate({-timestep * std::numbers::pi_v<f32>/2.F, 0.F, 0.F}); break;
-        case GLFW_KEY_I: camera.rotate({0.F, 0.F, timestep * std::numbers::pi_v<f32>/2.F}); break;
-        case GLFW_KEY_O: camera.rotate({0.F, 0.F,-timestep * std::numbers::pi_v<f32>/2.F}); break;
+        // case GLFW_KEY_L: camera.rotate({0.F,-timestep * std::numbers::pi_v<f32>/2.F, 0.F}); break;
+        // case GLFW_KEY_H: camera.rotate({0.F, timestep * std::numbers::pi_v<f32>/2.F, 0.F}); break;
+        // case GLFW_KEY_K: camera.rotate({ timestep * std::numbers::pi_v<f32>/2.F, 0.F, 0.F}); break;
+        // case GLFW_KEY_J: camera.rotate({-timestep * std::numbers::pi_v<f32>/2.F, 0.F, 0.F}); break;
+        // case GLFW_KEY_I: camera.rotate({0.F, 0.F, timestep * std::numbers::pi_v<f32>/2.F}); break;
+        // case GLFW_KEY_O: camera.rotate({0.F, 0.F,-timestep * std::numbers::pi_v<f32>/2.F}); break;
+
+        // case GLFW_KEY_L: light_pos[0] -= timestep * step; break; 
+        // case GLFW_KEY_O: light_pos[1] += timestep * step; break;
+        // case GLFW_KEY_K: light_pos[2] -= timestep * step; break;
+        // case GLFW_KEY_J: light_pos[0] += timestep * step; break;
+        // case GLFW_KEY_I: light_pos[2] += timestep * step; break;
+        // case GLFW_KEY_U: light_pos[1] -= timestep * step; break;
+
+        case GLFW_KEY_U: rotate_dir_light = !rotate_dir_light; break;
         }
     }
 }
@@ -120,7 +132,10 @@ void mousePosCallback(GLFWwindow* win_handle, f64 x_pos, f64 y_pos) {
     const auto y_step = aspect_ratio * (static_cast<f32>(y_pos) - (static_cast<f32>(h)/2.F));
 
     static constexpr auto step{ 0.012F };
-    camera.rotateXYPlane({timestep * step * x_step, timestep * step * y_step});
+
+    auto& chosen_camera = rotate_dir_light ? dir_light : camera;
+
+    chosen_camera.rotateXYPlane({timestep * step * x_step, timestep * step * y_step});
 }
 #endif
 
@@ -140,7 +155,7 @@ int main() {
     ve001::ChunkMeshPool chunk_mesh_pool{};
     chunk_mesh_pool.init({
         .chunk_dimensions = EXTENT,
-        .max_chunks = 9,
+        .max_chunks = 15,
         .vertex_size = sizeof(Vertex),
         .vertex_layout_config = setVertexLayout
     });
@@ -162,12 +177,18 @@ int main() {
 
     std::vector<u8> noise(EXTENT[0] * EXTENT[1] * EXTENT[2], 0U);
 
+    std::array<Vec3i32, 15> chunk_positions{{
+        {0, 0, 0}, {1, 0, 0}, {2, 0, 0},
+        {0, 0, 1}, {1, 0, 1}, {2, 0, 1},
+        {0, 0, 2}, {1, 0, 2}, {2, 0, 2},
+        {1, 1, 1}, {0, 0, 3}, {0, 1, 3},
+        {0, 2, 3}, {0, 3, 3}, {-1, 0, 0}
+    }};
+
     u32 mesh_memory_footprint{ 0U };
+    for (const auto chunk_position : chunk_positions) {
 
-    for (i32 z{ 0 }; z < 3; ++z) {
-    for (i32 x{ 0 }; x < 3; ++x) {
-
-        terrain_generator.next(static_cast<void*>(noise.data()), 0U, 0U, Vec3i32(x, 0, z));
+        terrain_generator.next(static_cast<void*>(noise.data()), 0U, 0U, chunk_position);
         
         u32 chunk_id{ 0U };
         chunk_mesh_pool.allocateEmptyChunk(chunk_id, Vec3f32(0.F));
@@ -177,7 +198,7 @@ int main() {
 
         const auto per_face_vertex_count = meshing_engine.mesh(
             chunk_dst_ptr, 0U, sizeof(Vertex), chunk_mesh_pool.submeshStride(),
-            Vec3i32(x, 0, z), 
+            chunk_position, 
             [&noise](i32 x, i32 y, i32 z) {
                 // return true;
                 const auto index = static_cast<std::size_t>(x + y * EXTENT[0] + z * EXTENT[0] * EXTENT[1]);
@@ -212,7 +233,7 @@ int main() {
             per_face_vertex_count[3] +
             per_face_vertex_count[4] +
             per_face_vertex_count[5];
-    }}
+    }
 
     mesh_memory_footprint *= sizeof(Vertex);
     //info("mesh memory footprint = {}B = {}kB = {}MB", )
@@ -236,7 +257,7 @@ int main() {
     material_allocator.addMaterialParams(MaterialParams{
         .color = Vec4f32(1.F),
         .diffuse = Vec3f32(.55F),
-        .shininess = .1F,
+        .shininess = .25F * 128.F,
         .specular = Vec3f32(.2F)
     });
 
@@ -247,7 +268,7 @@ int main() {
     
     material_allocator.addMaterial(MaterialDescriptor{
         .material_texture_index = {0U, 1U, 2U, 3U, 4U, 5U},
-        .material_params_index = {0U, 0U, 0U, 0U, 0U, 0U}
+        .material_params_index  = {0U, 0U, 0U, 0U, 0U, 0U}
     });
 
     material_allocator._texture_rgba8_array.bind(SH_CONFIG_2D_TEX_ARRAY_BINDING);
@@ -256,7 +277,7 @@ int main() {
 
     u32 ubo{ 0U };
     glCreateBuffers(1, &ubo);
-    glNamedBufferStorage(ubo, sizeof(Mat4f32) + sizeof(Vec4f32) + sizeof(Vec4f32), nullptr, GL_DYNAMIC_STORAGE_BIT);
+    glNamedBufferStorage(ubo, sizeof(Mat4f32) + 3 * sizeof(Vec4f32), nullptr, GL_DYNAMIC_STORAGE_BIT);
     glBindBufferBase(GL_UNIFORM_BUFFER, SH_CONFIG_MVP_UBO_BINDING, ubo);
 
 #ifdef VE001_USE_GLFW3
@@ -265,6 +286,8 @@ int main() {
 #endif
 
     glClearColor(.22F, .61F, .78F, 1.F);
+
+    glEnable(GL_FRAMEBUFFER_SRGB);
 
     f32 prev_frame_time{ 0.F };
     while(!window.shouldClose()) {
@@ -291,10 +314,12 @@ int main() {
             Mat4f32 mvp;
             alignas(sizeof(Vec4f32)) Vec3f32 camera_pos;
             alignas(sizeof(Vec4f32)) Vec3f32 camera_dir;
+            alignas(sizeof(Vec4f32)) Vec3f32 light_dir;
         } ubo_data {
             .mvp = mvp,
             .camera_pos = camera.position,
-            .camera_dir = camera.neg_looking_dir
+            .camera_dir = camera.neg_looking_dir,
+            .light_dir = dir_light.neg_looking_dir 
         };
 
         glNamedBufferSubData(ubo, 0, sizeof(ubo_data), static_cast<const void*>(&ubo_data));
