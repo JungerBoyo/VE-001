@@ -168,28 +168,31 @@ struct Mat {
         return values[index];
     }
 
-    Mat() {
+    constexpr Mat() {
         for (std::size_t i{ 0U }; i < S; ++i) {
             values[i] = V();
         }
     }
 
-    template<typename ...Args>
-    Mat(Args... args) {
-        static_assert(sizeof...(Args) == S || sizeof...(Args) == 1, "Incorrect number of arguments provided for Vec constructor or 1.");
-        static_assert(((std::is_same_v<V, Args> || (is_valid_vec_type<Args> && sizeof...(Args) == 1)) && ...), "All arguments must have the same type as V or be of V::ValueType in case when sizeof...(Args) == 1.");
-
-        if constexpr (sizeof...(Args) == 1) {
-            const auto tmp = std::get<0>(std::forward_as_tuple(args...));
-            for (std::size_t i{ 0 }; i < S; ++i) {
-                values[i][i] = tmp;
-            }
-        } else {
-            V tmp[sizeof...(Args)] = { args... };
-            for (std::size_t i{ 0 }; i < S; ++i) {
-                values[i] = tmp[i];
-            }
+    constexpr Mat(typename V::ValueType value) {
+        for (std::size_t i{ 0U }; i < S; ++i) {
+            values[i] = V();
+            values[i][i] = value;
         }
+    }
+
+    template<typename ...Args>
+    requires (sizeof...(Args) == S && (std::is_same_v<V, Args> && ...))
+    constexpr Mat(Args... args) : values{ args... } {}
+
+    template<typename _V>
+    requires is_valid_mat_size<V::size, S>
+    static Mat<V, S> cast(Mat<_V, S> mat) {
+        Mat<V, S> result;
+        for (std::size_t i{ 0U }; i < S; ++i) {
+            result[i] = Vec<V, S>::cast(mat[i]);
+        }
+        return result;
     }
 
     static V mulVec(Mat<V, S> lhs, V rhs) {
@@ -332,6 +335,26 @@ struct misc {
             Vec4<T>(static_cast<T>(0.0), static_cast<T>(0.0), (-far - near)/(far - near), static_cast<T>(-1.0)),
             Vec4<T>(static_cast<T>(0.0), static_cast<T>(0.0), -(static_cast<T>(2.0) * far * near)/(far - near), static_cast<T>(0.0))
         );
+    }
+
+    static Mat4<T> symmetricOrthographicProjection(T near, T far, T width, T height) {
+        return Mat4<T> {
+            Vec4<T>{ static_cast<T>(2.0)/width, static_cast<T>(0.0), static_cast<T>(0.0),         static_cast<T>(0.0)}, // static_cast<T>(-1.0) },
+            Vec4<T>{ static_cast<T>(0.0), static_cast<T>(2.0)/height, static_cast<T>(0.0),        static_cast<T>(0.0)}, //static_cast<T>(-1.0) },
+            Vec4<T>{ static_cast<T>(0.0), static_cast<T>(0.0), static_cast<T>(-1.0)/(far - near), static_cast<T>(0.0)},//-(far + near)/(far - near) },
+            Vec4<T>{ static_cast<T>(0.0), static_cast<T>(0.0), static_cast<T>(0.0), static_cast<T>(1.0) },
+            // Vec4<T>{ static_cast<T>(-1.0), static_cast<T>(-1.0), - (far + near) / (far - near), static_cast<T>(1.0) }
+        };
+    }
+
+    static Mat4<T> symmetricUnitFrustum(T near, T far) {
+        return Mat4<T> {
+            Vec4<T>{ near, static_cast<T>(0.0), static_cast<T>(0.0),         static_cast<T>(0.0)}, // static_cast<T>(-1.0) },
+            Vec4<T>{ static_cast<T>(0.0), near, static_cast<T>(0.0),        static_cast<T>(0.0)}, //static_cast<T>(-1.0) },
+            Vec4<T>{ static_cast<T>(0.0), static_cast<T>(0.0), -(far + near)/(far - near), static_cast<T>(-1.0)},//-(far + near)/(far - near) },
+            Vec4<T>{ static_cast<T>(0.0), static_cast<T>(0.0), -(static_cast<T>(2.0) * far * near)/(far - near), static_cast<T>(0.0) },
+            // Vec4<T>{ static_cast<T>(-1.0), static_cast<T>(-1.0), - (far + near) / (far - near), static_cast<T>(1.0) }
+        };
     }
 
     static Mat4<T> rotationMatFromUnitQuaternion(Quaternion<T> q) {

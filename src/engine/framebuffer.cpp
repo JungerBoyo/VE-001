@@ -7,142 +7,65 @@
 using namespace vmath;
 using namespace ve001;
 
-static void storeAndAttach(u32 fbo_id, i32 width, i32 height, Framebuffer::Attachment attachment, u32 tex_id) {
-    glTextureStorage2D(
-        tex_id, 
-        1, 
-        attachment.internal_format,
-        width,
-        height
-    );
-    glNamedFramebufferTexture(
-        fbo_id,
-        attachment.attachment_id,
-        tex_id,
-        0
-    );            
+Framebuffer::Framebuffer(i32 width, i32 height, const std::vector<Attachment>& attachments) 
+    : _width(width), _height(height), _texture_ids(attachments.size(), 0U) {
+    for (auto& attachment : attachments) {
+        _attachments.emplace_back(attachment.id, Texture(_width, _height, attachment.texture_params));
+    }
 }
 
-void Framebuffer::init(
-    i32 width,
-    i32 height,
-    const std::vector<Attachment>& color_attachments, 
-    bool depth_attachment,
-    bool stencil_attachment
-) {
-    _width = width;
-    _height = height;
+void Framebuffer::init() {
+    glCreateFramebuffers(1, &_fbo_id);
 
-    std::vector<u32> texture_ids(
-        color_attachments.size() + 
-        static_cast<std::size_t>(depth_attachment) +
-        static_cast<std::size_t>(stencil_attachment),
-        0U
-    );
-    glCreateTextures(GL_TEXTURE_2D, texture_ids.size(), texture_ids.data());
+    glCreateTextures(GL_TEXTURE_2D, _texture_ids.size(), _texture_ids.data());
 
     std::size_t i{ 0U };
-    if (!color_attachments.empty()) {
-        _color_attachments = color_attachments;
-        for (const auto color_attachment : _color_attachments) {
-            storeAndAttach(_fbo_id, width, height, color_attachment, texture_ids[i]);
-            ++i;
-        }
-    }
-
-    std::copy(
-        texture_ids.cbegin(), 
-        std::next(texture_ids.cbegin(), i), 
-        _color_attachment_textures.begin()
-    );
-
-    if (depth_attachment) {
-        const Attachment attachment {
-            .attachment_id = GL_DEPTH_ATTACHMENT, 
-            .internal_format = GL_DEPTH_COMPONENT24
-        };
-        storeAndAttach(_fbo_id, width, height, attachment, texture_ids[i]);
-        _depth_attachment_texture = texture_ids[i++];
-    }
-    if (stencil_attachment) {
-        const Attachment attachment {
-            .attachment_id = GL_STENCIL_ATTACHMENT, 
-            .internal_format = GL_STENCIL_INDEX8
-        };
-        storeAndAttach(_fbo_id, width, height, attachment, texture_ids[i]);
-        _stencil_attachment_texture = texture_ids[i++];
+    for (auto& attachment : _attachments) {
+        attachment.texture.init(_texture_ids[i]);
+        glNamedFramebufferTexture(_fbo_id, attachment.id, _texture_ids[i], 0);
+        ++i; 
     }
 }
 
-void Framebuffer::resize(i32 width, i32 height) {
+bool Framebuffer::resize(i32 width, i32 height) {
     if (_width == width && _height == height) {
-        return;
+        return false;
     }
 
     _width = width;
     _height = height;
 
-    const bool depth_attachment = _depth_attachment_texture != 0U;
-    const bool stencil_attachment = _stencil_attachment_texture != 0U;
-    
-    if (depth_attachment) {
-        _color_attachment_textures.push_back(_depth_attachment_texture);
-    }
-    if (stencil_attachment) {
-        _color_attachment_textures.push_back(_stencil_attachment_texture);
-    }
-
-    glDeleteTextures(_color_attachment_textures.size(), _color_attachment_textures.data());
-
-    glCreateTextures(
-        GL_TEXTURE_2D, 
-        _color_attachment_textures.size(),
-        _color_attachment_textures.data()
-    );
+    glDeleteTextures(_texture_ids.size(), _texture_ids.data());
+    glCreateTextures(GL_TEXTURE_2D, _texture_ids.size(), _texture_ids.data());
 
     std::size_t i{ 0U };
-    if (!_color_attachments.empty()) {
-        for (const auto color_attachment : _color_attachments) {
-            storeAndAttach(_fbo_id, width, height, color_attachment, _color_attachment_textures[i]);
-            ++i;
-        }
+    for (auto& attachment : _attachments) {
+        attachment.texture.resize(_texture_ids[i], _width, _height);
+        glNamedFramebufferTexture(_fbo_id, attachment.id, _texture_ids[i], 0);
+        ++i;
     }
 
-    if (depth_attachment) {
-        const Attachment attachment {
-            .attachment_id = GL_DEPTH_ATTACHMENT, 
-            .internal_format = GL_DEPTH_COMPONENT24
-        };
-        storeAndAttach(_fbo_id, width, height, attachment, _color_attachment_textures.back());
-        _depth_attachment_texture = _color_attachment_textures.back();
-        _color_attachment_textures.pop_back();
-    }
-    if (stencil_attachment) {
-        const Attachment attachment {
-            .attachment_id = GL_STENCIL_ATTACHMENT, 
-            .internal_format = GL_STENCIL_INDEX8
-        };
-        storeAndAttach(_fbo_id, width, height, attachment, _color_attachment_textures.back());
-        _stencil_attachment_texture = _color_attachment_textures.back();
-        _color_attachment_textures.pop_back();
-    }
+    return true;
+}
+
+void Framebuffer::setDrawBuffer(u32 id) {
+    glNamedFramebufferDrawBuffer(_fbo_id, id);
+}
+void Framebuffer::setReadBuffer(u32 id) {
+    glNamedFramebufferReadBuffer(_fbo_id, id);
 }
 
 void Framebuffer::deinit() {
-    const bool depth_attachment = _depth_attachment_texture != 0U;
-    const bool stencil_attachment = _stencil_attachment_texture != 0U;
-
-    _color_attachment_textures.push_back(_depth_attachment_texture);
-    _color_attachment_textures.push_back(_stencil_attachment_texture);
-
-    glDeleteTextures(_color_attachment_textures.size(), _color_attachment_textures.data());
-    
+    glDeleteTextures(_texture_ids.size(), _texture_ids.data());
     glDeleteFramebuffers(1, &_fbo_id);
 
-    _width = 0U;
-    _height = 0U;
-    _color_attachment_textures.clear();
-    _depth_attachment_texture = 0U;
-    _stencil_attachment_texture = 0U;
-    _color_attachments.clear();
+    _attachments.clear();
+    _texture_ids.clear();
+}
+
+void Framebuffer::bind() {
+    glBindFramebuffer(GL_FRAMEBUFFER, _fbo_id);
+}
+void Framebuffer::unbind() {
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }

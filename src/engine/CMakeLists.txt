@@ -8,14 +8,22 @@ add_library(ve001_engine STATIC
     cubemap.h
     cubemap.cpp
     enums.h
+    texture_params.h
     texture_array.h
     texture_array.cpp
+    texture.h
+    texture.cpp
     shader.h
     shader.cpp
     gpu_dynamic_array.h
     gpu_dynamic_array.cpp
     material_allocator.h
     material_allocator.cpp
+    framebuffer.h
+    framebuffer.cpp
+    camera.h
+    camera.cpp
+    light.h
 )
 target_link_libraries(ve001_engine PRIVATE 
     glad::glad

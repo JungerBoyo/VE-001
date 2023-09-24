@@ -7,8 +7,8 @@
 using namespace vmath;
 using namespace ve001;
 
-TextureArray::TextureArray(i32 width, i32 height, i32 depth, std::optional<Params> params)
-    : _width(width), _height(height), _depth(depth), _params(params.value_or(Params{
+TextureArray::TextureArray(i32 width, i32 height, i32 depth, std::optional<TextureParams> params)
+    : _width(width), _height(height), _depth(depth), _params(params.value_or(TextureParams{
         .internal_format = GL_SRGB8_ALPHA8, // GL_RGBA8
         .format = GL_RGBA, 
         .type = GL_UNSIGNED_BYTE,
@@ -30,23 +30,12 @@ void TextureArray::init() {
     glTextureParameteri(_tex_id, GL_TEXTURE_WRAP_T, _params.wrap_t);
     glTextureParameteri(_tex_id, GL_TEXTURE_MIN_FILTER, _params.min_filter);
     glTextureParameteri(_tex_id, GL_TEXTURE_MAG_FILTER, _params.mag_filter);
+    if (_params.set_aux_params != nullptr) {
+        _params.set_aux_params(_tex_id);
+    }
+
 }
 
-// Error TextureArray::writeData(const void* src, i32 index) {
-//     if (index >= _depth) {
-//         return Error::TEXTURE_INDEX_OUT_OF_RANGE;
-//     }
-
-//     glTextureSubImage3D(
-//         _tex_id, 0, 
-//         0, 0, index, 
-//         _width, _height, 1,
-//         GL_RGBA, GL_UNSIGNED_BYTE,
-//         src
-//     );
-
-//     return Error::NO_ERROR;
-// }
 u32 TextureArray::pushBack(const void* data) {
     if (_size == _depth) {
         return std::numeric_limits<u32>::max();

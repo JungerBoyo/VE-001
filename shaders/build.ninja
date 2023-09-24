@@ -15,3 +15,8 @@ build $BIN_DIR/basic_shader: mkdir
 
 build $BIN_DIR/basic_shader/vert.spv: glsl $SRC_DIR/basic_shader/shader.vert | $BIN_DIR/basic_shader
 build $BIN_DIR/basic_shader/frag.spv: glsl $SRC_DIR/basic_shader/shader.frag | $BIN_DIR/basic_shader
+
+build $BIN_DIR/shadow_map_shader: mkdir
+
+build $BIN_DIR/shadow_map_shader/vert.spv: glsl $SRC_DIR/shadow_map_shader/shader.vert | $BIN_DIR/shadow_map_shader
+build $BIN_DIR/shadow_map_shader/frag.spv: glsl $SRC_DIR/shadow_map_shader/shader.frag | $BIN_DIR/shadow_map_shader

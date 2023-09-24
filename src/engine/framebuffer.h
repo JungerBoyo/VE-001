@@ -6,37 +6,42 @@
 #include <vector>
 #include <optional>
 
+#include "texture.h"
+
 using namespace vmath;
 
 namespace ve001 {
 
 struct Framebuffer {
-    u32 _fbo_id{ 0U };
-
     struct Attachment {
-        u32 attachment_id{ 0U };
-        u32 internal_format{ 0U };
+        u32 id;
+        TextureParams texture_params;
+    };
+    
+    struct InternalAttachment {
+        u32 id;
+        Texture texture;
     };
 
-    std::vector<Attachment> _color_attachments;
+    u32 _fbo_id{ 0U };
 
-    std::vector<u32> _color_attachment_textures;
-    u32 _depth_attachment_texture{ 0U };
-    u32 _stencil_attachment_texture{ 0U };
+    i32 _width{ 0U };
+    i32 _height{ 0U };
 
-    i32 _width{ 0 };
-    i32 _height{ 0 };
+    std::vector<InternalAttachment> _attachments;
+    std::vector<Texture> _textures;
+    std::vector<u32> _texture_ids; // stored here to avoid memory allocation upon resize
 
-    void init(
-        i32 width,
-        i32 height,
-        const std::vector<Attachment>& color_attachments, 
-        bool depth_attachment,
-        bool stencil_attachment
-    );
+    Framebuffer(i32 width, i32 height, const std::vector<Attachment>& attachments);
 
-    void resize(i32 width, i32 height);
+    void init();
+    bool resize(i32 width, i32 height);
 
+    void setDrawBuffer(u32 id);
+    void setReadBuffer(u32 id);
+
+    void bind();
+    void unbind();
     void deinit();
 };
 

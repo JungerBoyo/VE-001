@@ -5,8 +5,11 @@ layout(location = 1) in vec3 in_texcoord;
 
 layout(std140, binding = 0) uniform General {
     mat4 mvp;
+    mat4 light_mvp;
+    mat4 light_mvp_biased;
     vec3 camera_pos;
     vec3 camera_dir;
+    vec3 light_pos;
     vec3 light_dir;
 };
 
@@ -15,6 +18,7 @@ layout(location = 1) flat out int out_material_id;
 layout(location = 2) flat out int out_face_id;
 layout(location = 3) flat out vec3 out_normal;
 layout(location = 4) out vec3 out_position;
+layout(location = 5) out vec4 out_light_space_position;
 
 void main() {
     out_texcoord = in_texcoord.xy;
@@ -29,6 +33,7 @@ void main() {
     out_material_id = int(in_texcoord.z) / 6;
 
     out_position = in_position;
+    out_light_space_position = light_mvp_biased * vec4(in_position, 1.0);
 
     gl_Position = mvp * vec4(in_position, 1.0);
 }
