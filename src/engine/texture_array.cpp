@@ -21,7 +21,7 @@ TextureArray::TextureArray(i32 width, i32 height, i32 depth, std::optional<Textu
 
 void TextureArray::init() {
     glCreateTextures(GL_TEXTURE_2D_ARRAY, 1, &_tex_id);
-
+    
     glTextureStorage3D(
         _tex_id, 1, _params.internal_format, //GL_RGBA8
         _width, _height, _depth
@@ -36,9 +36,9 @@ void TextureArray::init() {
 
 }
 
-u32 TextureArray::pushBack(const void* data) {
+void TextureArray::pushBack(const void* data) {
     if (_size == _depth) {
-        return std::numeric_limits<u32>::max();
+        return;
     }
 
     glTextureSubImage3D(
@@ -49,7 +49,11 @@ u32 TextureArray::pushBack(const void* data) {
         data
     );
 
-    return _size++;
+    ++_size;
+}
+
+void TextureArray::emplace() {
+    ++_size;
 }
 
 void TextureArray::bind(u32 texture_unit) {

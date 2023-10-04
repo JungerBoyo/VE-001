@@ -84,10 +84,16 @@ struct Vec {
         return result;
     }
 
-
-
     T len() const {
         return std::sqrt(Vec<T, S>::dot(*this, *this));
+    }
+
+    Vec<T, S> operator-() {
+        Vec<T, S> result;
+        for (std::size_t i{ 0U }; i < S; ++i) {
+            result[i] = -values[i];
+        }
+        return result;
     }
 
     static Vec<T, S> divScalar(Vec<T, S> vec, T scalar) {

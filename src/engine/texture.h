@@ -8,24 +8,22 @@
 
 #include <optional>
 
-using namespace vmath;
-
 namespace ve001 {
 
 struct Texture {
-    u32 _tex_id{ 0U };
-    i32 _width{ 0U };
-    i32 _height{ 0U };
+    vmath::u32 _tex_id{ 0U };
+    vmath::i32 _width{ 0U };
+    vmath::i32 _height{ 0U };
     TextureParams _params;
 
     Texture() = default;
-    Texture(i32 width, i32 height, std::optional<TextureParams> params = std::nullopt); 
+    Texture(vmath::i32 width, vmath::i32 height, std::optional<TextureParams> params = std::nullopt); 
 
     void init();
-    void init(u32 tex_id);
-    void bind(u32 texture_unit);
-    void resize(u32 tex_id, i32 width, i32 height);
-    void resize(i32 width, i32 height);
+    void init(vmath::u32 tex_id);
+    void bind(vmath::u32 texture_unit);
+    void resize(vmath::u32 tex_id, vmath::i32 width, vmath::i32 height);
+    void resize(vmath::i32 width, vmath::i32 height);
     void deinit();
 };
 

@@ -6,8 +6,6 @@
 
 #include "enums.h"
 
-using namespace vmath;
-
 namespace ve001 {
 
 struct MeshingEngine {
@@ -20,14 +18,14 @@ struct MeshingEngine {
         /**
          * @brief size of a chunk
         */
-        Vec3i32 chunk_size;
+        vmath::Vec3i32 chunk_size;
     };
 
     struct MeshedRegionDescriptor {
         Face face;
-        Vec3i32 region_extent;
-        Vec3i32 region_offset;
-        Vec2i32 squashed_region_extent;
+        vmath::Vec3i32 region_extent;
+        vmath::Vec3i32 region_offset;
+        vmath::Vec2i32 squashed_region_extent;
     };
 
 private:
@@ -39,26 +37,26 @@ public:
     /**
      * @brief 
     */
-    std::array<u32, 6> mesh(
+    std::array<vmath::u32, 6> mesh(
         void* dst, 
-        u32 offset, 
-        u32 stride, 
-        u32 face_stride, 
-        Vec3i32 position, 
-        const std::function<bool(i32, i32, i32)>& fn_state_query,
-        const std::function<u32(void*, MeshedRegionDescriptor)>& fn_write_quad
+        vmath::u32 offset, 
+        vmath::u32 stride, 
+        vmath::u32 face_stride, 
+        vmath::Vec3i32 position, 
+        const std::function<bool(vmath::i32, vmath::i32, vmath::i32)>& fn_state_query,
+        const std::function<vmath::u32(void*, MeshedRegionDescriptor)>& fn_write_quad
     );
 
 private:
-    u32 meshAxis(
+    vmath::u32 meshAxis(
         Face meshing_face, 
         void* face_dst, 
-        u32 face_dst_max_size,
-        u32 offset, 
-        u32 stride, 
-        Vec3i32 position, 
-        const std::function<bool(i32, i32, i32)>& fn_state_query,
-        const std::function<u32(void*, MeshedRegionDescriptor)>& fn_write_quad
+        vmath::u32 face_dst_max_size,
+        vmath::u32 offset, 
+        vmath::u32 stride, 
+        vmath::Vec3i32 position, 
+        const std::function<bool(vmath::i32, vmath::i32, vmath::i32)>& fn_state_query,
+        const std::function<vmath::u32(void*, MeshedRegionDescriptor)>& fn_write_quad
     );
 };
 

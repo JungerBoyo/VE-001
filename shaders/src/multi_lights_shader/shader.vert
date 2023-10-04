@@ -27,7 +27,7 @@ void main() {
     out_face_id = face;
     
     vec3 normal = vec3(0.0);
-    normal[face / 2] = 1.0 + (float(face % 2) * -2.0);
+    normal[face / 3] = 1.0 + ((face % 2 == 1 ? 1.0 : 0.0) * -2.0);
     out_normal = normal;
 
     out_material_id = int(in_texcoord.z) / 6;

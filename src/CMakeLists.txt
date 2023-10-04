@@ -46,6 +46,8 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
 )
 add_dependencies(${PROJECT_NAME} compile_and_copy_shaders_dirs)
 
+add_subdirectory(tools)
+
 
 
 

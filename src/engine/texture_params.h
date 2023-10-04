@@ -3,20 +3,18 @@
 
 #include <vmath/vmath_types.h>
 
-using namespace vmath;
-
 namespace ve001 {
 
 struct TextureParams {
-    u32 internal_format;
-    u32 format;
-    u32 type;
-    u32 wrap_s;
-    u32 wrap_t;
-    u32 min_filter;
-    u32 mag_filter;
+    vmath::u32 internal_format;
+    vmath::u32 format;
+    vmath::u32 type;
+    vmath::u32 wrap_s;
+    vmath::u32 wrap_t;
+    vmath::u32 min_filter;
+    vmath::u32 mag_filter;
     bool gen_mip_map{ false };
-    void(*set_aux_params)(u32 tex_id){ nullptr };
+    void(*set_aux_params)(vmath::u32 tex_id){ nullptr };
 };
 
 }

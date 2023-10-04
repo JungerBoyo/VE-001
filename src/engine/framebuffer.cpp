@@ -14,6 +14,10 @@ Framebuffer::Framebuffer(i32 width, i32 height, const std::vector<Attachment>& a
     }
 }
 
+void Framebuffer::initRaw() {
+    glCreateFramebuffers(1, &_fbo_id);
+}
+
 void Framebuffer::init() {
     glCreateFramebuffers(1, &_fbo_id);
 
@@ -48,6 +52,13 @@ bool Framebuffer::resize(i32 width, i32 height) {
     return true;
 }
 
+void Framebuffer::bindTexToAttachment(u32 attachment_id, u32 tex_id) {
+    glNamedFramebufferTexture(_fbo_id, attachment_id, tex_id, 0);
+}
+void Framebuffer::bindTexLayerToAttachment(u32 attachment_id, u32 tex_id, i32 layer) {
+    glNamedFramebufferTextureLayer(_fbo_id, attachment_id, tex_id, 0, layer);
+}
+
 void Framebuffer::setDrawBuffer(u32 id) {
     glNamedFramebufferDrawBuffer(_fbo_id, id);
 }
@@ -56,7 +67,9 @@ void Framebuffer::setReadBuffer(u32 id) {
 }
 
 void Framebuffer::deinit() {
-    glDeleteTextures(_texture_ids.size(), _texture_ids.data());
+    if (!_texture_ids.empty()) {
+        glDeleteTextures(_texture_ids.size(), _texture_ids.data());
+    }
     glDeleteFramebuffers(1, &_fbo_id);
 
     _attachments.clear();

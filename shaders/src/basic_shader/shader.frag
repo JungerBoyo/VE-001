@@ -48,7 +48,6 @@ const vec3 LIGHT_COLOR = vec3(1.0, 1.0, 1.0);
 const vec3 AMBIENT = vec3(0.1, 0.1, 0.1);
 
 void main() {
-
     MaterialDescriptor descriptor = materials[in_material_id];
 
     float tex_id = float(descriptor.material_texture_indices[in_face_id]);
@@ -58,9 +57,9 @@ void main() {
 
 // compute light
     // diffuse
-    vec3 _light_dir = normalize(light_pos - in_position);
+    vec3 _light_dir = light_dir; //normalize(light_pos - in_position);
     float diff = max(dot(in_normal, _light_dir), 0.0);
-    vec3 diffuse = LIGHT_COLOR * (diff * params.diffuse);
+    vec3 diffuse = LIGHT_COLOR * (diff * params.diffuse);// * params.diffuse);
 
     // specular
     vec3 view_dir = normalize(camera_pos - in_position);
@@ -75,6 +74,7 @@ void main() {
 
     vec4 result = vec4((AMBIENT + f * (diffuse + specular)) * vec3(tex), tex.w);
 
+    // vec4 result = vec4(in_normal.x, in_normal.y, in_normal.z, 1.0);
     // result.g = f;
     // vec4 result = vec4((AMBIENT * vec3(tex)) + (diffuse * vec3(tex)) + (specular * vec3(tex)), 1.0);
 

@@ -1,5 +1,5 @@
-#ifndef VE001_TEXTURE_ARRAY_H
-#define VE001_TEXTURE_ARRAY_H
+#ifndef VE001_CUBETEXTURE_ARRAY_H
+#define VE001_CUBETEXTURE_ARRAY_H
 
 #include <vmath/vmath_types.h>
 
@@ -10,7 +10,7 @@
 
 namespace ve001 {
 
-struct TextureArray {
+struct CubeTextureArray {
     vmath::u32 _tex_id{ 0U };
     vmath::i32 _width{ 0U };
     vmath::i32 _height{ 0U };
@@ -19,11 +19,15 @@ struct TextureArray {
     vmath::u32 _size{ 0U };
     TextureParams _params;
 
-    TextureArray(vmath::i32 width, vmath::i32 height, vmath::i32 depth, std::optional<TextureParams> params = std::nullopt); 
+    CubeTextureArray(vmath::i32 width, vmath::i32 height, vmath::i32 depth, std::optional<TextureParams> params = std::nullopt); 
 
     void init();
 
-    void pushBack(const void* data);
+    void pushBack(
+        const void* pos_x, const void* neg_x, 
+        const void* pos_y, const void* neg_y, 
+        const void* pos_z, const void* neg_z
+    );
     void emplace();
 
     const auto size() const { return _size; }

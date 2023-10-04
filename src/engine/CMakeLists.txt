@@ -24,6 +24,13 @@ add_library(ve001_engine STATIC
     camera.h
     camera.cpp
     light.h
+    lighting.h
+    lighting.cpp
+    gpu_object_pooling_resource.h
+    gpu_buffer.h
+    gpu_buffer.cpp
+    cubetexture_array.h
+    cubetexture_array.cpp
 )
 target_link_libraries(ve001_engine PRIVATE 
     glad::glad

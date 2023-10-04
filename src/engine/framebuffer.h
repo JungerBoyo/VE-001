@@ -8,37 +8,41 @@
 
 #include "texture.h"
 
-using namespace vmath;
-
 namespace ve001 {
 
 struct Framebuffer {
     struct Attachment {
-        u32 id;
+        vmath::u32 id;
         TextureParams texture_params;
     };
     
     struct InternalAttachment {
-        u32 id;
+        vmath::u32 id;
         Texture texture;
     };
 
-    u32 _fbo_id{ 0U };
+    vmath::u32 _fbo_id{ 0U };
 
-    i32 _width{ 0U };
-    i32 _height{ 0U };
+    vmath::i32 _width{ 0U };
+    vmath::i32 _height{ 0U };
 
     std::vector<InternalAttachment> _attachments;
     std::vector<Texture> _textures;
-    std::vector<u32> _texture_ids; // stored here to avoid memory allocation upon resize
+    std::vector<vmath::u32> _texture_ids; // stored here to avoid memory allocation upon resize
 
-    Framebuffer(i32 width, i32 height, const std::vector<Attachment>& attachments);
+    Framebuffer() = default;
+    Framebuffer(vmath::i32 width, vmath::i32 height, const std::vector<Attachment>& attachments);
 
     void init();
-    bool resize(i32 width, i32 height);
+    void initRaw();
 
-    void setDrawBuffer(u32 id);
-    void setReadBuffer(u32 id);
+    bool resize(vmath::i32 width, vmath::i32 height);
+
+    void bindTexToAttachment(vmath::u32 attachment_id, vmath::u32 tex_id);
+    void bindTexLayerToAttachment(vmath::u32 attachment_id, vmath::u32 tex_id, vmath::i32 layer);
+
+    void setDrawBuffer(vmath::u32 id);
+    void setReadBuffer(vmath::u32 id);
 
     void bind();
     void unbind();

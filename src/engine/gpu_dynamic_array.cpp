@@ -42,17 +42,15 @@ void GPUDynamicArray::deinit() noexcept {
     glDeleteBuffers(1, &_ssbo_id);
 }
 
-Error GPUDynamicArray::pushBack(u32& id, const void* data) noexcept {
+Error GPUDynamicArray::pushBack(const void* data) noexcept {
     if (_size == _capacity) {
         const auto result = reserve(static_cast<u32>(GROW_FACTOR * static_cast<f32>(_capacity)));
         if (result != Error::NO_ERROR) {
-            id = std::numeric_limits<u32>::max();
             return result;
         }
     }
 
     std::memcpy(static_cast<u8*>(_ssbo_ptr) + (_size * _element_size), data, _element_size);
-    id = _size;
     ++_size;
     
     return Error::NO_ERROR;
@@ -94,7 +92,7 @@ Error GPUDynamicArray::resize(u32 size) noexcept {
     return Error::NO_ERROR;
 }
 
-Error GPUDynamicArray::write(void* data, u32 count, u32 offset) noexcept {
+Error GPUDynamicArray::write(const void* data, u32 count, u32 offset) noexcept {
     if (offset + count > _size) {
         return Error::GPU_DYNAMIC_ARRAY_WRITE_OVERFLOW;
     }

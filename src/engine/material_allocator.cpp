@@ -16,23 +16,20 @@ MaterialAllocator::MaterialAllocator(
 
 void MaterialAllocator::init() {
     _texture_rgba8_array.init();
-    _material_descriptors_array.init(8);
-    _material_params_array.init(8);
+    _material_descriptors_array.init(80);
+    _material_params_array.init(80);
 }
 
-u32 MaterialAllocator::addTexture(const void* data) {
-    return _texture_rgba8_array.pushBack(data);
+void MaterialAllocator::addTexture(const void* data) {
+    _texture_rgba8_array.pushBack(data);
 }
 
-u32 MaterialAllocator::addMaterialParams(MaterialParams params) {
-    u32 id{ 0U };
-    _material_params_array.pushBack(id, static_cast<const void*>(&params));
-    return id;
+void MaterialAllocator::addMaterialParams(MaterialParams params) {
+    _material_params_array.pushBack(static_cast<const void*>(&params));
 }
 
 void MaterialAllocator::addMaterial(MaterialDescriptor descriptor) {
-    u32 id{ 0U };
-    _material_descriptors_array.pushBack(id, static_cast<const void*>(&descriptor));
+    _material_descriptors_array.pushBack(static_cast<const void*>(&descriptor));
 }
 
 void MaterialAllocator::deinit() {

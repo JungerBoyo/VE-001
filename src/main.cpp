@@ -147,6 +147,9 @@ void mousePosCallback(GLFWwindow* win_handle, f64 x_pos, f64 y_pos) {
     glfwGetWindowSize(win_handle, &w, &h);
     const auto dw = static_cast<f64>(w);
     const auto dh = static_cast<f64>(h);
+    if (x_pos == dw/2.0 && y_pos == dh/2.0) {
+        return;
+    }
     glfwSetCursorPos(win_handle, dw/2.0, dh/2.0);
 
     const auto aspect_ratio = static_cast<f32>(dw)/static_cast<f32>(dh);
@@ -154,11 +157,14 @@ void mousePosCallback(GLFWwindow* win_handle, f64 x_pos, f64 y_pos) {
     const auto x_step = (static_cast<f32>(x_pos) + prev_mouse_pos[0])/2.F - (static_cast<f32>(w)/2.F);
     const auto y_step = aspect_ratio * ((static_cast<f32>(y_pos) + prev_mouse_pos[1])/2.F - (static_cast<f32>(h)/2.F));
 
-    static constexpr auto step{ 0.005F };
+    static constexpr auto step{ 0.020F };
 
     auto& chosen_camera = light_as_camera ? light : camera;
 
     chosen_camera.rotateXYPlane({timestep * step * x_step, timestep * step * y_step});
+
+    prev_mouse_pos[0] = static_cast<f32>(x_pos);
+    prev_mouse_pos[1] = static_cast<f32>(y_pos);
 }
 #endif
 
@@ -285,7 +291,7 @@ int main() {
         .color = Vec4f32(1.F),
         .diffuse = Vec3f32(.55F),
         .shininess = .25F * 128.F,
-        .specular = Vec3f32(.2F)
+        .specular = Vec3f32(1.F)
     });
 
     createCubeMapTextureArray(
@@ -347,15 +353,12 @@ int main() {
 
     glEnable(GL_FRAMEBUFFER_SRGB);
     
-    light.move({-45.F, 45.F, -5.F});
-    camera.move({0.F, 40.F, -6.F});
+    light.move({0.F, 0.F, 0.F});
+    camera.move({0.F, 40.F, 6.F});
 
     f32 prev_frame_time{ 0.F };
     while(!window.shouldClose()) {
         const auto [window_width, window_height] = window.size();
-
-        prev_mouse_pos[0] = static_cast<f32>(window_width)/2.F;
-        prev_mouse_pos[1] = static_cast<f32>(window_height)/2.F;
 
         const auto frame_time = window.time();
         timestep = frame_time - prev_frame_time;
@@ -368,7 +371,7 @@ int main() {
         }
 
         const auto proj_mat = misc<f32>::symmetricPerspectiveProjection(
-            .25F * std::numbers::pi_v<f32>, .1F, 100.F, 
+            .25F * std::numbers::pi_v<f32>, .1F, 1000.F, 
             static_cast<f32>(window_width), static_cast<f32>(window_height)
         );
         // const auto proj_mat = misc<f32>::symmetricOrthographicProjection(
@@ -378,8 +381,8 @@ int main() {
 
         const auto mvp = Mat4f32::mul(proj_mat, camera.lookAt());
         // const auto light_proj_mat = misc<f32>::symmetricOrthographicProjection(
-        //     .1F, 5000.F, 
-        //     static_cast<f32>(window_width/4), static_cast<f32>(window_height/4)
+        //     .1F, 1000.F, 
+        //     static_cast<f32>(window_width), static_cast<f32>(window_height)
         // );
         const auto light_mvp = Mat4f32::mul(light_proj_mat, light.lookAt());
 
@@ -396,15 +399,14 @@ int main() {
             .light_mvp = light_mvp,
             .light_mvp_biased = Mat4f32::mul(scale_bias_mat, light_mvp),
             .camera_pos = camera.position,
-            .camera_dir = camera.neg_looking_dir,
+            .camera_dir = camera.looking_dir,
             .light_pos = light.position,
-            .light_dir = light.neg_looking_dir 
+            .light_dir = -light.looking_dir 
         };
 
         glNamedBufferSubData(ubo, 0, sizeof(ubo_data), static_cast<const void*>(&ubo_data));
 
         glViewport(0, 0, window_width, window_height);
-
 
         // render shadow map
         if (shadow_map_fbo.resize(window_width, window_height)) {
@@ -429,8 +431,6 @@ int main() {
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         shader.bind();
         chunk_mesh_pool.drawAll();
-
-
 
         window.swapBuffers();
         window.pollEvents();

@@ -5,20 +5,18 @@
 #include "texture_array.h"
 #include "gpu_dynamic_array.h"
 
-using namespace vmath;
-
 namespace ve001 {
 
 struct MaterialParams {
-    Vec4f32 color;
-    Vec3f32 diffuse;
-    f32 shininess;
-    Vec3f32 specular;
+    vmath::Vec4f32 color;
+    vmath::Vec3f32 diffuse;
+    vmath::f32 shininess;
+    vmath::Vec3f32 specular;
 };
 
 struct MaterialDescriptor {
-    u32 material_texture_index[6];
-    u32 material_params_index[6];
+    vmath::u32 material_texture_index[6];
+    vmath::u32 material_params_index[6];
 };
 
 // TODO: handle the case material deleation? 
@@ -29,17 +27,17 @@ struct MaterialAllocator {
     GPUDynamicArray _material_descriptors_array;
 
     MaterialAllocator(
-        u32 material_params_capacity, 
-        u32 material_descriptors_capacity,
-        u32 textures_capacity, 
-        u32 textures_width,
-        u32 textures_height
+        vmath::u32 material_params_capacity, 
+        vmath::u32 material_descriptors_capacity,
+        vmath::u32 textures_capacity, 
+        vmath::u32 textures_width,
+        vmath::u32 textures_height
     );
 
     void init();
 
-    u32 addTexture(const void* data);
-    u32 addMaterialParams(MaterialParams params);
+    void addTexture(const void* data);
+    void addMaterialParams(MaterialParams params);
     void addMaterial(MaterialDescriptor descriptor);
 
     void deinit();
