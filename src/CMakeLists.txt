@@ -2,6 +2,9 @@ find_package(fmt REQUIRED)
 find_package(glad REQUIRED)
 find_package(stb REQUIRED)
 find_package(spdlog REQUIRED)
+find_package(glm REQUIRED)
+
+link_libraries(glm::glm)
 
 if (USE_SDL2)
     add_compile_definitions(${PROJECT_NAME}_USE_SDL2=1)

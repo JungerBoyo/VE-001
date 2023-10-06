@@ -8,10 +8,9 @@
 namespace ve001 {
 
 struct MaterialParams {
-    vmath::Vec4f32 color;
+    vmath::Vec4f32 specular;
     vmath::Vec3f32 diffuse;
-    vmath::f32 shininess;
-    vmath::Vec3f32 specular;
+    vmath::f32 alpha;
 };
 
 struct MaterialDescriptor {

@@ -23,18 +23,19 @@ Mat4f32 Camera::lookAt() {
 void Camera::rotate(Vec3f32 angles) {
     Mat3f32 basis(rhs_dir, up_dir, looking_dir);
     looking_dir = vmath::misc<f32>::rotatePoint3D(angles, looking_dir, Vec3f32(0.F), basis);
+    looking_dir_angles = Vec3f32::add(looking_dir_angles, angles);
 }
 void Camera::rotateXYPlane(Vec2f32 vec) {
-    neg_looking_dir_angles[0] = vmath::misc<f32>::wrap(
-        neg_looking_dir_angles[0] + vec[1], 2.F*std::numbers::pi_v<f32>, 0.F
+    looking_dir_angles[0] = vmath::misc<f32>::wrap(
+        looking_dir_angles[0] + vec[1], 2.F*std::numbers::pi_v<f32>, 0.F
     );
-    neg_looking_dir_angles[1] = vmath::misc<f32>::wrap(
-        neg_looking_dir_angles[1] + vec[0], 2.F*std::numbers::pi_v<f32>, 0.F
+    looking_dir_angles[1] = vmath::misc<f32>::wrap(
+        looking_dir_angles[1] + vec[0], 2.F*std::numbers::pi_v<f32>, 0.F
     );
                         // rot around Y in XZ plane (x value)  // scale by rot around X becuase vec len changed from x/z perspective
-    looking_dir[0] = std::cos(neg_looking_dir_angles[1]) * std::cos(neg_looking_dir_angles[0]);
-    looking_dir[1] = std::sin(neg_looking_dir_angles[0]);
-    looking_dir[2] = std::sin(neg_looking_dir_angles[1]) * std::cos(neg_looking_dir_angles[0]);
+    looking_dir[0] = std::cos(looking_dir_angles[1]) * std::cos(looking_dir_angles[0]);
+    looking_dir[1] = std::sin(looking_dir_angles[0]);
+    looking_dir[2] = std::sin(looking_dir_angles[1]) * std::cos(looking_dir_angles[0]);
 
     looking_dir = Vec3f32::normalize(looking_dir);
 }

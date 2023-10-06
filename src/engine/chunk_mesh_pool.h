@@ -91,7 +91,7 @@ public:
 
     const vmath::u32 submeshStride() const { return _max_submesh_size; };
 
-
+    void update() noexcept;
     void drawAll() noexcept;
 
     void deinit() noexcept;

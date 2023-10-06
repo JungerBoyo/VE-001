@@ -29,7 +29,7 @@ struct GPUObjectPoolingResource {
     std::vector<vmath::u32> _id_to_index;
     std::vector<vmath::u32> _free_ids;
 
-    void init(u32 capacity) {
+    void init(vmath::u32 capacity) {
         _objects.reserve(capacity);
         _buffer.init(capacity);
         _id_to_index.reserve(capacity);

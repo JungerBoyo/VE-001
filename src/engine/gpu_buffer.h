@@ -15,7 +15,7 @@ struct GPUBuffer {
     void init(vmath::u32 id);
     void write(const void* data);
     void write(const void* data, vmath::u32 offset, vmath::u32 size);
-    void bind(u32 target, u32 binding);
+    void bind(vmath::u32 target, vmath::u32 binding);
     void deinit();
 };
 

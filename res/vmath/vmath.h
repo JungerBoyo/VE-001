@@ -88,7 +88,7 @@ struct Vec {
         return std::sqrt(Vec<T, S>::dot(*this, *this));
     }
 
-    Vec<T, S> operator-() {
+    Vec<T, S> operator-() const {
         Vec<T, S> result;
         for (std::size_t i{ 0U }; i < S; ++i) {
             result[i] = -values[i];
@@ -334,10 +334,30 @@ using Mat4f32 = Mat4<f32>;
 template<typename T>
 requires std::is_floating_point_v<T>
 struct misc {
-    static Mat4<T> symmetricPerspectiveProjection(T fov, T near, T far, T width, T height) {
+    static Mat4<T> lookAt(Vec3<T> position, Vec3<T> looking_dir, Vec3<T> world_up) {
+        const auto rhs_dir = Vec3<T>::normalize(cross(looking_dir, world_up));
+        const auto up_dir = Vec3<T>::normalize(cross(rhs_dir, looking_dir));
+
+        // construct lookAt matrix (camera basis matrix * camera translation matrix)
         return Mat4<T>(
-            Vec4<T>(static_cast<T>(1.0)/((width/height) * fov), static_cast<T>(0.0), static_cast<T>(0.0), static_cast<T>(0.0)),
-            Vec4<T>(static_cast<T>(0.0), static_cast<T>(1.0)/fov, static_cast<T>(0.0), static_cast<T>(0.0)),
+            Vec4<T>(rhs_dir[0], up_dir[0], -looking_dir[0], static_cast<T>(0)),
+            Vec4<T>(rhs_dir[1], up_dir[1], -looking_dir[1], static_cast<T>(0)),
+            Vec4<T>(rhs_dir[2], up_dir[2], -looking_dir[2], static_cast<T>(0)),
+            Vec4<T>(
+                -Vec3<T>::dot(rhs_dir, position),
+                -Vec3<T>::dot(up_dir, position),
+                 Vec3<T>::dot(looking_dir, position),
+                 static_cast<T>(1)
+            )
+        );
+    }
+
+    static Mat4<T> symmetricPerspectiveProjection(T fov, T near, T far, T width, T height) {
+        
+        const T tan_half_fov = std::tan(fov/static_cast<T>(2));
+        return Mat4<T>(
+            Vec4<T>(static_cast<T>(1.0)/((width/height) * tan_half_fov), static_cast<T>(0.0), static_cast<T>(0.0), static_cast<T>(0.0)),
+            Vec4<T>(static_cast<T>(0.0), static_cast<T>(1.0)/tan_half_fov, static_cast<T>(0.0), static_cast<T>(0.0)),
             Vec4<T>(static_cast<T>(0.0), static_cast<T>(0.0), (-far - near)/(far - near), static_cast<T>(-1.0)),
             Vec4<T>(static_cast<T>(0.0), static_cast<T>(0.0), -(static_cast<T>(2.0) * far * near)/(far - near), static_cast<T>(0.0))
         );

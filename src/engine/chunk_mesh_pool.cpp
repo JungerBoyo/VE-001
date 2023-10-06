@@ -362,8 +362,7 @@ void ChunkMeshPool::deallocateChunkDrawCmds(const ChunkMetadata& chunk_metadata)
     }
 }
 
-
-void ChunkMeshPool::drawAll() noexcept {
+void ChunkMeshPool::update() noexcept {
     if (_draw_cmds.size() > 0U) {
         glNamedBufferSubData(
             _dibo_id, 0, 
@@ -374,7 +373,11 @@ void ChunkMeshPool::drawAll() noexcept {
         glBindBuffer(GL_DRAW_INDIRECT_BUFFER, _dibo_id);
         glBindVertexArray(_vao_id);
         glBindBuffer(GL_ARRAY_BUFFER, _vbo_id);
+    }
+}
 
+void ChunkMeshPool::drawAll() noexcept {
+    if (_draw_cmds.size() > 0U) {
         glMultiDrawArraysIndirect(
             GL_TRIANGLES, 
             static_cast<void*>(0), 

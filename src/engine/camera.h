@@ -7,7 +7,7 @@ namespace ve001 {
 
 struct Camera {
     vmath::Vec3f32 position{ 0.F };
-    vmath::Vec3f32 neg_looking_dir_angles{
+    vmath::Vec3f32 looking_dir_angles{
         std::numbers::pi_v<vmath::f32>,// vector (0,0,1) is NEGATIVE 
                                 // so starting point is vector
                                 // (0,0,-1). vector (0,0,1) is 

@@ -24,6 +24,8 @@
 #include <sandbox_utils/face_gen.h>
 #include <engine/shader.h>
 #include <engine/framebuffer.h>
+#include <engine/lighting.h>
+#include <engine/gpu_buffer.h>
 
 #include <logger/logger.h>
 
@@ -90,6 +92,8 @@ static Camera camera{};
 static Camera light{};
 bool light_as_camera{ false };
 bool light_as_camera_proj{ false };
+bool camera_rotated{ false };
+bool camera_moved{ false };
 
 Vec2f32 prev_mouse_pos(0.F);
 
@@ -109,36 +113,17 @@ std::array<KeyAction, 6> keys {{
 
 #ifdef VE001_USE_GLFW3
 void keyCallback(GLFWwindow* window_handle, i32 key, i32, i32 action, i32) {
-    // auto& chosen_camera = light_as_camera ? light : camera;
+    switch(key) {
+    case GLFW_KEY_W: keys[0].pressed = (action == GLFW_PRESS || action == GLFW_REPEAT); break;
+    case GLFW_KEY_A: keys[1].pressed = (action == GLFW_PRESS || action == GLFW_REPEAT); break;
+    case GLFW_KEY_Q: keys[2].pressed = (action == GLFW_PRESS || action == GLFW_REPEAT); break;
+    case GLFW_KEY_S: keys[3].pressed = (action == GLFW_PRESS || action == GLFW_REPEAT); break;
+    case GLFW_KEY_D: keys[4].pressed = (action == GLFW_PRESS || action == GLFW_REPEAT); break;
+    case GLFW_KEY_E: keys[5].pressed = (action == GLFW_PRESS || action == GLFW_REPEAT); break;
 
-    // if (action == GLFW_PRESS || action == GLFW_REPEAT) {
-        // constexpr f32 step{ 24.0 };
-
-        switch(key) {
-        case GLFW_KEY_W: keys[0].pressed = (action == GLFW_PRESS || action == GLFW_REPEAT); break;
-        case GLFW_KEY_A: keys[1].pressed = (action == GLFW_PRESS || action == GLFW_REPEAT); break;
-        case GLFW_KEY_Q: keys[2].pressed = (action == GLFW_PRESS || action == GLFW_REPEAT); break;
-        case GLFW_KEY_S: keys[3].pressed = (action == GLFW_PRESS || action == GLFW_REPEAT); break;
-        case GLFW_KEY_D: keys[4].pressed = (action == GLFW_PRESS || action == GLFW_REPEAT); break;
-        case GLFW_KEY_E: keys[5].pressed = (action == GLFW_PRESS || action == GLFW_REPEAT); break;
-        // case GLFW_KEY_L: camera.rotate({0.F,-timestep * std::numbers::pi_v<f32>/2.F, 0.F}); break;
-        // case GLFW_KEY_H: camera.rotate({0.F, timestep * std::numbers::pi_v<f32>/2.F, 0.F}); break;
-        // case GLFW_KEY_K: camera.rotate({ timestep * std::numbers::pi_v<f32>/2.F, 0.F, 0.F}); break;
-        // case GLFW_KEY_J: camera.rotate({-timestep * std::numbers::pi_v<f32>/2.F, 0.F, 0.F}); break;
-        // case GLFW_KEY_I: camera.rotate({0.F, 0.F, timestep * std::numbers::pi_v<f32>/2.F}); break;
-        // case GLFW_KEY_O: camera.rotate({0.F, 0.F,-timestep * std::numbers::pi_v<f32>/2.F}); break;
-
-        // case GLFW_KEY_L: light_pos[0] -= timestep * step; break; 
-        // case GLFW_KEY_O: light_pos[1] += timestep * step; break;
-        // case GLFW_KEY_K: light_pos[2] -= timestep * step; break;
-        // case GLFW_KEY_J: light_pos[0] += timestep * step; break;
-        // case GLFW_KEY_I: light_pos[2] += timestep * step; break;
-        // case GLFW_KEY_U: light_pos[1] -= timestep * step; break;
-
-        case GLFW_KEY_U: if (action == GLFW_PRESS || action == GLFW_REPEAT) { light_as_camera = !light_as_camera; } break;
-        case GLFW_KEY_I: if (action == GLFW_PRESS || action == GLFW_REPEAT) { light_as_camera_proj = !light_as_camera_proj; } break;
-        }
-    // }
+    case GLFW_KEY_U: if (action == GLFW_PRESS || action == GLFW_REPEAT) { light_as_camera = !light_as_camera; } break;
+    case GLFW_KEY_I: if (action == GLFW_PRESS || action == GLFW_REPEAT) { light_as_camera_proj = !light_as_camera_proj; } break;
+    }
 }
 
 void mousePosCallback(GLFWwindow* win_handle, f64 x_pos, f64 y_pos) {
@@ -162,9 +147,11 @@ void mousePosCallback(GLFWwindow* win_handle, f64 x_pos, f64 y_pos) {
     auto& chosen_camera = light_as_camera ? light : camera;
 
     chosen_camera.rotateXYPlane({timestep * step * x_step, timestep * step * y_step});
+    camera_rotated = true;
 
     prev_mouse_pos[0] = static_cast<f32>(x_pos);
     prev_mouse_pos[1] = static_cast<f32>(y_pos);
+
 }
 #endif
 
@@ -184,7 +171,7 @@ int main() {
     ve001::ChunkMeshPool chunk_mesh_pool{};
     chunk_mesh_pool.init({
         .chunk_dimensions = EXTENT,
-        .max_chunks = 15,
+        .max_chunks = 26,
         .vertex_size = sizeof(Vertex),
         .vertex_layout_config = setVertexLayout
     });
@@ -206,12 +193,15 @@ int main() {
 
     std::vector<u8> noise(EXTENT[0] * EXTENT[1] * EXTENT[2], 0U);
 
-    std::array<Vec3i32, 15> chunk_positions{{
+    std::array<Vec3i32, 26> chunk_positions{{
         {0, 0, 0}, {1, 0, 0}, {2, 0, 0},
         {0, 0, 1}, {1, 0, 1}, {2, 0, 1},
         {0, 0, 2}, {1, 0, 2}, {2, 0, 2},
-        {1, 1, 1}, {0, 0, 3}, {0, 1, 3},
-        {0, 2, 3}, {0, 3, 3}, {-1, 0, 0}
+        {1, 1, 1},
+        {0, 1, -1}, {1, 1, -1}, {2, 1, -1},
+        {0, 1, 3}, {1, 1, 3}, {2, 1, 3},
+        {-1, 1, 0}, {-1, 1, 1}, {-1, 1, 2},
+        {3, 1, 0}, {3, 1, 1}, {3, 1, 2},
     }};
 
     u32 mesh_memory_footprint{ 0U };
@@ -271,16 +261,23 @@ int main() {
         mesh_memory_footprint / (1024 * 1024)
     );
 
-    Shader shader{};
-    shader.attach(
-        "/home/regu/codium_repos/VE-001/shaders/bin/basic_shader/vert.spv", 
-        "/home/regu/codium_repos/VE-001/shaders/bin/basic_shader/frag.spv"
-    );
+    // Shader shader{};
+    // shader.attach(
+    //     "/home/regu/codium_repos/VE-001/shaders/bin/basic_shader/vert.spv", 
+    //     "/home/regu/codium_repos/VE-001/shaders/bin/basic_shader/frag.spv"
+    // );
 
-    Shader shadow_map_shader{};
-    shadow_map_shader.attach(
-        "/home/regu/codium_repos/VE-001/shaders/bin/shadow_map_shader/vert.spv", 
-        "/home/regu/codium_repos/VE-001/shaders/bin/shadow_map_shader/frag.spv"
+    // Shader shadow_map_shader{};
+    // shadow_map_shader.attach(
+    //     "/home/regu/codium_repos/VE-001/shaders/bin/shadow_map_shader/vert.spv", 
+    //     "/home/regu/codium_repos/VE-001/shaders/bin/shadow_map_shader/frag.spv"
+    // );
+
+    Shader shader{};
+    shader.init();
+    shader.attach(
+        "/home/regu/codium_repos/VE-001/shaders/bin/multi_lights_shader/vert.spv", 
+        "/home/regu/codium_repos/VE-001/shaders/bin/multi_lights_shader/frag.spv"
     );
 
     MaterialAllocator material_allocator(1U, 1U, 6U, 96U, 96U);
@@ -288,10 +285,9 @@ int main() {
     material_allocator.init();
 
     material_allocator.addMaterialParams(MaterialParams{
-        .color = Vec4f32(1.F),
-        .diffuse = Vec3f32(.55F),
-        .shininess = .25F * 128.F,
-        .specular = Vec3f32(1.F)
+        .specular = Vec4f32(1.F, 1.F, 1.F, 32.F),
+        .diffuse = Vec3f32(1.F),
+        .alpha = 1.F
     });
 
     createCubeMapTextureArray(
@@ -304,14 +300,9 @@ int main() {
         .material_params_index  = {0U, 0U, 0U, 0U, 0U, 0U}
     });
 
-    material_allocator._texture_rgba8_array.bind(SH_CONFIG_2D_TEX_ARRAY_BINDING);
-    material_allocator._material_params_array.bind(SH_CONFIG_MATERIAL_PARAMS_SSBO_BINDING);
-    material_allocator._material_descriptors_array.bind(SH_CONFIG_MATERIAL_DESCRIPTORS_SSBO_BINDING);
-
-    u32 ubo{ 0U };
-    glCreateBuffers(1, &ubo);
-    glNamedBufferStorage(ubo, 3 * sizeof(Mat4f32) + 4 * sizeof(Vec4f32), nullptr, GL_DYNAMIC_STORAGE_BIT);
-    glBindBufferBase(GL_UNIFORM_BUFFER, SH_CONFIG_MVP_UBO_BINDING, ubo);
+    material_allocator._texture_rgba8_array.bind(VE001_SH_CONFIG_TEX_BINDING_MATERIAL_TEXTURES);
+    material_allocator._material_params_array.bind(VE001_SH_CONFIG_SSBO_BINDING_MATERIAL_PARAMS);
+    material_allocator._material_descriptors_array.bind(VE001_SH_CONFIG_SSBO_BINDING_MATERIAL_DESCRIPTORS);
 
 #ifdef VE001_USE_GLFW3
     window.setKeyCallback(keyCallback);
@@ -319,42 +310,65 @@ int main() {
 #endif
 
     glClearColor(.22F, .61F, .78F, 1.F);
+    
+    struct General {
+        Mat4f32 mvp;
+        alignas(16) Vec3f32 camera_pos;
+        alignas(16) Vec3f32 camera_dir;
+    } general;
 
-
-    Framebuffer shadow_map_fbo(640, 480, {{
-        .id = GL_DEPTH_ATTACHMENT, 
-        .texture_params = {
-            .internal_format = GL_DEPTH_COMPONENT32F,
-            .format = GL_DEPTH_COMPONENT,
-            .type = GL_FLOAT,
-            .wrap_s = GL_CLAMP_TO_EDGE,
-            .wrap_t = GL_CLAMP_TO_EDGE,
-            .min_filter = GL_LINEAR,//GL_NEAREST,
-            .mag_filter = GL_LINEAR,//GL_NEAREST,
-            .gen_mip_map = false,
-            .set_aux_params = [](u32 tex_id) {
-                glTextureParameteri(tex_id, GL_TEXTURE_COMPARE_MODE, GL_COMPARE_REF_TO_TEXTURE);
-                glTextureParameteri(tex_id, GL_TEXTURE_COMPARE_FUNC, GL_LEQUAL);
-            }
-        }
-    }});
-    shadow_map_fbo.init();
-    shadow_map_fbo.setDrawBuffer(GL_NONE);
-    // shadow_map_fbo.setReadBuffer(GL_NONE);
-
-
-    const auto light_proj_mat = misc<f32>::symmetricUnitFrustum(1.F, 1000.F);
-    const Mat4f32 scale_bias_mat(
-        Vec4f32{ .5F, 0.F, 0.F, 0.F},
-        Vec4f32{ 0.F, .5F, 0.F, 0.F},
-        Vec4f32{ 0.F, 0.F, .5F, 0.F},
-        Vec4f32{ .5F, .5F, .5F, 1.F}
-    );
+    GPUBuffer general_ubo(sizeof(General));
+    general_ubo.init();
+    general_ubo.bind(GL_UNIFORM_BUFFER, VE001_SH_CONFIG_UBO_BINDING_GENERAL);
 
     glEnable(GL_FRAMEBUFFER_SRGB);
+
+    Lighting lighting(1024, 1024);
+    lighting.init();
+
+    lighting._directional._buffer.bind(VE001_SH_CONFIG_SSBO_BINDING_DIRECTIONAL_LIGHTS);
+    lighting._point._buffer.bind(VE001_SH_CONFIG_SSBO_BINDING_POINT_LIGHTS);
+    lighting._spot._buffer.bind(VE001_SH_CONFIG_SSBO_BINDING_SPOT_LIGHTS);
+    lighting._descriptor_buffer.bind(GL_UNIFORM_BUFFER, VE001_SH_CONFIG_UBO_BINDING_LIGHTS_DESCRIPTOR);
+    lighting._shadow_map_array.bind(VE001_SH_CONFIG_TEX_BINDING_DIR_SHADOW_MAPS);
+    lighting._cube_shadow_map_array.bind(VE001_SH_CONFIG_TEX_BINDING_OMNI_DIR_SHADOW_MAPS);
+
+
+    // const auto dir_light_id = lighting.addPointLight({
+    //     .params = {
+    //         .position = Vec3f32(0.F, 0.F, 0.F),
+    //         .ambient = Vec3f32(.1F),
+    //         .diffuse = Vec3f32(.55F, .48F, .42F),
+    //         .specular = Vec3f32(1.F, 1.F, 1.F),
+    //         .attenuation_params = Vec3f32(2.F, .009F, .0032F)
+    //     },
+    //     .shadow_casting = true
+    // });
+    const auto dir_light_id = lighting.addSpotLight({
+        .params = {
+            .position = Vec3f32(0.F, 0.F, 0.F),
+            .direction = Vec3f32(0.F, 0.F, 1.F),
+            .ambient = Vec3f32(.3F, .1F, .1F),
+            .diffuse = Vec3f32(.7F, .42F, .42F),
+            .specular = Vec3f32(1.F, 1.F, 1.F),
+            .attenuation_params = Vec3f32(2.F, .009F, .0032F),
+            .cut_off = Vec3f32(
+                std::cos(std::numbers::pi_v<f32>/8.F), 
+                std::cos(std::numbers::pi_v<f32>/6.4F), 
+                std::cos(std::numbers::pi_v<f32>/8.F) - std::cos(std::numbers::pi_v<f32>/6.4F)
+            )
+        },
+        .shadow_casting = true 
+    });
+
+    // light.move({-20.F, 40.F, 20.F});
+    camera.move({0.F, 40.F, 6.F});  
     
-    light.move({0.F, 0.F, 0.F});
-    camera.move({0.F, 40.F, 6.F});
+
+    const auto render_scene = [&chunk_mesh_pool]() {
+        chunk_mesh_pool.drawAll();
+    };
+
 
     f32 prev_frame_time{ 0.F };
     while(!window.shouldClose()) {
@@ -367,67 +381,50 @@ int main() {
         for (auto& key : keys) {
             if (key.pressed) {
                 key.action(light_as_camera ? light : camera, 10.F);
+                camera_moved = true;
             }
         }
 
         const auto proj_mat = misc<f32>::symmetricPerspectiveProjection(
-            .25F * std::numbers::pi_v<f32>, .1F, 1000.F, 
+            .4F * std::numbers::pi_v<f32>, .1F, 1000.F, 
             static_cast<f32>(window_width), static_cast<f32>(window_height)
         );
-        // const auto proj_mat = misc<f32>::symmetricOrthographicProjection(
-        //     .1F, 5000.F, 
-        //     static_cast<f32>(window_width/8), static_cast<f32>(window_height/8)
-        // );
 
         const auto mvp = Mat4f32::mul(proj_mat, camera.lookAt());
+
         // const auto light_proj_mat = misc<f32>::symmetricOrthographicProjection(
         //     .1F, 1000.F, 
         //     static_cast<f32>(window_width), static_cast<f32>(window_height)
         // );
-        const auto light_mvp = Mat4f32::mul(light_proj_mat, light.lookAt());
+        const auto light_proj_mat = misc<f32>::symmetricPerspectiveProjection(
+            .5F * std::numbers::pi_v<f32> /*1.41F * std::numbers::pi_v<f32>/7.4F*/, .1F, 100.F, 
+            static_cast<f32>(window_width), static_cast<f32>(window_height)
+        );
+        general.mvp =  light_as_camera_proj ? Mat4f32::mul(light_proj_mat, light.lookAt()) : mvp;
+        general.camera_pos = camera.position;
+        general.camera_dir = camera.looking_dir;
+            // .light_dir = -light.looking_dir 
 
-        struct {
-            Mat4f32 mvp;
-            Mat4f32 light_mvp;
-            Mat4f32 light_mvp_biased;
-            alignas(sizeof(Vec4f32)) Vec3f32 camera_pos;
-            alignas(sizeof(Vec4f32)) Vec3f32 camera_dir;
-            alignas(sizeof(Vec4f32)) Vec3f32 light_pos;
-            alignas(sizeof(Vec4f32)) Vec3f32 light_dir;
-        } ubo_data {
-            .mvp = light_as_camera_proj ? Mat4f32::mul(light_proj_mat, light.lookAt()) : mvp,
-            .light_mvp = light_mvp,
-            .light_mvp_biased = Mat4f32::mul(scale_bias_mat, light_mvp),
-            .camera_pos = camera.position,
-            .camera_dir = camera.looking_dir,
-            .light_pos = light.position,
-            .light_dir = -light.looking_dir 
-        };
+        general_ubo.write(static_cast<const void*>(&general));
 
-        glNamedBufferSubData(ubo, 0, sizeof(ubo_data), static_cast<const void*>(&ubo_data));
+        chunk_mesh_pool.update();
 
-        glViewport(0, 0, window_width, window_height);
-
-        // render shadow map
-        if (shadow_map_fbo.resize(window_width, window_height)) {
-            shadow_map_fbo._attachments[0].texture.bind(SH_CONFIG_2D_SHADOW_MAP_TEX_BINDING);
+        if (camera_rotated && light_as_camera) {
+            const auto dir_light_rot_angles = lighting.getLightRotation(dir_light_id);
+            lighting.rotateLight(dir_light_id, light.looking_dir);//Vec3f32::sub(light.looking_dir_angles, dir_light_rot_angles));
+            camera_rotated = false;
         }
-        shadow_map_fbo.bind();
-        glClear(GL_DEPTH_BUFFER_BIT);
-        glEnable(GL_POLYGON_OFFSET_FILL);
-        glPolygonOffset(2.F, 4.F);
-
-        shadow_map_shader.bind();
-        chunk_mesh_pool.drawAll();
-        
-        glDisable(GL_POLYGON_OFFSET_FILL);
-        shadow_map_fbo.unbind();
-
-
-        glTextureBarrier(); // barrier since depth texture is used in subsequent draw
-
-
+        if (camera_moved && light_as_camera) {
+            lighting.moveLight(dir_light_id, light.position);
+            camera_moved = false;
+        }
+        // render shadow map
+        if (lighting.update(render_scene)) {
+            glBindFramebuffer(GL_FRAMEBUFFER, 0);
+            glTextureBarrier(); // barrier since depth texture is used in subsequent draw
+        }
         // main render
+        glViewport(0, 0, window_width, window_height);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         shader.bind();
         chunk_mesh_pool.drawAll();
@@ -436,13 +433,13 @@ int main() {
         window.pollEvents();
     }
 
-    shadow_map_fbo.deinit();
-    glDeleteBuffers(1, &ubo);
-    shadow_map_shader.deinit();
+    general_ubo.deinit();
     shader.deinit();
+    lighting.deinit();
     chunk_mesh_pool.deinit();
     material_allocator.deinit();
     window.deinit();
+
 
     return 0;
 }

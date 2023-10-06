@@ -102,6 +102,7 @@ bool Shader::attach(
 ) {
 	_shader_ids[VERTEX] = glCreateShader(GL_VERTEX_SHADER);
 	_shader_ids[FRAGMENT] = glCreateShader(GL_FRAGMENT_SHADER);
+    _shader_ids[GEOMETRY] = glCreateShader(GL_GEOMETRY_SHADER);
 
     const bool is_vsh_spirv = vsh_path.extension().string() == ".spv";
     const bool is_fsh_spirv = fsh_path.extension().string() == ".spv";
@@ -119,7 +120,7 @@ bool Shader::attach(
     if (!make_shader(fsh_path, _shader_ids[FRAGMENT])) {
         return false;
     }
-    if (!make_shader(fsh_path, _shader_ids[GEOMETRY])) {
+    if (!make_shader(gsh_path, _shader_ids[GEOMETRY])) {
         return false;
     }
     glAttachShader(_prog_id, _shader_ids[VERTEX]);

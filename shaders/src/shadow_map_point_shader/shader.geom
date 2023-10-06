@@ -8,6 +8,8 @@ layout(std140, binding = 1) uniform LightsDescriptor {
     float shadow_map_width;
     float shadow_map_height;
     float shadow_map_aspect_ratio;
+    float cube_shadow_map_n;
+    float cube_shadow_map_f;
     uint directional_lights_size;
     uint point_lights_size;
     uint spot_lights_size;
