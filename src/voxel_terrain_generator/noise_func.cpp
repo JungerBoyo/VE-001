@@ -34,6 +34,11 @@ static constexpr Vec3f32 gradients[] = {
     {0.F,1.F,1.F},{0.F,-1.F,1.F},{0.F,1.F,-1.F},{0.F,-1.F,-1.F}
 };
 
+static constexpr Vec2f32 gradients_2d[] = {
+    {-1.F, 0.F}, {-1.F, -1.F}, {0.F, -1.F}, {1.F, -1.F}, 
+    { 1.F, 0.F}, { 1.F, 1.F}, {0.F, 1.F}, {-1.F, 1.F}
+};
+
 static f32 dotGradient3dPerlin(u32 seed, Vec3i32 index, Vec3f32 point) {
     auto random_index = murmur3(index[0], seed);
     random_index = murmur3(index[1], random_index);
@@ -54,6 +59,24 @@ static f32 dotGradient3dPerlin(u32 seed, Vec3i32 index, Vec3f32 point) {
     return Vec3f32::dot(dist, gradient);
 }
 
+static f32 dotGradient2dPerlin(u32 seed, Vec2i32 index, Vec2f32 point) {
+    auto random_index = murmur3(index[0], seed);
+    random_index = murmur3(index[1], random_index);
+    random_index = murmur3(seed, random_index);
+
+    const auto gradient = gradients_2d[random_index % 8];
+
+    const auto dist = Vec2f32::sub(
+        point,
+        { 
+            static_cast<f32>(index[0]), 
+            static_cast<f32>(index[1])
+        }
+    );
+
+    return Vec2f32::dot(dist, gradient);
+}
+
 static f32 dotGradient3dSimplex(u32 seed, Vec3i32 index, Vec3f32 point) {
     auto random_index = murmur3(index[0], seed);
     random_index = murmur3(index[1], random_index);
@@ -69,6 +92,38 @@ static f32 smootherStep(f32 t) {
     return t*t*t*(t*(t*6-15)+10);
 }
 
+f32 PerlinNoiseFunc2D::invoke(Vec2f32 point, u32 grid_density) {
+    const Vec2i32 p00 {
+        static_cast<i32>(point[0]) / static_cast<i32>(grid_density),
+        static_cast<i32>(point[1]) / static_cast<i32>(grid_density),
+    };
+
+    const auto p11 = Vec2i32::add(p00, {1});
+
+    point = Vec2f32::divScalar(point, static_cast<f32>(grid_density));
+
+    const auto interpolation_weights = Vec2f32::sub(
+        point, 
+        { 
+            static_cast<f32>(p00[0]), 
+            static_cast<f32>(p00[1]),
+        }
+    );
+    const Vec2f32 smoothed_weights {
+        smootherStep(interpolation_weights[0]),
+        smootherStep(interpolation_weights[1]),                
+    };
+
+    auto n0 = dotGradient2dPerlin(this->seed, p00, point);
+    auto n1 = dotGradient2dPerlin(this->seed, {p11[0], p00[1]}, point);
+    auto ix0 = (1.F - smoothed_weights[0]) * n0 + smoothed_weights[0] * n1;
+
+    n0 = dotGradient2dPerlin(this->seed, {p00[0], p11[1]}, point);
+    n1 = dotGradient2dPerlin(this->seed, {p11[0], p11[1]}, point);
+    auto ix1 = (1.F - smoothed_weights[0]) * n0 + smoothed_weights[0] * n1;
+
+    return (1.F - smoothed_weights[1]) * ix0 + smoothed_weights[1] * ix1;
+}
 
 f32 PerlinNoiseFunc3D::invoke(Vec3f32 point, u32 grid_density) {
     const Vec3i32 p000 {

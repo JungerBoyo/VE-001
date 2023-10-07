@@ -9,7 +9,6 @@ using namespace vmath;
 namespace ve001 {
     struct NoiseFunc3D {
         u32 seed;
-
         NoiseFunc3D(u32 seed) : seed(seed) {}
         virtual f32 invoke(Vec3f32 point, u32 grid_density) = 0;
     };
@@ -22,6 +21,17 @@ namespace ve001 {
     struct SimplexNoiseFunc3D : public NoiseFunc3D {
         SimplexNoiseFunc3D(u32 seed) : NoiseFunc3D(seed) {}
         f32 invoke(Vec3f32 point, u32 grid_density) override;
+    };
+
+    struct NoiseFunc2D {
+        u32 seed;
+        NoiseFunc2D(u32 seed) : seed(seed) {}
+        virtual f32 invoke(Vec2f32 point, u32 grid_density) = 0;
+    };
+
+    struct PerlinNoiseFunc2D : public NoiseFunc2D {
+        PerlinNoiseFunc2D(u32 seed) : NoiseFunc2D(seed) {}
+        f32 invoke(Vec2f32 point, u32 grid_density) override;
     };
 }
 

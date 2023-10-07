@@ -39,7 +39,7 @@ add_executable(${PROJECT_NAME} main.cpp)
 target_link_libraries(${PROJECT_NAME} PRIVATE 
     window 
     gl_context 
-    vmath 
+    vmath
     sandbox_utils 
     voxel_terrain_generator
     ve001_engine

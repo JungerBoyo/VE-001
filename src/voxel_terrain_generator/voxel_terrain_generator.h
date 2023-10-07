@@ -79,6 +79,7 @@ struct VoxelTerrainGenerator {
 private:
     Config config;
     std::unique_ptr<NoiseFunc3D> noise_func_3d{ nullptr };
+    std::unique_ptr<NoiseFunc2D> noise_func_2d{ nullptr };
     // Vec3i32 current_location{ 0 };
     std::function<void(void*, f32)> fn_write_value;
 

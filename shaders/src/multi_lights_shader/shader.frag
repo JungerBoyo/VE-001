@@ -255,8 +255,8 @@ void main() {
     //     computeOmnidirectionalShadowFactor(in_position);
 
     vec3 result = 
-        // directionalLightsContrib(in_position, (camera_pos - in_position), in_normal, tex.xyz * params.diffuse, params.specular);
-        // pointLightsContrib(in_position, (camera_pos - in_position), in_normal, tex.xyz * params.diffuse, params.specular);
+        directionalLightsContrib(in_position, (camera_pos - in_position), in_normal, tex.xyz * params.diffuse, params.specular) + 
+        pointLightsContrib(in_position, (camera_pos - in_position), in_normal, tex.xyz * params.diffuse, params.specular) +
         spotLightsContrib(in_position, (camera_pos - in_position), in_normal, tex.xyz * params.diffuse, params.specular);
 
     out_fragment = vec4(result, tex.w * params.alpha);

@@ -3,6 +3,8 @@
 #include <cstring>
 #include <cmath>
 
+#include <iostream>
+
 using namespace vmath;
 using namespace ve001;
 
@@ -27,6 +29,7 @@ void VoxelTerrainGenerator::init() {
     } else {
         noise_func_3d = std::make_unique<SimplexNoiseFunc3D>(config.seed);
     }
+    noise_func_2d = std::make_unique<PerlinNoiseFunc2D>(config.seed);
 }
 
 void VoxelTerrainGenerator::next(void* dst, u32 offset, u32 stride, Vec3i32 chunk_position) {
@@ -40,15 +43,33 @@ void VoxelTerrainGenerator::next(void* dst, u32 offset, u32 stride, Vec3i32 chun
         stride = config.quantize_values > 0U ? config.quantized_value_size : sizeof(f32); 
     }
 
+    std::vector<f32> height_map(config.terrain_size[0] * config.terrain_size[2], 0.F);
+    for (i32 z{ 0 }; z < config.terrain_size[2]; ++z) {
+        for (i32 x{ 0 }; x < config.terrain_size[0]; ++x) {
+            height_map[x + z * config.terrain_size[0]] = std::clamp((noise_func_2d->invoke(
+                {static_cast<f32>(x), static_cast<f32>(z)},
+                8
+            ) + 1.F) / 2.F, .6F, 1.F);
+        }
+    }
+
+    constexpr f32 min_height{ 8.F };
+
     for (i32 z{ p0[2] }; z < p1[2]; ++z) {
         for (i32 y{ p0[1] }; y < p1[1]; ++y) {
             for (i32 x{ p0[0] }; x < p1[0]; ++x) {
-                const auto value = noise_func_3d->invoke(Vec3f32{
-                    static_cast<f32>(x),
-                    static_cast<f32>(y),
-                    static_cast<f32>(z)
-                }, config.terrain_density);
-                fn_write_value(static_cast<void*>(dst_u8), value);
+                const auto height = static_cast<f32>(y - p0[1])/static_cast<f32>(config.terrain_size[1]);
+                const auto height_value = height_map[(x - p0[0]) + (z - p0[2]) * config.terrain_size[0]];
+                if (height > height_value) {
+                    auto value = noise_func_3d->invoke(Vec3f32{
+                        static_cast<f32>(x),
+                        static_cast<f32>(y),
+                        static_cast<f32>(z)
+                    }, config.terrain_density);
+                    fn_write_value(static_cast<void*>(dst_u8), value);
+                } else {
+                    fn_write_value(static_cast<void*>(dst_u8), 1.F);
+                }
                 dst_u8 += stride;
             }
         }

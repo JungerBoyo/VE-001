@@ -198,10 +198,10 @@ int main() {
         {0, 0, 1}, {1, 0, 1}, {2, 0, 1},
         {0, 0, 2}, {1, 0, 2}, {2, 0, 2},
         {1, 1, 1},
-        {0, 1, -1}, {1, 1, -1}, {2, 1, -1},
-        {0, 1, 3}, {1, 1, 3}, {2, 1, 3},
-        {-1, 1, 0}, {-1, 1, 1}, {-1, 1, 2},
-        {3, 1, 0}, {3, 1, 1}, {3, 1, 2},
+        {0, 0, -1}, {1, 0, -1}, {2, 0, -1},
+        {0, 0, 3}, {1, 0, 3}, {2, 0, 3},
+        {-1, 0, 0}, {-1, 0, 1}, {-1, 0, 2},
+        {3, 0, 0}, {3, 0, 1}, {3, 0, 2},
     }};
 
     u32 mesh_memory_footprint{ 0U };
@@ -334,32 +334,32 @@ int main() {
     lighting._cube_shadow_map_array.bind(VE001_SH_CONFIG_TEX_BINDING_OMNI_DIR_SHADOW_MAPS);
 
 
-    // const auto dir_light_id = lighting.addPointLight({
-    //     .params = {
-    //         .position = Vec3f32(0.F, 0.F, 0.F),
-    //         .ambient = Vec3f32(.1F),
-    //         .diffuse = Vec3f32(.55F, .48F, .42F),
-    //         .specular = Vec3f32(1.F, 1.F, 1.F),
-    //         .attenuation_params = Vec3f32(2.F, .009F, .0032F)
-    //     },
-    //     .shadow_casting = true
-    // });
-    const auto dir_light_id = lighting.addSpotLight({
+    const auto dir_light_id = lighting.addPointLight({
         .params = {
             .position = Vec3f32(0.F, 0.F, 0.F),
-            .direction = Vec3f32(0.F, 0.F, 1.F),
-            .ambient = Vec3f32(.3F, .1F, .1F),
-            .diffuse = Vec3f32(.7F, .42F, .42F),
+            .ambient = Vec3f32(.1F),
+            .diffuse = Vec3f32(.55F, .48F, .42F),
             .specular = Vec3f32(1.F, 1.F, 1.F),
-            .attenuation_params = Vec3f32(2.F, .009F, .0032F),
-            .cut_off = Vec3f32(
-                std::cos(std::numbers::pi_v<f32>/8.F), 
-                std::cos(std::numbers::pi_v<f32>/6.4F), 
-                std::cos(std::numbers::pi_v<f32>/8.F) - std::cos(std::numbers::pi_v<f32>/6.4F)
-            )
+            .attenuation_params = Vec3f32(2.F, .009F, .0032F)
         },
-        .shadow_casting = true 
+        .shadow_casting = true
     });
+    // const auto dir_light_id = lighting.addSpotLight({
+    //     .params = {
+    //         .position = Vec3f32(0.F, 0.F, 0.F),
+    //         .direction = Vec3f32(0.F, 0.F, 1.F),
+    //         .ambient = Vec3f32(.3F, .1F, .1F),
+    //         .diffuse = Vec3f32(.7F, .42F, .42F),
+    //         .specular = Vec3f32(1.F, 1.F, 1.F),
+    //         .attenuation_params = Vec3f32(2.F, .009F, .0032F),
+    //         .cut_off = Vec3f32(
+    //             std::cos(std::numbers::pi_v<f32>/8.F), 
+    //             std::cos(std::numbers::pi_v<f32>/6.4F), 
+    //             std::cos(std::numbers::pi_v<f32>/8.F) - std::cos(std::numbers::pi_v<f32>/6.4F)
+    //         )
+    //     },
+    //     .shadow_casting = true 
+    // });
 
     // light.move({-20.F, 40.F, 20.F});
     camera.move({0.F, 40.F, 6.F});  

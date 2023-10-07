@@ -72,7 +72,6 @@ u32 MeshingEngine::meshAxis(
     // axis iteration loop(plane/slice-wise)
     Vec3i32 i(0);
     for (; i[2] < logical_extent[2]; ++i[2]) {
-
         i[1] = 0;
         for (; i[1] < logical_extent[1]; ++i[1]) {
             i[0] = 0;
