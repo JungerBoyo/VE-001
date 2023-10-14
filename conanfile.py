@@ -29,6 +29,7 @@ class VE001Recipe(ConanFile):
         self.requires("spdlog/1.11.0")
         self.requires("glm/cci.20230113")
         self.requires("cli11/2.3.2")
+        self.requires("zstd/1.5.5")
         if self.options.use_sdl2:
             self.requires("sdl/2.26.5")
         if self.options.use_glfw3:    

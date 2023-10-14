@@ -23,26 +23,30 @@ struct Shader {
     /**
      * @brief attach compute shader
      * @param csh_path compute shader path
+     * @param spirv is shader in spirv format
     */
-    bool attach(const std::filesystem::path& csh_path);
+    bool attach(const std::filesystem::path& csh_path, bool spirv);
 
     /**
      * @brief attach vertex-fragment shader
      * @param vsh_path vertex shader path
      * @param fsh_path fragment shader path
+     * @param spirv is shader in spirv format
     */
-    bool attach(const std::filesystem::path& vsh_path, const std::filesystem::path& fsh_path);
+    bool attach(const std::filesystem::path& vsh_path, const std::filesystem::path& fsh_path, bool spirv);
 
     /**
      * @brief attach vertex-fragment shader
      * @param vsh_path vertex shader path
      * @param gsh_path vertex shader path
      * @param fsh_path fragment shader path
+     * @param spirv is shader in spirv format
     */
     bool attach(
         const std::filesystem::path& vsh_path, 
         const std::filesystem::path& gsh_path, 
-        const std::filesystem::path& fsh_path
+        const std::filesystem::path& fsh_path,
+        bool spirv
     );
 
     /**

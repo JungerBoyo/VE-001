@@ -33,23 +33,19 @@ void Shader::init() {
     _prog_id = glCreateProgram();
 }
 
-bool Shader::attach(const std::filesystem::path& csh_path) {
+bool Shader::attach(const std::filesystem::path& csh_path, bool spirv) {
 	_shader_ids[COMPUTE] = glCreateShader(GL_COMPUTE_SHADER);
 
-    const bool is_csh_spirv = csh_path.extension().string() == ".spv";
-
-    if (is_csh_spirv) {
+    if (spirv) {
         if (!createShaderFromSpirv(csh_path, _shader_ids[COMPUTE])) {
             return false;
         }
-        glAttachShader(_prog_id, _shader_ids[COMPUTE]);
     } else {
         if (!compileShader(csh_path, _shader_ids[COMPUTE])) {
             return false;
         }
-
-        glAttachShader(_prog_id, _shader_ids[COMPUTE]);
     }
+    glAttachShader(_prog_id, _shader_ids[COMPUTE]);
 
 	glValidateProgram(_prog_id);
 	glLinkProgram(_prog_id);
@@ -57,38 +53,21 @@ bool Shader::attach(const std::filesystem::path& csh_path) {
     return true;
 }
 
-bool Shader::attach(const std::filesystem::path& vsh_path, const std::filesystem::path& fsh_path) {
+bool Shader::attach(const std::filesystem::path& vsh_path, const std::filesystem::path& fsh_path, bool spirv) {
 	_shader_ids[VERTEX] = glCreateShader(GL_VERTEX_SHADER);
 	_shader_ids[FRAGMENT] = glCreateShader(GL_FRAGMENT_SHADER);
 
-    const bool is_vsh_spirv = vsh_path.extension().string() == ".spv";
-    const bool is_fsh_spirv = fsh_path.extension().string() == ".spv";
+    const auto make_shader = spirv ? createShaderFromSpirv : compileShader;
 
-    if (is_vsh_spirv != is_fsh_spirv) {
+    if (!make_shader(vsh_path, _shader_ids[VERTEX])) {
+        return false;
+    }
+    if (!make_shader(fsh_path, _shader_ids[FRAGMENT])) {
         return false;
     }
 
-    if (is_vsh_spirv) {
-        if (!createShaderFromSpirv(vsh_path, _shader_ids[VERTEX])) {
-            return false;
-        }
-        if (!createShaderFromSpirv(fsh_path, _shader_ids[FRAGMENT])) {
-            return false;
-        }
-        glAttachShader(_prog_id, _shader_ids[VERTEX]);
-        glAttachShader(_prog_id, _shader_ids[FRAGMENT]);
-    } else {
-        if (!compileShader(vsh_path, _shader_ids[VERTEX])) {
-            return false;
-        }
-        if (!compileShader(fsh_path, _shader_ids[FRAGMENT])) {
-            return false;
-        }
-
-        glAttachShader(_prog_id, _shader_ids[VERTEX]);
-        glAttachShader(_prog_id, _shader_ids[FRAGMENT]);
-    }
-
+    glAttachShader(_prog_id, _shader_ids[VERTEX]);
+    glAttachShader(_prog_id, _shader_ids[FRAGMENT]);
 	glValidateProgram(_prog_id);
 	glLinkProgram(_prog_id);
 
@@ -98,21 +77,14 @@ bool Shader::attach(const std::filesystem::path& vsh_path, const std::filesystem
 bool Shader::attach(
     const std::filesystem::path& vsh_path, 
     const std::filesystem::path& gsh_path, 
-    const std::filesystem::path& fsh_path
+    const std::filesystem::path& fsh_path,
+    bool spirv
 ) {
 	_shader_ids[VERTEX] = glCreateShader(GL_VERTEX_SHADER);
 	_shader_ids[FRAGMENT] = glCreateShader(GL_FRAGMENT_SHADER);
     _shader_ids[GEOMETRY] = glCreateShader(GL_GEOMETRY_SHADER);
 
-    const bool is_vsh_spirv = vsh_path.extension().string() == ".spv";
-    const bool is_fsh_spirv = fsh_path.extension().string() == ".spv";
-    const bool is_gsh_spirv = gsh_path.extension().string() == ".spv";
-
-    if ((is_vsh_spirv != is_fsh_spirv) || (is_vsh_spirv != is_gsh_spirv) || (is_fsh_spirv != is_gsh_spirv)) {
-        return false;
-    }
-
-    const auto make_shader = is_vsh_spirv ? createShaderFromSpirv : compileShader;
+    const auto make_shader = spirv ? createShaderFromSpirv : compileShader;
 
     if (!make_shader(vsh_path, _shader_ids[VERTEX])) {
         return false;

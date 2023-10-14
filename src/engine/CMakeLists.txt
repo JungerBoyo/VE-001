@@ -31,6 +31,10 @@ add_library(ve001_engine STATIC
     gpu_buffer.cpp
     cubetexture_array.h
     cubetexture_array.cpp
+    shader_manager.h
+    shader_manager.cpp
+    chunk_pool.h
+    vertex.h
 )
 target_link_libraries(ve001_engine PRIVATE 
     glad::glad

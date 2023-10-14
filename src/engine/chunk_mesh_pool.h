@@ -88,7 +88,6 @@ public:
 
     Error deallocateChunk(vmath::u32 chunk_id) noexcept;
 
-
     const vmath::u32 submeshStride() const { return _max_submesh_size; };
 
     void update() noexcept;

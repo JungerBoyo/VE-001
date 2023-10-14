@@ -95,6 +95,9 @@ bool light_as_camera_proj{ false };
 bool camera_rotated{ false };
 bool camera_moved{ false };
 
+i32 light_selector{ 0 };
+bool light_changed{ false };
+
 Vec2f32 prev_mouse_pos(0.F);
 
 struct KeyAction {
@@ -123,6 +126,7 @@ void keyCallback(GLFWwindow* window_handle, i32 key, i32, i32 action, i32) {
 
     case GLFW_KEY_U: if (action == GLFW_PRESS || action == GLFW_REPEAT) { light_as_camera = !light_as_camera; } break;
     case GLFW_KEY_I: if (action == GLFW_PRESS || action == GLFW_REPEAT) { light_as_camera_proj = !light_as_camera_proj; } break;
+    case GLFW_KEY_L: if (action == GLFW_PRESS || action == GLFW_REPEAT) { light_selector = (light_selector + 1) % 3; light_changed = true; } break;
     }
 }
 
@@ -171,7 +175,7 @@ int main() {
     ve001::ChunkMeshPool chunk_mesh_pool{};
     chunk_mesh_pool.init({
         .chunk_dimensions = EXTENT,
-        .max_chunks = 26,
+        .max_chunks = 42,
         .vertex_size = sizeof(Vertex),
         .vertex_layout_config = setVertexLayout
     });
@@ -193,7 +197,7 @@ int main() {
 
     std::vector<u8> noise(EXTENT[0] * EXTENT[1] * EXTENT[2], 0U);
 
-    std::array<Vec3i32, 26> chunk_positions{{
+    std::array<Vec3i32, 41> chunk_positions{{
         {0, 0, 0}, {1, 0, 0}, {2, 0, 0},
         {0, 0, 1}, {1, 0, 1}, {2, 0, 1},
         {0, 0, 2}, {1, 0, 2}, {2, 0, 2},
@@ -202,6 +206,10 @@ int main() {
         {0, 0, 3}, {1, 0, 3}, {2, 0, 3},
         {-1, 0, 0}, {-1, 0, 1}, {-1, 0, 2},
         {3, 0, 0}, {3, 0, 1}, {3, 0, 2},
+        {0,  1, -1}, {1, 1, -1}, {2, 1, -1},
+        {0,  1, 3}, {1,  1, 3}, /*{2,  1, 3},*/
+        {-1, 1, 0}, {-1, 1, 1}, {-1, 1, 2},
+        {3,  1, 0}, {3,  1, 1}, {3,  1, 2},
     }};
 
     u32 mesh_memory_footprint{ 0U };
@@ -334,32 +342,52 @@ int main() {
     lighting._cube_shadow_map_array.bind(VE001_SH_CONFIG_TEX_BINDING_OMNI_DIR_SHADOW_MAPS);
 
 
-    const auto dir_light_id = lighting.addPointLight({
+    const auto point_light_id = lighting.addPointLight({
         .params = {
             .position = Vec3f32(0.F, 0.F, 0.F),
-            .ambient = Vec3f32(.1F),
-            .diffuse = Vec3f32(.55F, .48F, .42F),
-            .specular = Vec3f32(1.F, 1.F, 1.F),
-            .attenuation_params = Vec3f32(2.F, .009F, .0032F)
+            .ambient = Vec3f32(.05F),
+            .diffuse = Vec3f32(.2F, .1F, .93F),
+            .specular = Vec3f32(.2F, .1F, .93F),
+            .attenuation_params = Vec3f32(1.F, .0009F, .0032F)
         },
         .shadow_casting = true
     });
-    // const auto dir_light_id = lighting.addSpotLight({
-    //     .params = {
-    //         .position = Vec3f32(0.F, 0.F, 0.F),
-    //         .direction = Vec3f32(0.F, 0.F, 1.F),
-    //         .ambient = Vec3f32(.3F, .1F, .1F),
-    //         .diffuse = Vec3f32(.7F, .42F, .42F),
-    //         .specular = Vec3f32(1.F, 1.F, 1.F),
-    //         .attenuation_params = Vec3f32(2.F, .009F, .0032F),
-    //         .cut_off = Vec3f32(
-    //             std::cos(std::numbers::pi_v<f32>/8.F), 
-    //             std::cos(std::numbers::pi_v<f32>/6.4F), 
-    //             std::cos(std::numbers::pi_v<f32>/8.F) - std::cos(std::numbers::pi_v<f32>/6.4F)
-    //         )
-    //     },
-    //     .shadow_casting = true 
-    // });
+    const auto spot_light_id = lighting.addSpotLight({
+        .params = {
+            .position = Vec3f32(0.F, 0.F, 0.F),
+            .direction = Vec3f32(0.F, 0.F, 1.F),
+            .ambient = Vec3f32(.2F, .1F, .1F),
+            .diffuse = Vec3f32(.99F, .42F, .42F),
+            .specular = Vec3f32(1.F, .42F, .42F),
+            .attenuation_params = Vec3f32(2.F, .009F, .0032F),
+            .cut_off = Vec3f32(
+                std::cos(std::numbers::pi_v<f32>/8.F), 
+                std::cos(std::numbers::pi_v<f32>/6.4F), 
+                std::cos(std::numbers::pi_v<f32>/8.F) - std::cos(std::numbers::pi_v<f32>/6.4F)
+            )
+        },
+        .shadow_casting = true 
+    });
+    const auto dir_light_id = lighting.addDirectionalLight({
+        .params = {
+            .direction= Vec3f32(0.F, 0.F,-1.F),
+            .ambient = Vec3f32(.05F),
+            .diffuse = Vec3f32(.59F, .48F, .42F),
+            .specular = Vec3f32(1.F, 1.F, 1.F),
+        },
+        .shadow_casting = true
+    });
+
+    struct LightBobo {
+        u32 id;
+        bool perspective;
+    };
+
+    const std::array<LightBobo, 3> lights{{
+        { point_light_id, true  },
+        { spot_light_id,  true  },
+        { dir_light_id,  false },
+    }};
 
     // light.move({-20.F, 40.F, 20.F});
     camera.move({0.F, 40.F, 6.F});  
@@ -385,6 +413,14 @@ int main() {
             }
         }
 
+        auto& light_bobo = lights[light_selector];
+
+        if (light_changed) {
+            light.position = lighting.getLightPosition(light_bobo.id);
+            light.looking_dir_angles = lighting.getLightRotation(light_bobo.id);
+            light_changed = false;
+        }
+
         const auto proj_mat = misc<f32>::symmetricPerspectiveProjection(
             .4F * std::numbers::pi_v<f32>, .1F, 1000.F, 
             static_cast<f32>(window_width), static_cast<f32>(window_height)
@@ -396,10 +432,18 @@ int main() {
         //     .1F, 1000.F, 
         //     static_cast<f32>(window_width), static_cast<f32>(window_height)
         // );
-        const auto light_proj_mat = misc<f32>::symmetricPerspectiveProjection(
+
+
+        const auto light_proj_mat = light_bobo.perspective ?
+        misc<f32>::symmetricPerspectiveProjection(
             .5F * std::numbers::pi_v<f32> /*1.41F * std::numbers::pi_v<f32>/7.4F*/, .1F, 100.F, 
             static_cast<f32>(window_width), static_cast<f32>(window_height)
+        ) : 
+        misc<f32>::symmetricOrthographicProjection(
+            .1F, 1000.F, 
+            static_cast<f32>(window_width), static_cast<f32>(window_height)
         );
+
         general.mvp =  light_as_camera_proj ? Mat4f32::mul(light_proj_mat, light.lookAt()) : mvp;
         general.camera_pos = camera.position;
         general.camera_dir = camera.looking_dir;
@@ -410,12 +454,12 @@ int main() {
         chunk_mesh_pool.update();
 
         if (camera_rotated && light_as_camera) {
-            const auto dir_light_rot_angles = lighting.getLightRotation(dir_light_id);
-            lighting.rotateLight(dir_light_id, light.looking_dir);//Vec3f32::sub(light.looking_dir_angles, dir_light_rot_angles));
+            const auto dir_light_rot_angles = lighting.getLightRotation(light_bobo.id);
+            lighting.rotateLight(light_bobo.id, light.looking_dir);//Vec3f32::sub(light.looking_dir_angles, dir_light_rot_angles));
             camera_rotated = false;
         }
         if (camera_moved && light_as_camera) {
-            lighting.moveLight(dir_light_id, light.position);
+            lighting.moveLight(light_bobo.id, light.position);
             camera_moved = false;
         }
         // render shadow map
