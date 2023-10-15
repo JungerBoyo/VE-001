@@ -17,7 +17,7 @@ struct RingBuffer {
     RingBuffer(std::size_t size, T fill_value) 
         : _buffer(size, fill_value) {}
 
-    bool pushBack(T value) {
+    bool write(T value) {
         if (_writer_index == _reader_index && !_empty) {
             return false;
         }
@@ -28,7 +28,7 @@ struct RingBuffer {
         return true;
     }
 
-    bool popBack(T& value) {
+    bool read(T& value) {
         if (_empty) {
             return false;
         }
@@ -41,8 +41,12 @@ struct RingBuffer {
         return true;
     }
 
-    T back() const {
-        return _buffer[_reader_index];
+    bool peek(T& value) const {
+        if (_empty) {
+            return false;
+        }
+        value = _buffer[_reader_index];
+        return true;
     }
 
     bool empty() const {

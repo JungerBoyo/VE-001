@@ -35,7 +35,6 @@ Error ChunkMeshPool::init(Config config) noexcept {
         nullptr,
         GL_DYNAMIC_STORAGE_BIT
     );
-
     glCreateVertexArrays(1, &_vao_id);
     config.vertex_layout_config(_vao_id, _vbo_id);
 
@@ -60,7 +59,7 @@ Error ChunkMeshPool::init(Config config) noexcept {
         _free_chunks = RingBuffer<FreeChunk>(_chunks_count, {});
 
         for (std::size_t c{ 0U }; c < _chunks_count; ++c) {
-            _free_chunks.pushBack({
+            _free_chunks.write({
                 .chunk_id = static_cast<u32>(c),
                 .region = static_cast<void*>(static_cast<u8*>(_vbo_ptr) + c * _max_chunk_size)
             });
@@ -91,7 +90,7 @@ Error ChunkMeshPool::allocateChunk(u32& chunk_id, ChunkData chunk_data, Vec3f32 
     }
 
     FreeChunk free_chunk{};
-    _free_chunks.popBack(free_chunk);
+    _free_chunks.read(free_chunk);
 
     const auto base_cmd_index = static_cast<u32>(_draw_cmds.size());
     _chunk_metadata.emplace_back(ChunkMetadata{
@@ -138,7 +137,7 @@ Error ChunkMeshPool::allocateChunk(u32& chunk_id, ChunkData chunk_data, Vec3f32 
         chunk_id = free_chunk.chunk_id;
         _chunk_id_to_index.push_back(chunk_id);
     } else {
-        _free_chunks.pushBack(free_chunk);
+        _free_chunks.write(free_chunk);
         _chunk_metadata.pop_back();
 
         for (std::size_t _i{ 0U }; _i < i; ++_i) {
@@ -161,7 +160,7 @@ Error ChunkMeshPool::allocateEmptyChunk(u32& chunk_id, Vec3f32 position) noexcep
     }
 
     FreeChunk free_chunk{};
-    _free_chunks.popBack(free_chunk);
+    _free_chunks.read(free_chunk);
 
     const auto base_cmd_index = static_cast<u32>(_draw_cmds.size());
     _chunk_metadata.emplace_back(ChunkMetadata{
@@ -336,7 +335,7 @@ Error ChunkMeshPool::deallocateChunk(u32 chunk_id) noexcept {
     }
 
     _chunk_id_to_index[chunk_id] = INVALID_CHUNK_INDEX;
-    _free_chunks.pushBack({
+    _free_chunks.write({
         .chunk_id = chunk_id,
         .region = chunk_metadata.region
     });

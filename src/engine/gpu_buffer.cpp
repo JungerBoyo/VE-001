@@ -19,6 +19,9 @@ void GPUBuffer::write(const void* data) {
 void GPUBuffer::write(const void* data, u32 offset, u32 size) {
     glNamedBufferSubData(_id, offset, size, data);
 }
+void GPUBuffer::read(void* data, u32 offset, u32 size) {
+    glGetNamedBufferSubData(_id, offset, size, data);
+}
 void GPUBuffer::bind(u32 target, u32 binding) {
     glBindBufferBase(target, binding, _id);
 }

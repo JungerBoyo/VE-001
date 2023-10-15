@@ -17,9 +17,12 @@ struct Vertex {
     vec3 texcoord;
 };
 
-layout(std430, binding = 6) buffer MeshData {
+layout(std430, binding = 6) buffer MeshingTemp {
     uint written_vertex_counts[6]; // = { +x, -x, +y, -y, +z, -z }
     uint axes_steps[6];
+};
+
+layout(std430, binding = 7) writeonly buffer MeshData {
     Vertex vbo[];
 };
 
@@ -56,6 +59,11 @@ void main() {
     uint face_id = gl_GlobalInvocationID.x % 6;
     uint face_id_in_indices = face_id * 6;
     uint axis_step = gl_LocalInvocationIndex + axes_steps[face_id];
+    uint axis_id = face_id / 2;
+
+    if (axis_step >= chunk_size[axis_id]) {
+        return;
+    }
 
     ///         START          ///
     if (gl_LocalInvocationIndex == 0) {
@@ -65,7 +73,6 @@ void main() {
     barrier();
     ///////////////////////////////
 
-    uint axis_id = face_id / 2;
 
     uvec3 logical_indices = uvec3((axis_id + 1) % 3, (axis_id + 2) % 3, axis_id);
     uvec3 real_indices = uvec3(
@@ -222,7 +229,7 @@ void main() {
     barrier();
     memoryBarrierShared();
     if (gl_LocalInvocationIndex == 0) {
-        written_vertex_counts[face_id] = local_mesh_vertex_count;
+        written_vertex_counts[face_id] += local_mesh_vertex_count;
         axes_steps[face_id] += 32;
     }
     ///////////////////////////////

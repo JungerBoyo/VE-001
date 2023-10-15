@@ -131,10 +131,10 @@ struct ChunkPool {
     std::vector<Chunk> _chunks;
     ////////////////////////////////////
 
-
     ChunkPool() = default;
 
-    
+    void init(vmath::Vec3i32 chunk_dimensions, vmath::i32 max_chunks) noexcept;
+    void deinit() noexcept;
 };
 
 }
