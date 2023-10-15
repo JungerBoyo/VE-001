@@ -1,4 +1,4 @@
-#include "shader_manager.h"
+#include "shader_repository.h"
 #include <glad/glad.h>
 #include <vmath/vmath_types.h>
 
@@ -23,10 +23,11 @@ static constexpr std::array<ShaderDescriptor, static_cast<std::size_t>(ShaderTyp
     { "multi_lights_shader/",       ShaderDescriptor::Type::VERT_FRAG },
     { "shadow_map_dir_shader/",     ShaderDescriptor::Type::VERT_FRAG },
     { "shadow_map_point_shader/",   ShaderDescriptor::Type::VERT_GEOM_FRAG },
-    { "shadow_map_spot_shader/",    ShaderDescriptor::Type::VERT_FRAG }
+    { "shadow_map_spot_shader/",    ShaderDescriptor::Type::VERT_FRAG },
+    { "greedy_meshing_shader/",     ShaderDescriptor::Type::COMPUTE }
 }};
 
-void ShaderManager::init() {
+void ShaderRepository::init() {
     int ext_num{ 0 };
     bool is_arb_spirv_supported{ false };
     glGetIntegerv(GL_NUM_EXTENSIONS, &ext_num);
@@ -84,7 +85,7 @@ void ShaderManager::init() {
         }
     }
 }
-void ShaderManager::deinit() {
+void ShaderRepository::deinit() {
     for (auto& shader : _shaders) {
         shader.deinit();
     }

@@ -1,0 +1,31 @@
+#ifndef VE001_ENGINE_CONTEXT_H
+#define VE001_ENGINE_CONTEXT_H
+
+#include <vmath/vmath.h>
+
+#include "shader_repository.h"
+#include "chunk_pool.h"
+
+namespace ve001 {
+
+/// @brief context holds common state for different engine components/modules
+struct EngineContext {
+    /// @brief repository with all shaders
+    ShaderRepository shader_repo;
+    /// @brief chunk size/resolution 
+    vmath::Vec3i32 chunk_size;
+    /// @brief chunk size/resolution in 1D
+    vmath::i32 chunk_size_1D;
+    /// @brief chunk size in voxel context (single voxel)
+    vmath::i32 chunk_voxel_data_size;
+    /// @brief maximum possible mesh size of a single chunk after greedy meshing
+    vmath::i32 chunk_max_mesh_size;
+    /// @brief maximum possible mesh size of a single chunk's side after greedy meshing
+    vmath::i32 chunk_max_submesh_size;
+    /// @brief it maps to local_size_x attribute in greedy meshing compute shader
+    vmath::i32 meshing_axis_progress_step;
+};
+
+}
+
+#endif

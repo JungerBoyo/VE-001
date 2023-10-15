@@ -12,15 +12,19 @@ enum class ShaderType : std::size_t {
     SHADOW_MAP_DIR_SHADER,
     SHADOW_MAP_POINT_SHADER,
     SHADOW_MAP_SPOT_SHADER,
+    GREEDY_MESHING_SHADER,
     COUNT 
 };
 
-struct ShaderManager {
+struct ShaderRepository {
     std::array<Shader, static_cast<std::size_t>(ShaderType::COUNT)> _shaders;
 
     void init();
     void deinit();
 
+    const auto& operator[](ShaderType shader_type) const {
+        return _shaders[static_cast<std::size_t>(shader_type)];
+    }
     auto& operator[](ShaderType shader_type) {
         return _shaders[static_cast<std::size_t>(shader_type)];
     }

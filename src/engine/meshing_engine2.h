@@ -9,6 +9,7 @@
 #include "enums.h"
 #include "gpu_buffer.h"
 #include "ringbuffer.h"
+#include "engine_context.h"
 
 namespace ve001 {
 
@@ -43,20 +44,20 @@ struct MeshingEngine {
     /// @brief command descripting meshing execution of a single chunk
     struct Command {
         /// @brief id of chunk meshed by command
-        u32 chunk_id; 
+        vmath::u32 chunk_id; 
         /// @brief position of the chunk
-        Vec3i32 chunk_position;
+        vmath::Vec3i32 chunk_position;
         /// @brief pointer to voxel data to be issued before meshing starts
-        std::span<u16> voxel_data;
+        std::span<vmath::u16> voxel_data;
         /// @brief offset into vbo containing a mesh (maps to vbo in ChunkPool)
-        u32 vbo_offset;
+        vmath::u32 vbo_offset;
         /// @brief size of vbo
-        u32 vbo_size;
+        vmath::u32 vbo_size;
         /// @brief gl fence for which to wait in case the command is active one
         /// also indicates !!!if the command is initialized (nullptr here if not)!!!
         void* fence;
         /// @brief axis progress keeps track ofa how many planes on each axes were meshed
-        i32 axis_progress;
+        vmath::i32 axis_progress;
     };
 
     /// @brief is an interface and holds completed command data 
@@ -69,32 +70,30 @@ struct MeshingEngine {
         std::array<vmath::u32, 6> written_vertices_counts;
     };
 
-    /// @brief it maps to local_size_x attribute in greedy meshing compute shader
-    static constexpr i32 AXIS_PROGRESS_STEP{ 32 };
+    static constexpr vmath::i32 AXIS_PROGRESS_STEP{ 32 };
 
-    /// @brief sizeof ssbo voxel data
-    vmath::u32 _ssbo_voxel_data_size;
     /// @brief id of buffer holding voxel data for subsequent meshing command execution
     /// (WRITE_ONLY, PERSISTENT, COHERENT)
     vmath::u32 _ssbo_voxel_data_id{ 0U };
     /// @brief pointer to mapped _ssbo_voxel_data_id (persistent)
     void* _ssbo_voxel_data_ptr{ nullptr };
     /// @brief gpu buffer for <MeshingDescriptor> data
-    GPUBuffer _ubo_meshing_descriptor{ sizeof(MeshingDescriptor) };
+    GPUBuffer _ubo_meshing_descriptor{ sizeof(Descriptor) };
     /// @brief gpu buffer for <MeshingTemp> data
-    GPUBuffer _ssbo_meshing_temp{ sizeof(MeshingTemp) };
+    GPUBuffer _ssbo_meshing_temp{ sizeof(Temp) };
     /// @brief id of vbo holding meshes (the same vbo as in ChunkPool)
     vmath::u32 _vbo_id{ 0U };
 
+    /// @brief buffer of pending meshing commands
     RingBuffer<Command> _commands;
+    /// @brief meshing command currently in execution/waiting for poll
     Command _active_command;
 
-    /// @brief chunk size/resolution
-    vmath::Vec3i32 _chunk_size;
+    const EngineContext& _engine_context;
 
-    MeshingEngine(vmath::Vec3i32 chunk_size) 
-        : _chunk_size(chunk_size),
-          _ssbo_voxel_data_size(chunk_size[0] * chunk_size[1] * chunk_size[2] * sizeof(u16)) {}
+    MeshingEngine(const EngineContext& engine_context) 
+        : _engine_context(engine_context), 
+          _commands(512, Command{}) {}
 
     void init(vmath::u32 vbo_id);
 

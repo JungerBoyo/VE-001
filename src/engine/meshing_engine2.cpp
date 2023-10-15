@@ -14,24 +14,20 @@ using namespace vmath;
 #define VE001_SH_CONFIG_SSBO_BINDING_MESHING_TEMP 6
 #define VE001_SH_CONFIG_SSBO_BINDING_MESH_DATA 7
 
-u32 getMaxSubMeshSize(Vec3i32 chunk_size) {
-    return (chunk_size[0] * chunk_size[1] * chunk_size[2] * sizeof(Vertex) * (36/2)) / 6;
-}
-
 void MeshingEngine::init(u32 vbo_id) {
     _vbo_id = vbo_id;
 
     glCreateBuffers(1, &_ssbo_voxel_data_id);
     glNamedBufferStorage(
         _ssbo_voxel_data_id,
-        _ssbo_voxel_data_size,
+        _engine_context.chunk_voxel_data_size,
         nullptr,
         GL_MAP_WRITE_BIT|GL_MAP_PERSISTENT_BIT|GL_MAP_COHERENT_BIT
     );
     _ssbo_voxel_data_ptr = glMapNamedBufferRange(
         _ssbo_voxel_data_id,
         0U,
-        _ssbo_voxel_data_size,
+        _engine_context.chunk_voxel_data_size,
         GL_MAP_WRITE_BIT|GL_MAP_PERSISTENT_BIT|GL_MAP_COHERENT_BIT
     );
 
@@ -45,18 +41,17 @@ void MeshingEngine::init(u32 vbo_id) {
     _ssbo_meshing_temp.init();
     _ssbo_meshing_temp.bind(GL_SHADER_STORAGE_BUFFER, VE001_SH_CONFIG_SSBO_BINDING_MESHING_TEMP);
 
-    const auto submesh_size = getMaxSubMeshSize(_chunk_size);
-    Descriptor meshing_descriptor {
+    Descriptor meshing_descriptor = {
         .vbo_offsets = { 
-            submesh_size * 0, // +x
-            submesh_size * 1, // -x
-            submesh_size * 2, // +y
-            submesh_size * 3, // -y
-            submesh_size * 4, // +z
-            submesh_size * 5, // -z
+            _engine_context.chunk_max_submesh_size * 0, // +x
+            _engine_context.chunk_max_submesh_size * 1, // -x
+            _engine_context.chunk_max_submesh_size * 2, // +y
+            _engine_context.chunk_max_submesh_size * 3, // -y
+            _engine_context.chunk_max_submesh_size * 4, // +z
+            _engine_context.chunk_max_submesh_size * 5 // +z
         },
         .chunk_position = {0, 0, 0},
-        .chunk_size = _chunk_size
+        .chunk_size = _engine_context.chunk_size
     };
     _ubo_meshing_descriptor.write(static_cast<const void*>(&meshing_descriptor));
 
@@ -100,9 +95,9 @@ bool MeshingEngine::pollMeshingCommand(Future& future) {
     }
 
     // otherwise GL_ALREADY_SIGNALED or GL_CONDITION_SATISFIED
-    if (_active_command.axis_progress < _chunk_size[0] ||
-        _active_command.axis_progress < _chunk_size[1] ||
-        _active_command.axis_progress < _chunk_size[2]
+    if (_active_command.axis_progress < _engine_context.chunk_size[0] ||
+        _active_command.axis_progress < _engine_context.chunk_size[1] ||
+        _active_command.axis_progress < _engine_context.chunk_size[2]
     ) {
         subsequentCommandExec(_active_command);
         return false;
@@ -127,7 +122,7 @@ bool MeshingEngine::pollMeshingCommand(Future& future) {
 }
 
 void MeshingEngine::firstCommandExec(Command& command) {
-    std::memcpy(_ssbo_voxel_data_ptr, static_cast<const void*>(command.voxel_data.data()), _ssbo_voxel_data_size);
+    std::memcpy(_ssbo_voxel_data_ptr, static_cast<const void*>(command.voxel_data.data()), _engine_context.chunk_voxel_data_size);
 
     Temp meshing_temp{};
     _ssbo_meshing_temp.write(static_cast<const void*>(&meshing_temp));
@@ -144,17 +139,19 @@ void MeshingEngine::firstCommandExec(Command& command) {
         command.vbo_offset, command.vbo_size
     );
 
-    command.axis_progress += AXIS_PROGRESS_STEP;
+    command.axis_progress += _engine_context.meshing_axis_progress_step;
 
+    _engine_context.shader_repo[ShaderType::GREEDY_MESHING_SHADER].bind();
     glDispatchCompute(6, 1, 1);
     command.fence = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
 }
 
 void MeshingEngine::subsequentCommandExec(Command& command) {
-    command.axis_progress += AXIS_PROGRESS_STEP;
+    command.axis_progress += _engine_context.meshing_axis_progress_step;
 
     glDeleteSync(static_cast<GLsync>(command.fence));
 
+    _engine_context.shader_repo[ShaderType::GREEDY_MESHING_SHADER].bind();
     glDispatchCompute(6, 1, 1);
     command.fence = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
 }

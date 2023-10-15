@@ -29,7 +29,6 @@ struct ChunkMeshPool {
         vmath::i32 size;
     };
 
-private:
     static constexpr vmath::u32 INVALID_CHUNK_INDEX{ std::numeric_limits<vmath::u32>::max() };
 
     struct FreeChunk {
@@ -75,7 +74,7 @@ private:
 
     std::vector<ChunkMetadata> _chunk_metadata;
     std::vector<vmath::u32> _chunk_id_to_index;
-public:
+
     ChunkMeshPool() = default;
 
     Error init(Config config) noexcept;
@@ -95,7 +94,6 @@ public:
 
     void deinit() noexcept;
 
-private:
     void deallocateChunkDrawCmds(const ChunkMetadata& chunk_metadata);
 };
 
