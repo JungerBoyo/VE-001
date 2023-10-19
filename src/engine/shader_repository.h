@@ -1,5 +1,5 @@
-#ifndef VE001_SHADER_MANAGER_H
-#define VE001_SHADER_MANAGER_H
+#ifndef VE001_SHADER_REPOSITORY_H
+#define VE001_SHADER_REPOSITORY_H
 
 #include <array>
 

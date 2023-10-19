@@ -45,6 +45,7 @@ struct Lighting {
     Lighting(vmath::i32 shadow_map_width, vmath::i32 shadow_map_height);
     
     void init();
+    void initNoShaders();
 
     vmath::u32 addDirectionalLight(DirectionalLight dir_light);
     vmath::u32 addPointLight(PointLight point_light);
@@ -67,6 +68,7 @@ struct Lighting {
     */
 
     void deinit();
+    void deinitNoShaders();
 
 }; 
 

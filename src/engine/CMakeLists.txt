@@ -32,6 +32,8 @@ add_library(ve001_engine STATIC
     cubetexture_array.h
     cubetexture_array.cpp
 
+    engine_context.h
+    
     shader_repository.h
     shader_repository.cpp
 
@@ -42,7 +44,6 @@ add_library(ve001_engine STATIC
     meshing_engine2.h
     meshing_engine2.cpp
 
-    engine_context.h
     engine.h
     engine.cpp
 )

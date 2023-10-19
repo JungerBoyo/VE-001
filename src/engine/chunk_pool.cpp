@@ -2,6 +2,8 @@
 
 #include <glad/glad.h>
 
+#include <cstring>
+
 using namespace ve001;
 using namespace vmath;
 
@@ -47,7 +49,7 @@ void ChunkPool::init(i32 max_chunks) noexcept {
 
     try {
         _chunks.reserve(max_chunks);
-        _chunk_id_to_index.reserve(max_chunks);
+        _chunk_id_to_index.resize(max_chunks, INVALID_CHUNK_INDEX);
         _voxel_data.resize(max_chunks * _engine_context.chunk_size_1D);
         _free_chunks = RingBuffer<FreeChunk>(_chunks_count, {});
         for (std::size_t i{ 0U }; i < _chunks_count; ++i) {
@@ -94,9 +96,41 @@ u32 ChunkPool::allocateChunk(const std::function<void(void*)>& voxel_write_data,
         chunk.cpu_region, 
         chunk.gpu_region_offset, _engine_context.chunk_max_mesh_size
     );
+
+    return chunk_id;
 }
 
-void ChunkPool::completeChunk(MeshingEngine::Future future) {
+vmath::u32 ChunkPool::allocateChunk(std::span<const vmath::u16> src, vmath::Vec3i32 position) noexcept {
+    if (_free_chunks.empty()) {
+        return std::numeric_limits<u32>::max(); // TODO: Error
+    }
+
+    FreeChunk free_chunk{};
+    _free_chunks.read(free_chunk);
+
+    std::memcpy(static_cast<void*>(free_chunk.cpu_region.data()), static_cast<const void*>(src.data()), src.size() * sizeof(u16));
+
+    auto& chunk = _chunks.emplace_back(Chunk{
+        position, 
+        {0}, // bcs chunk isn't complete yet
+        free_chunk.gpu_region_offset,
+        free_chunk.cpu_region,
+        free_chunk.chunk_id,
+        false
+    });
+
+    _chunk_id_to_index[chunk.chunk_id] = _chunks.size() - 1;
+
+    _meshing_engine.issueMeshingCommand(
+        chunk.chunk_id, position,
+        chunk.cpu_region, 
+        chunk.gpu_region_offset, _engine_context.chunk_max_mesh_size
+    );
+
+    return chunk.chunk_id;
+}
+
+void ChunkPool::completeChunk(MeshingEngine2::Future future) {
     const auto chunk_index = _chunk_id_to_index[future.chunk_id];
     auto& chunk = _chunks[chunk_index];
     chunk.complete = true;
@@ -112,7 +146,7 @@ void ChunkPool::completeChunk(MeshingEngine::Future future) {
         _draw_cmds.emplace_back(DrawArraysIndirectCmd{
             .count = future.written_vertices_counts[i],
             .instance_count = 1U,
-            .first = 0U,
+            .first = static_cast<u32>((((future.chunk_id * 6) + i) * _engine_context.chunk_max_submesh_size)/sizeof(Vertex)),
             .base_instance = 0U,
             .orientation = static_cast<Face>(i),
             .chunk_id = future.chunk_id
@@ -144,7 +178,7 @@ void ChunkPool::drawAll() {
     }
 }
 void ChunkPool::poll() {
-    if (MeshingEngine::Future future{}; _meshing_engine.pollMeshingCommand(future)) {
+    if (MeshingEngine2::Future future{}; _meshing_engine.pollMeshingCommand(future)) {
         completeChunk(future);
     }
 }

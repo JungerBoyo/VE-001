@@ -9,6 +9,7 @@
 #include "enums.h"
 #include "ringbuffer.h"
 #include "meshing_engine2.h"
+#include "engine_context.h"
 
 namespace ve001 {
 
@@ -140,7 +141,7 @@ struct ChunkPool {
 
     /// @brief meshing engine of the chunk pool. It schedules meshing
     /// tasks on the GPU
-    MeshingEngine _meshing_engine{ _engine_context };
+    MeshingEngine2 _meshing_engine{ _engine_context };
 
     ChunkPool(const EngineContext& engine_context) : _engine_context(engine_context) {}
     /// @brief initializes chunk pool
@@ -150,10 +151,14 @@ struct ChunkPool {
     /// @param voxel_write_data function writing voxel data to voxel data region (CPU)
     /// @param position position of the chunk
     vmath::u32 allocateChunk(const std::function<void(void*)>& voxel_write_data, vmath::Vec3i32 position) noexcept;
+    /// @brief allocates chunk from _free_chunks
+    /// @param src voxel data
+    /// @param position position of the chunk
+    vmath::u32 allocateChunk(std::span<const vmath::u16> src, vmath::Vec3i32 position) noexcept;
     /// @brief completes chunk eg. chunk starts to be drawn by the drawAll command 
     /// called by poll() function if chunk's mesh is finished
     /// @param future holds data from meshing_engine with which to update the chunk
-    void completeChunk(MeshingEngine::Future future);
+    void completeChunk(MeshingEngine2::Future future);
     /// @brief deallocates chunk
     /// @param chunk_id chunk's id to deallocate
     void deallocateChunk(vmath::u32 chunk_id) noexcept;

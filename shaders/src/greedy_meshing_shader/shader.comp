@@ -23,20 +23,21 @@ layout(std430, binding = 6) buffer MeshingTemp {
 };
 
 layout(std430, binding = 7) writeonly buffer MeshData {
-    Vertex vbo[];
+    float vbo[];
 };
+
 
 shared uint local_mesh_vertex_count;
 
 const vec3 VERTICES[8] = {
-    vec3(0.0, 0.0, 0.0),
-    vec3(0.0, 0.0, 1.0),
-    vec3(0.0, 1.0, 0.0),
-    vec3(0.0, 1.0, 1.0),
-    vec3(1.0, 0.0, 0.0),
-    vec3(1.0, 0.0, 1.0),
-    vec3(1.0, 1.0, 0.0),
-    vec3(1.0, 1.0, 1.0)
+    vec3(0.0, 0.0, 0.0), // 0
+    vec3(0.0, 0.0, 1.0), // 1
+    vec3(0.0, 1.0, 0.0), // 2 
+    vec3(0.0, 1.0, 1.0), // 3
+    vec3(1.0, 0.0, 0.0), // 4
+    vec3(1.0, 0.0, 1.0), // 5
+    vec3(1.0, 1.0, 0.0), // 6
+    vec3(1.0, 1.0, 1.0)  // 7
 };
 const vec2 TEX_COORDS[6] = {
     vec2(0.0, 0.0),
@@ -56,14 +57,10 @@ const uint INDICES[36] = {
 };
 
 void main() {
-    uint face_id = gl_GlobalInvocationID.x % 6;
+    uint face_id = gl_WorkGroupID.x;
     uint face_id_in_indices = face_id * 6;
-    uint axis_step = gl_LocalInvocationIndex + axes_steps[face_id];
+    uint axis_step = gl_LocalInvocationID.x + axes_steps[face_id];
     uint axis_id = face_id / 2;
-
-    if (axis_step >= chunk_size[axis_id]) {
-        return;
-    }
 
     ///         START          ///
     if (gl_LocalInvocationIndex == 0) {
@@ -71,8 +68,8 @@ void main() {
     }
     memoryBarrierShared();
     barrier();
-    ///////////////////////////////
-
+    //////////////////////////////
+    if (axis_step < chunk_size[axis_id]) {
 
     uvec3 logical_indices = uvec3((axis_id + 1) % 3, (axis_id + 2) % 3, axis_id);
     uvec3 real_indices = uvec3(
@@ -80,6 +77,7 @@ void main() {
         (0 + axis_id * 2) % 3,
         (1 + axis_id * 2) % 3
     );
+    
     // positions the args in logical way where 
     // Z - is the current axis
     // X, Y - are extents of the plane perpedicular to the axis
@@ -101,7 +99,6 @@ void main() {
     }
 
     const int plane_size = chunk_size.x * chunk_size.y;
-
     ivec3 i = ivec3(0, 0, int(axis_step));
 
     /// Fill the visibility query
@@ -109,18 +106,19 @@ void main() {
         i[0] = 0;
         for (;i[0] < logical_extent[0]; ++i[0]) {
             uint voxel_index = i[real_indices[0]] + i[real_indices[1]] * chunk_size.x + i[real_indices[2]] * plane_size;
-            if ((voxel_data[voxel_index >> 1] & (0xFFFF << (voxel_index & 1))) > 0) {
+
+            if (bitfieldExtract(voxel_data[voxel_index >> 1], int((voxel_index & uint(1)) << 4), 16) > 0) {
                 if (i[2] == edge_value) {
                     uint state_index = i[0] + i[1] * logical_extent[0];
-                    states[state_index >> 5] |= (1 << (state_index & 31));
+                    states[state_index >> 5] |= (uint(1) << (state_index & uint(31)));
                     continue;
                 }
             }
             i[2] += polarity;
             voxel_index = i[real_indices[0]] + i[real_indices[1]] * chunk_size.x + i[real_indices[2]] * plane_size;      
-            if ((voxel_data[voxel_index >> 1] & (0xFFFF << (voxel_index & 1))) == 0) {
+            if (bitfieldExtract(voxel_data[voxel_index >> 1], int((voxel_index & uint(1)) << 4), 16) == 0) {
                 uint state_index = i[0] + i[1] * logical_extent[0];
-                states[state_index >> 5] |= (1 << (state_index & 31));
+                states[state_index >> 5] |= (uint(1) << (state_index & uint(31)));
             }
             i[2] -= polarity;
         }
@@ -131,32 +129,48 @@ void main() {
         i[0] = 0;
         while(i[0] < logical_extent[0]) {
             uint state_index = i[0] + i[1] * logical_extent[0];
-            if ((states[state_index >> 5] & (1 << (state_index & 31))) > 0) {
+            if ((states[state_index >> 5] & (uint(1) << (state_index & uint(31)))) != 0) {
                 uint voxel_index = i[real_indices[0]] + i[real_indices[1]] * chunk_size.x + i[real_indices[2]] * plane_size;
-                uint voxel_value = (voxel_data[voxel_index >> 1] & (0xFFFF << (voxel_index & 1))) >> (voxel_index & 1);
+                uint voxel_value = bitfieldExtract(voxel_data[voxel_index >> 1], int((voxel_index & uint(1)) << 4), 16);
 
                 ivec3 mesh_region = ivec3(1, 1, 0);
                 for (;i[0] + mesh_region[0] < logical_extent[0]; ++mesh_region[0]) {
-                    voxel_index = 
-                        (i[real_indices[0]] + mesh_region[real_indices[0]]) + 
-                        (i[real_indices[1]] + mesh_region[real_indices[1]]) * chunk_size.x + 
-                        (i[real_indices[2]] + mesh_region[real_indices[2]]) * plane_size;
-                    uint next_voxel_value = (voxel_data[voxel_index >> 1] & (0xFFFF << (voxel_index & 1))) >> (voxel_index & 1);
-                    if (next_voxel_value != voxel_value) {
-                       break; 
+                    state_index = (i[0] + mesh_region[0]) + i[1] * logical_extent[0];
+                    if ((states[state_index >> 5] & (uint(1) << (state_index & uint(31)))) != 0) {
+                        voxel_index = 
+                            (i[real_indices[0]] + mesh_region[real_indices[0]]) + 
+                            (i[real_indices[1]] + mesh_region[real_indices[1]]) * chunk_size.x + 
+                            (i[real_indices[2]] + mesh_region[real_indices[2]]) * plane_size;
+                        uint next_voxel_value = bitfieldExtract(voxel_data[voxel_index >> 1], int((voxel_index & uint(1)) << 4), 16);
+                        if (next_voxel_value != voxel_value) {
+                           break; 
+                        }
+                        // continue;
+                    } else {
+                        break;
                     }
                 }
 
-                for (;i[1] < logical_extent[1]; ++i[1]) {
+                for (;i[1] + mesh_region[1] < logical_extent[1]; ++mesh_region[1]) {
                     uvec3 tmp_mesh_region = uvec3(0);
                     bool _break = false;
                     for (;i[0] + tmp_mesh_region[0] < i[0] + mesh_region[0]; ++tmp_mesh_region[0]) {
-                        voxel_index = 
-                            (i[real_indices[0]] + tmp_mesh_region[real_indices[0]]) + 
-                            (i[real_indices[1]] + tmp_mesh_region[real_indices[1]]) * chunk_size.x + 
-                            (i[real_indices[2]] + tmp_mesh_region[real_indices[2]]) * plane_size;
-                        uint next_voxel_value = (voxel_data[voxel_index >> 1] & (0xFFFF << (voxel_index & 1))) >> (voxel_index & 1);
-                        if (next_voxel_value != voxel_value) {
+                        state_index = (i[0] + tmp_mesh_region[0]) + (i[1] + mesh_region[1]) * logical_extent[0];
+                        if ((states[state_index >> 5] & (uint(1) << (state_index & uint(31)))) != 0) {
+                            // continue;
+                            int tmp = mesh_region[0];
+                            mesh_region[0] = 0;
+                            voxel_index = 
+                                (i[real_indices[0]] + tmp_mesh_region[real_indices[0]] + mesh_region[real_indices[0]]) + 
+                                (i[real_indices[1]] + tmp_mesh_region[real_indices[1]] + mesh_region[real_indices[1]]) * chunk_size.x + 
+                                (i[real_indices[2]] + tmp_mesh_region[real_indices[2]] + mesh_region[real_indices[2]]) * plane_size;
+                            mesh_region[0] = tmp;
+                            uint next_voxel_value = bitfieldExtract(voxel_data[voxel_index >> 1], int((voxel_index & uint(1)) << 4), 16);
+                            if (next_voxel_value != voxel_value) {
+                                _break = true;
+                                break;
+                            }
+                        } else {
                             _break = true;
                             break;
                         }
@@ -176,44 +190,74 @@ void main() {
                     mesh_region[squashed_extent_logical_indices[1]]
                 );
 
-                ivec3 region_offset = chunk_position;
+                ivec3 region_offset = chunk_position * chunk_size;
                 region_offset[logical_indices[2]] += i[2];
                 region_offset[logical_indices[1]] += i[1];
                 region_offset[logical_indices[0]] += i[0];
 
-                uint base_vertices_index = atomicAdd(local_mesh_vertex_count, 6);
-                float voxel_value_encoded = float(6 * voxel_value);
+                uint base_vertices_index = atomicAdd(local_mesh_vertex_count, 36); // (6 * 6) == 36
+                float voxel_value_encoded = float(6 * (voxel_value - 1));
 
-                vbo[vbo_offsets[face_id] + base_vertices_index + 0] = Vertex(
-                    region_extent * VERTICES[INDICES[face_id_in_indices + 0]] + region_offset, 
-                    vec3(squashed_region_extent * TEX_COORDS[0], voxel_value_encoded + 0.0)
-                );
-                vbo[vbo_offsets[face_id] + base_vertices_index + 1] = Vertex(
-                    region_extent * VERTICES[INDICES[face_id_in_indices + 1]] + region_offset, 
-                    vec3(squashed_region_extent * TEX_COORDS[1], voxel_value_encoded + 1.0)
-                );
-                vbo[vbo_offsets[face_id] + base_vertices_index + 2] = Vertex(
-                    region_extent * VERTICES[INDICES[face_id_in_indices + 2]] + region_offset, 
-                    vec3(squashed_region_extent * TEX_COORDS[2], voxel_value_encoded + 2.0)
-                );
-                vbo[vbo_offsets[face_id] + base_vertices_index + 3] = Vertex(
-                    region_extent * VERTICES[INDICES[face_id_in_indices + 3]] + region_offset, 
-                    vec3(squashed_region_extent * TEX_COORDS[3], voxel_value_encoded + 3.0)
-                );
-                vbo[vbo_offsets[face_id] + base_vertices_index + 4] = Vertex(
-                    region_extent * VERTICES[INDICES[face_id_in_indices + 4]] + region_offset, 
-                    vec3(squashed_region_extent * TEX_COORDS[4], voxel_value_encoded + 4.0)
-                );
-                vbo[vbo_offsets[face_id] + base_vertices_index + 5] = Vertex(
-                    region_extent * VERTICES[INDICES[face_id_in_indices + 5]] + region_offset, 
-                    vec3(squashed_region_extent * TEX_COORDS[5], voxel_value_encoded + 5.0)
-                );
-     
+                Vertex vertex;
+
+                vertex.position = vec3(region_extent) * VERTICES[INDICES[face_id_in_indices + 0]] + vec3(region_offset);
+                vertex.texcoord = vec3(vec2(squashed_region_extent * TEX_COORDS[0]), voxel_value_encoded + float(face_id));
+                vbo[vbo_offsets[face_id] + base_vertices_index + (0*6) + 0] = vertex.position[0];
+                vbo[vbo_offsets[face_id] + base_vertices_index + (0*6) + 1] = vertex.position[1];
+                vbo[vbo_offsets[face_id] + base_vertices_index + (0*6) + 2] = vertex.position[2];
+                vbo[vbo_offsets[face_id] + base_vertices_index + (0*6) + 3] = vertex.texcoord[0];
+                vbo[vbo_offsets[face_id] + base_vertices_index + (0*6) + 4] = vertex.texcoord[1];
+                vbo[vbo_offsets[face_id] + base_vertices_index + (0*6) + 5] = vertex.texcoord[2];
+                
+                vertex.position = vec3(region_extent) * VERTICES[INDICES[face_id_in_indices + 1]] + vec3(region_offset);
+                vertex.texcoord = vec3(vec2(squashed_region_extent * TEX_COORDS[1]), voxel_value_encoded + float(face_id));
+                vbo[vbo_offsets[face_id] + base_vertices_index + (1*6) + 0] = vertex.position[0];
+                vbo[vbo_offsets[face_id] + base_vertices_index + (1*6) + 1] = vertex.position[1];
+                vbo[vbo_offsets[face_id] + base_vertices_index + (1*6) + 2] = vertex.position[2];
+                vbo[vbo_offsets[face_id] + base_vertices_index + (1*6) + 3] = vertex.texcoord[0];
+                vbo[vbo_offsets[face_id] + base_vertices_index + (1*6) + 4] = vertex.texcoord[1];
+                vbo[vbo_offsets[face_id] + base_vertices_index + (1*6) + 5] = vertex.texcoord[2];
+                
+                vertex.position = vec3(region_extent) * VERTICES[INDICES[face_id_in_indices + 2]] + vec3(region_offset);
+                vertex.texcoord = vec3(vec2(squashed_region_extent * TEX_COORDS[2]), voxel_value_encoded + float(face_id));
+                vbo[vbo_offsets[face_id] + base_vertices_index + (2*6) + 0] = vertex.position[0];
+                vbo[vbo_offsets[face_id] + base_vertices_index + (2*6) + 1] = vertex.position[1];
+                vbo[vbo_offsets[face_id] + base_vertices_index + (2*6) + 2] = vertex.position[2];
+                vbo[vbo_offsets[face_id] + base_vertices_index + (2*6) + 3] = vertex.texcoord[0];
+                vbo[vbo_offsets[face_id] + base_vertices_index + (2*6) + 4] = vertex.texcoord[1];
+                vbo[vbo_offsets[face_id] + base_vertices_index + (2*6) + 5] = vertex.texcoord[2];
+                
+                vertex.position = vec3(region_extent) * VERTICES[INDICES[face_id_in_indices + 3]] + vec3(region_offset);
+                vertex.texcoord = vec3(vec2(squashed_region_extent * TEX_COORDS[3]), voxel_value_encoded + float(face_id));
+                vbo[vbo_offsets[face_id] + base_vertices_index + (3*6) + 0] = vertex.position[0];
+                vbo[vbo_offsets[face_id] + base_vertices_index + (3*6) + 1] = vertex.position[1];
+                vbo[vbo_offsets[face_id] + base_vertices_index + (3*6) + 2] = vertex.position[2];
+                vbo[vbo_offsets[face_id] + base_vertices_index + (3*6) + 3] = vertex.texcoord[0];
+                vbo[vbo_offsets[face_id] + base_vertices_index + (3*6) + 4] = vertex.texcoord[1];
+                vbo[vbo_offsets[face_id] + base_vertices_index + (3*6) + 5] = vertex.texcoord[2];
+                
+                vertex.position = vec3(region_extent) * VERTICES[INDICES[face_id_in_indices + 4]] + vec3(region_offset);
+                vertex.texcoord = vec3(vec2(squashed_region_extent * TEX_COORDS[4]), voxel_value_encoded + float(face_id));
+                vbo[vbo_offsets[face_id] + base_vertices_index + (4*6) + 0] = vertex.position[0];
+                vbo[vbo_offsets[face_id] + base_vertices_index + (4*6) + 1] = vertex.position[1];
+                vbo[vbo_offsets[face_id] + base_vertices_index + (4*6) + 2] = vertex.position[2];
+                vbo[vbo_offsets[face_id] + base_vertices_index + (4*6) + 3] = vertex.texcoord[0];
+                vbo[vbo_offsets[face_id] + base_vertices_index + (4*6) + 4] = vertex.texcoord[1];
+                vbo[vbo_offsets[face_id] + base_vertices_index + (4*6) + 5] = vertex.texcoord[2];
+                
+                vertex.position = vec3(region_extent) * VERTICES[INDICES[face_id_in_indices + 5]] + vec3(region_offset);
+                vertex.texcoord = vec3(vec2(squashed_region_extent * TEX_COORDS[5]), voxel_value_encoded + float(face_id));
+                vbo[vbo_offsets[face_id] + base_vertices_index + (5*6) + 0] = vertex.position[0];
+                vbo[vbo_offsets[face_id] + base_vertices_index + (5*6) + 1] = vertex.position[1];
+                vbo[vbo_offsets[face_id] + base_vertices_index + (5*6) + 2] = vertex.position[2];
+                vbo[vbo_offsets[face_id] + base_vertices_index + (5*6) + 3] = vertex.texcoord[0];
+                vbo[vbo_offsets[face_id] + base_vertices_index + (5*6) + 4] = vertex.texcoord[1];
+                vbo[vbo_offsets[face_id] + base_vertices_index + (5*6) + 5] = vertex.texcoord[2];
 
                 for (int y = i[1]; y < i[1] + mesh_region[1]; ++y) {
                     for (int x = i[0]; x < i[0] + mesh_region[0]; ++x) {
                         uint state_index = x + y * logical_extent[0];
-                        states[state_index >> 5] &= ~(1 << (state_index & 31));
+                        states[state_index >> 5] &= ~(uint(1) << (state_index & uint(31)));
                     }
                 }
 
@@ -224,10 +268,10 @@ void main() {
         }
     }
 
-
+    }
     ///         END         ///
-    barrier();
     memoryBarrierShared();
+    barrier();
     if (gl_LocalInvocationIndex == 0) {
         written_vertex_counts[face_id] += local_mesh_vertex_count;
         axes_steps[face_id] += 32;

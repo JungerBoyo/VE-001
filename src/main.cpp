@@ -84,7 +84,7 @@ void createCubeMapTextureArray(MaterialAllocator& material_allocator, const std:
     }
 }
 
-static constexpr Vec3i32 EXTENT(16, 32, 16);
+static constexpr Vec3i32 EXTENT(2, 2, 2);
 
 static f32 timestep{ 0U };
 static Camera camera{};
@@ -195,7 +195,7 @@ int main() {
     });
     terrain_generator.init();
 
-    std::vector<u8> noise(EXTENT[0] * EXTENT[1] * EXTENT[2], 0U);
+    std::vector<u8> noise(EXTENT[0] * EXTENT[1] * EXTENT[2], 1U);
 
     std::array<Vec3i32, 41> chunk_positions{{
         {0, 0, 0}, {1, 0, 0}, {2, 0, 0},
@@ -214,7 +214,7 @@ int main() {
 
     u32 mesh_memory_footprint{ 0U };
     for (const auto chunk_position : chunk_positions) {
-        terrain_generator.next(static_cast<void*>(noise.data()), 0U, 0U, chunk_position);
+        // terrain_generator.next(static_cast<void*>(noise.data()), 0U, 0U, chunk_position);
         
         u32 chunk_id{ 0U };
         chunk_mesh_pool.allocateEmptyChunk(chunk_id, Vec3f32(0.F));
@@ -285,7 +285,8 @@ int main() {
     shader.init();
     shader.attach(
         "/home/regu/codium_repos/VE-001/shaders/bin/multi_lights_shader/vert.spv", 
-        "/home/regu/codium_repos/VE-001/shaders/bin/multi_lights_shader/frag.spv"
+        "/home/regu/codium_repos/VE-001/shaders/bin/multi_lights_shader/frag.spv",
+        true
     );
 
     MaterialAllocator material_allocator(1U, 1U, 6U, 96U, 96U);

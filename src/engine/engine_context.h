@@ -4,7 +4,6 @@
 #include <vmath/vmath.h>
 
 #include "shader_repository.h"
-#include "chunk_pool.h"
 
 namespace ve001 {
 

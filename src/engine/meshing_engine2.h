@@ -13,16 +13,16 @@
 
 namespace ve001 {
 
-struct MeshingEngine {
+struct MeshingEngine2 {
     /// @brief Descriptor of meshing, it maps to the ubo of binding id 2 in
     /// greedy meshing shader
     struct Descriptor {
         /// @brief offsets of submeshes (constant)
-        vmath::u32 vbo_offsets[6];
+        alignas(16) vmath::u32 vbo_offsets[6][4];
         /// @brief position changes per meshing command (mutable)
-        vmath::Vec3i32 chunk_position;
+        alignas(16) vmath::Vec3i32 chunk_position;
         /// @brief size of a chunk (constant)
-        vmath::Vec3i32 chunk_size;
+        alignas(16) vmath::Vec3i32 chunk_size;
     };
 
     /// @brief holds temporary data of current meshing command execution
@@ -91,7 +91,7 @@ struct MeshingEngine {
 
     const EngineContext& _engine_context;
 
-    MeshingEngine(const EngineContext& engine_context) 
+    MeshingEngine2(const EngineContext& engine_context) 
         : _engine_context(engine_context), 
           _commands(512, Command{}) {}
 

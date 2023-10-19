@@ -78,19 +78,38 @@ void Lighting::init() {
     _shadow_map_dir_shader.init();
     _shadow_map_dir_shader.attach(
         "/home/regu/codium_repos/VE-001/shaders/bin/shadow_map_dir_shader/vert.spv",
-        "/home/regu/codium_repos/VE-001/shaders/bin/shadow_map_dir_shader/frag.spv"
+        "/home/regu/codium_repos/VE-001/shaders/bin/shadow_map_dir_shader/frag.spv",
+        true
     );
     _shadow_map_spot_shader.init();
     _shadow_map_spot_shader.attach(
         "/home/regu/codium_repos/VE-001/shaders/bin/shadow_map_spot_shader/vert.spv",
-        "/home/regu/codium_repos/VE-001/shaders/bin/shadow_map_spot_shader/frag.spv"
+        "/home/regu/codium_repos/VE-001/shaders/bin/shadow_map_spot_shader/frag.spv",
+        true
     );
     _shadow_map_point_shader.init();
     _shadow_map_point_shader.attach(
         "/home/regu/codium_repos/VE-001/shaders/bin/shadow_map_point_shader/vert.spv",
         "/home/regu/codium_repos/VE-001/shaders/bin/shadow_map_point_shader/geom.spv",
-        "/home/regu/codium_repos/VE-001/shaders/bin/shadow_map_point_shader/frag.spv"
+        "/home/regu/codium_repos/VE-001/shaders/bin/shadow_map_point_shader/frag.spv",
+        true
     );
+}
+
+void Lighting::initNoShaders() {
+    _directional.init(1);
+    _point.init(1);
+    _spot.init(1);
+
+    _descriptor_buffer.init();
+
+    _shadow_map_array.init();
+    _cube_shadow_map_array.init();
+
+    _shadow_mapping_fbo.initRaw();
+    _shadow_mapping_fbo.setDrawBuffer(GL_NONE);
+    _shadow_mapping_fbo.setReadBuffer(GL_NONE);
+
     _descriptor_buffer.write(&_descriptor);
 }
 
@@ -370,4 +389,14 @@ void Lighting::deinit() {
     _shadow_map_dir_shader.deinit();
     _shadow_map_point_shader.deinit();
     _shadow_map_spot_shader.deinit();
+}
+
+void Lighting::deinitNoShaders() {
+    _directional.deinit();
+    _point.deinit();
+    _spot.deinit();
+    _descriptor_buffer.deinit();
+    _shadow_map_array.deinit();
+    _cube_shadow_map_array.deinit();
+    _shadow_mapping_fbo.deinit();
 }

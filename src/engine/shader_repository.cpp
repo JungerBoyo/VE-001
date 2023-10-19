@@ -47,7 +47,10 @@ void ShaderRepository::init() {
             const auto shader_path = base_path / shader_desc.name;
             switch (shader_desc.type) {
                 case ShaderDescriptor::Type::COMPUTE: {
+                    // const auto base_path2 = std::filesystem::path(BASE_SHADERS_SRC);
+                    // const auto shader_path2 = base_path2 / shader_desc.name;
                     _shaders[i].attach(shader_path / "comp.spv", true);
+                    // _shaders[i].attach(shader_path2 / "shader.comp", false);
                     break;
                 }
                 case ShaderDescriptor::Type::VERT_FRAG: {

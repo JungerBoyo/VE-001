@@ -35,6 +35,7 @@ endif()
 # endif()
 
 add_executable(${PROJECT_NAME} main.cpp)
+add_executable(${PROJECT_NAME}_test main2.cpp)
 
 target_link_libraries(${PROJECT_NAME} PRIVATE 
     window 
@@ -47,7 +48,19 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
     sh_config
     logger
 )
+target_link_libraries(${PROJECT_NAME}_test PRIVATE 
+    window 
+    gl_context 
+    vmath
+    sandbox_utils 
+    voxel_terrain_generator
+    ve001_engine
+    glfw
+    sh_config
+    logger
+)
 add_dependencies(${PROJECT_NAME} compile_and_copy_shaders_dirs)
+add_dependencies(${PROJECT_NAME}_test compile_and_copy_shaders_dirs)
 
 add_subdirectory(tools)
 
