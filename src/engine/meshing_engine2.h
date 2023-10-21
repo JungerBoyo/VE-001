@@ -30,7 +30,7 @@ struct MeshingEngine2 {
         /// @brief written vertex counts by the current meshing command execution
         /// (depending on <_chunk_size> there could be a need to invoke meshing
         /// few times per chunk). It is written and read in the shader.
-        vmath::u32 written_vertex_counts[6] = {0};
+        vmath::u32 written_vertices_in_dwords[6] = {0};
         /// @brief axes steps of the current meshing command execution
         /// (depending on <_chunk_size> there could be a need to invoke meshing
         /// few times per chunk). It is written and read in the shader.
@@ -48,11 +48,9 @@ struct MeshingEngine2 {
         /// @brief position of the chunk
         vmath::Vec3i32 chunk_position;
         /// @brief pointer to voxel data to be issued before meshing starts
-        std::span<vmath::u16> voxel_data;
+        std::span<const vmath::u16> voxel_data;
         /// @brief offset into vbo containing a mesh (maps to vbo in ChunkPool)
-        vmath::u32 vbo_offset;
-        /// @brief size of vbo
-        vmath::u32 vbo_size;
+        vmath::u64 vbo_offset;
         /// @brief gl fence for which to wait in case the command is active one
         /// also indicates !!!if the command is initialized (nullptr here if not)!!!
         void* fence;
@@ -67,10 +65,8 @@ struct MeshingEngine2 {
         vmath::u32 chunk_id;
         /// @brief written vertices count *per face* indexed with ve001::Face enum. 
         /// Needed to determine how much vertices to render
-        std::array<vmath::u32, 6> written_vertices_counts;
+        std::array<vmath::u32, 6> written_vertices;
     };
-
-    static constexpr vmath::i32 AXIS_PROGRESS_STEP{ 32 };
 
     /// @brief id of buffer holding voxel data for subsequent meshing command execution
     /// (WRITE_ONLY, PERSISTENT, COHERENT)
@@ -106,9 +102,8 @@ struct MeshingEngine2 {
     void issueMeshingCommand(
         vmath::u32 chunk_id,
         vmath::Vec3i32 chunk_position,
-        std::span<vmath::u16> voxel_data,
-        vmath::u32 vbo_offset,
-        vmath::u32 vbo_size 
+        std::span<const vmath::u16> voxel_data,
+        vmath::u64 vbo_offset
     );
 
     /// @brief Function polls for the result from next command. It isn't waiting (the call

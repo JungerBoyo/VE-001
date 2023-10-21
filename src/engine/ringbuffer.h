@@ -14,10 +14,10 @@ struct RingBuffer {
 
     RingBuffer() = default;
 
-    RingBuffer(std::size_t size, T fill_value) 
+    RingBuffer(std::size_t size, T fill_value)
         : _buffer(size, fill_value) {}
 
-    bool write(T value) {
+    bool write(T value) noexcept {
         if (_writer_index == _reader_index && !_empty) {
             return false;
         }
@@ -28,7 +28,7 @@ struct RingBuffer {
         return true;
     }
 
-    bool read(T& value) {
+    bool read(T& value) noexcept {
         if (_empty) {
             return false;
         }
@@ -41,7 +41,7 @@ struct RingBuffer {
         return true;
     }
 
-    bool peek(T& value) const {
+    bool peek(T& value) const noexcept {
         if (_empty) {
             return false;
         }
@@ -49,7 +49,7 @@ struct RingBuffer {
         return true;
     }
 
-    bool empty() const {
+    bool empty() const noexcept {
         return _empty;
     }
 

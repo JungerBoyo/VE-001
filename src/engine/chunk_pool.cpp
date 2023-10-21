@@ -36,7 +36,7 @@ void ChunkPool::init(i32 max_chunks) noexcept {
     _vbo_id = tmp[0];
     _dibo_id = tmp[1];
 
-    glNamedBufferStorage(_vbo_id, _chunks_count * _engine_context.chunk_max_mesh_size, nullptr, 0);
+    glNamedBufferStorage(_vbo_id, static_cast<i64>(_chunks_count) * static_cast<i64>(_engine_context.chunk_max_mesh_size), nullptr, 0);
 
     glNamedBufferStorage(
         _dibo_id,
@@ -50,13 +50,13 @@ void ChunkPool::init(i32 max_chunks) noexcept {
     try {
         _chunks.reserve(max_chunks);
         _chunk_id_to_index.resize(max_chunks, INVALID_CHUNK_INDEX);
-        _voxel_data.resize(max_chunks * _engine_context.chunk_size_1D);
+        _voxel_data.resize(static_cast<u64>(max_chunks) * _engine_context.chunk_size_1D);
         _free_chunks = RingBuffer<FreeChunk>(_chunks_count, {});
         for (std::size_t i{ 0U }; i < _chunks_count; ++i) {
             _free_chunks.write({
                 .chunk_id = static_cast<u32>(i),
-                .gpu_region_offset = static_cast<u32>(i * _engine_context.chunk_max_mesh_size),
-                .cpu_region = std::span<u16>(_voxel_data.data() + static_cast<i32>(i) * _engine_context.chunk_size_1D, _engine_context.chunk_size_1D)
+                .gpu_region_offset = i * _engine_context.chunk_max_mesh_size,
+                .cpu_region = std::span<u16>(_voxel_data.data() + i * _engine_context.chunk_size_1D, _engine_context.chunk_size_1D)
             });
         }
     } catch ([[maybe_unsused]] const std::exception& e) {
@@ -94,7 +94,7 @@ u32 ChunkPool::allocateChunk(const std::function<void(void*)>& voxel_write_data,
     _meshing_engine.issueMeshingCommand(
         chunk.chunk_id, position,
         chunk.cpu_region, 
-        chunk.gpu_region_offset, _engine_context.chunk_max_mesh_size
+        chunk.gpu_region_offset
     );
 
     return chunk_id;
@@ -110,6 +110,8 @@ vmath::u32 ChunkPool::allocateChunk(std::span<const vmath::u16> src, vmath::Vec3
 
     std::memcpy(static_cast<void*>(free_chunk.cpu_region.data()), static_cast<const void*>(src.data()), src.size() * sizeof(u16));
 
+    cpu_memory_usage += src.size() * sizeof(u16);
+
     auto& chunk = _chunks.emplace_back(Chunk{
         position, 
         {0}, // bcs chunk isn't complete yet
@@ -124,7 +126,7 @@ vmath::u32 ChunkPool::allocateChunk(std::span<const vmath::u16> src, vmath::Vec3
     _meshing_engine.issueMeshingCommand(
         chunk.chunk_id, position,
         chunk.cpu_region, 
-        chunk.gpu_region_offset, _engine_context.chunk_max_mesh_size
+        chunk.gpu_region_offset
     );
 
     return chunk.chunk_id;
@@ -143,14 +145,15 @@ void ChunkPool::completeChunk(MeshingEngine2::Future future) {
     chunk.draw_cmd_indices[Z_NEG] = base_cmd_index + Z_NEG;
 
     for (std::size_t i{ 0U }; i < 6U; ++i) {
-        _draw_cmds.emplace_back(DrawArraysIndirectCmd{
-            .count = future.written_vertices_counts[i],
+        const auto& draw_cmd = _draw_cmds.emplace_back(DrawArraysIndirectCmd{
+            .count = future.written_vertices[i],
             .instance_count = 1U,
-            .first = static_cast<u32>((((future.chunk_id * 6) + i) * _engine_context.chunk_max_submesh_size)/sizeof(Vertex)),
+            .first = static_cast<u32>((((static_cast<u64>(future.chunk_id) * 6UL) + i) * _engine_context.chunk_max_submesh_size)/sizeof(Vertex)),
             .base_instance = 0U,
             .orientation = static_cast<Face>(i),
             .chunk_id = future.chunk_id
         });
+        gpu_memory_usage += static_cast<u64>(future.written_vertices[i]) * sizeof(Vertex);
     }
 }
 
@@ -177,10 +180,12 @@ void ChunkPool::drawAll() {
         );
     }
 }
-void ChunkPool::poll() {
+bool ChunkPool::poll() {
     if (MeshingEngine2::Future future{}; _meshing_engine.pollMeshingCommand(future)) {
         completeChunk(future);
+        return true;
     }
+    return false;
 }
 
 void ChunkPool::deallocateChunk(u32 chunk_id) noexcept {

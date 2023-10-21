@@ -68,7 +68,7 @@ void createCubeMapTextureArray(MaterialAllocator &material_allocator, const std:
     }
 }
 
-static constexpr Vec3i32 EXTENT(2, 2, 2);
+static constexpr Vec3i32 EXTENT(32, 32, 32);
 
 static f32 timestep{0U};
 static Camera camera{};
@@ -197,38 +197,33 @@ int main()
     glEnable(GL_CULL_FACE);
 
     ve001::VoxelTerrainGenerator terrain_generator({.terrain_size = EXTENT,
-                                                    .terrain_density = 4U,
+                                                    .terrain_density = 32U,
                                                     .noise_type = VoxelTerrainGenerator::Config::NoiseType::PERLIN,
                                                     .quantize_values = 1U,
                                                     .quantized_value_size = sizeof(u16),
-                                                    .seed = 0x2223128});
+                                                    .seed = 0xABABDEAD});
     terrain_generator.init();
 
-    std::vector<u16> noise(EXTENT[0] * EXTENT[1] * EXTENT[2], 1U);
+    std::vector<u16> noise(EXTENT[0] * EXTENT[1] * EXTENT[2], 0U);
 
-    std::array<Vec3i32, 9> chunk_positions{{
-        {0, 0, 0}, {1, 0, 0}, {2, 0, 0}, {0, 0, 1}, {1, 0, 1}, {2, 0, 1}, {0, 0, 2}, {1, 0, 2} //, {2, 0, 2}
-        // {1, 1, 1},
-        // {0, 0, -1}, {1, 0, -1}, {2, 0, -1},
-        // {0, 0, 3}, {1, 0, 3}, {2, 0, 3},
-        // {-1, 0, 0}, {-1, 0, 1}, {-1, 0, 2},
-        // {3, 0, 0}, {3, 0, 1}, {3, 0, 2},
-        // {0,  1, -1}, {1, 1, -1}, {2, 1, -1},
-        // {0,  1, 3}, {1,  1, 3}, /*{2,  1, 3},*/
-        // {-1, 1, 0}, {-1, 1, 1}, {-1, 1, 2},
-        // {3,  1, 0}, {3,  1, 1}, {3,  1, 2},
-    }};
+    constexpr i32 TERRAIN_SIZE{ 7 };
+
+    std::array<Vec3i32, TERRAIN_SIZE*TERRAIN_SIZE> chunk_positions;
+    for (i32 z{ 0 }; z < TERRAIN_SIZE; ++z) {
+        for (i32 x{ 0 }; x < TERRAIN_SIZE; ++x) {
+            chunk_positions[x + z * TERRAIN_SIZE] = {x, -1, z};
+        }
+    }
 
     Engine engine(EXTENT);
-    engine.init(1); // chunk_positions.size());
+    engine.init(3); // chunk_positions.size());
 
     // u32 mesh_memory_footprint{ 0U };
-    // for (const auto chunk_position : chunk_positions)
-    // {
-        // terrain_generator.next(static_cast<void *>(noise.data()), 0U, 0U, {2, 0, 2});
-
-    //     const auto chunk_id = engine._chunk_pool.allocateChunk(std::span<u16>(noise), chunk_position);
-    // }
+    for (const auto chunk_position : chunk_positions)
+    {
+        terrain_generator.next(static_cast<void *>(noise.data()), 0U, 0U, chunk_position);
+        const auto chunk_id = engine._chunk_pool.allocateChunk(std::span<u16>(noise), chunk_position);
+    }
 
     MaterialAllocator material_allocator(1U, 1U, 6U, 96U, 96U);
 
@@ -377,18 +372,19 @@ int main()
 
         general_ubo.write(static_cast<const void *>(&general));
 
-        if (light_as_camera_proj)
-        {
-            static bool done = false;
-            if (!done)
-            {
-                // terrain_generator.next(static_cast<void *>(noise.data()), 0U, 0U, {2, 0, 2});
-                const auto chunk_id = engine._chunk_pool.allocateChunk(std::span<u16>(noise), {0, 0, 0});
-                done = true;
-            }
+        // if (light_as_camera_proj)
+        // {
+        //     static bool done = false;
+        //     if (!done)
+        //     {
+        //         // terrain_generator.next(static_cast<void *>(noise.data()), 0U, 0U, {2, 0, 2});
+        //         const auto chunk_id = engine._chunk_pool.allocateChunk(std::span<u16>(noise), {0, 0, 0});
+        //         done = true;
+        //     }
+        // }
+        if (engine._chunk_pool.poll()) {
+            engine._chunk_pool.update();
         }
-        engine._chunk_pool.poll();
-        engine._chunk_pool.update();
 
         if (camera_rotated && light_as_camera)
         {
@@ -416,6 +412,20 @@ int main()
         window.swapBuffers();
         window.pollEvents();
     }
+
+    logger->info("Number of triangles was :: {:L}", 
+        engine._chunk_pool.gpu_memory_usage / (6 * sizeof(Vertex))
+    );
+    logger->info("GPU memory usage was :: {}B, {}kB, {}MB", 
+        engine._chunk_pool.gpu_memory_usage,
+        engine._chunk_pool.gpu_memory_usage / 1024,
+        engine._chunk_pool.gpu_memory_usage / (1024 * 1024)
+    );
+    logger->info("CPU memory usage was :: {}B, {}kB, {}MB", 
+        engine._chunk_pool.cpu_memory_usage,
+        engine._chunk_pool.cpu_memory_usage / 1024,
+        engine._chunk_pool.cpu_memory_usage / (1024 * 1024)
+    );
 
     general_ubo.deinit();
     lighting.deinitNoShaders();

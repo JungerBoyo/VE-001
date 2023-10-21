@@ -46,6 +46,9 @@ add_library(ve001_engine STATIC
 
     engine.h
     engine.cpp
+
+    world_grid.h
+    world_grid.cpp
 )
 target_link_libraries(ve001_engine PRIVATE 
     glad::glad

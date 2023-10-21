@@ -16,9 +16,11 @@ VoxelTerrainGenerator::VoxelTerrainGenerator(Config config)
             std::memcpy(dst, static_cast<const void*>(&normalized_value), sizeof(f32));
         }) :
         std::function([quantize_values = config.quantize_values, size = config.quantized_value_size](void* dst, f32 value) {
-            const auto quantized_value{ 
-                static_cast<u32>(std::roundf(((value + 1.F)/2.F) * static_cast<f32>(quantize_values)))
-            };
+            const auto quantized_value{std::clamp(
+                static_cast<u32>(std::roundf(((value + 1.F)/2.F) * static_cast<f32>(quantize_values))),
+                0U,
+                quantize_values
+            )};
             std::memcpy(dst, static_cast<const void*>(&quantized_value), size);
         })
     ) {}
@@ -44,21 +46,19 @@ void VoxelTerrainGenerator::next(void* dst, u32 offset, u32 stride, Vec3i32 chun
     }
 
     std::vector<f32> height_map(config.terrain_size[0] * config.terrain_size[2], 0.F);
-    for (i32 z{ 0 }; z < config.terrain_size[2]; ++z) {
-        for (i32 x{ 0 }; x < config.terrain_size[0]; ++x) {
-            height_map[x + z * config.terrain_size[0]] = std::clamp((noise_func_2d->invoke(
+    for (i32 z{ p0[2] }; z < p1[2]; ++z) {
+        for (i32 x{ p0[0] }; x < p1[0]; ++x) {
+            height_map[(x - p0[0]) + (z - p0[2]) * config.terrain_size[0]] = std::clamp((noise_func_2d->invoke(
                 {static_cast<f32>(x), static_cast<f32>(z)},
-                4
-            ) + 1.F) / 2.F, .45F, 1.F);
+                32 
+            ) + 1.F) / 2.F, 0.F, 1.F);
         }
     }
-
-    constexpr f32 min_height{ 8.F };
 
     for (i32 z{ p0[2] }; z < p1[2]; ++z) {
         for (i32 y{ p0[1] }; y < p1[1]; ++y) {
             for (i32 x{ p0[0] }; x < p1[0]; ++x) {
-                const auto height = static_cast<f32>(y)/static_cast<f32>(2*config.terrain_size[1]);
+                const auto height = static_cast<f32>(y - p0[1])/static_cast<f32>(config.terrain_size[1]);
                 const auto height_value = height_map[(x - p0[0]) + (z - p0[2]) * config.terrain_size[0]];
                 if (height > height_value) {
                     auto value = noise_func_3d->invoke(Vec3f32{
@@ -66,7 +66,7 @@ void VoxelTerrainGenerator::next(void* dst, u32 offset, u32 stride, Vec3i32 chun
                         static_cast<f32>(y),
                         static_cast<f32>(z)
                     }, config.terrain_density);
-                    fn_write_value(static_cast<void*>(dst_u8), value * height_value - 0.1F);
+                    fn_write_value(static_cast<void*>(dst_u8), value * height_value);
                 } else {
                     fn_write_value(static_cast<void*>(dst_u8), 0.F);
                 }

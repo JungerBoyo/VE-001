@@ -47,12 +47,12 @@ void MeshingEngine2::init(u32 vbo_id) {
 
     Descriptor meshing_descriptor = {
         .vbo_offsets = {  // passed in floats
-            {static_cast<u32>(_engine_context.chunk_max_submesh_size/sizeof(f32) * 0), 0U, 0U, 0U }, // +x
-            {static_cast<u32>(_engine_context.chunk_max_submesh_size/sizeof(f32) * 1), 0U, 0U, 0U }, // -x
-            {static_cast<u32>(_engine_context.chunk_max_submesh_size/sizeof(f32) * 2), 0U, 0U, 0U }, // +y
-            {static_cast<u32>(_engine_context.chunk_max_submesh_size/sizeof(f32) * 3), 0U, 0U, 0U }, // -y
-            {static_cast<u32>(_engine_context.chunk_max_submesh_size/sizeof(f32) * 4), 0U, 0U, 0U }, // +z
-            {static_cast<u32>(_engine_context.chunk_max_submesh_size/sizeof(f32) * 5), 0U, 0U, 0U }  // +z
+            {static_cast<u32>(_engine_context.chunk_max_submesh_size/sizeof(f32) * 0UL), 0U, 0U, 0U }, // +x
+            {static_cast<u32>(_engine_context.chunk_max_submesh_size/sizeof(f32) * 1UL), 0U, 0U, 0U }, // -x
+            {static_cast<u32>(_engine_context.chunk_max_submesh_size/sizeof(f32) * 2UL), 0U, 0U, 0U }, // +y
+            {static_cast<u32>(_engine_context.chunk_max_submesh_size/sizeof(f32) * 3UL), 0U, 0U, 0U }, // -y
+            {static_cast<u32>(_engine_context.chunk_max_submesh_size/sizeof(f32) * 4UL), 0U, 0U, 0U }, // +z
+            {static_cast<u32>(_engine_context.chunk_max_submesh_size/sizeof(f32) * 5UL), 0U, 0U, 0U }  // +z
         },
         .chunk_position = {0, 0, 0},
         .chunk_size = _engine_context.chunk_size
@@ -63,18 +63,17 @@ void MeshingEngine2::init(u32 vbo_id) {
     _ssbo_meshing_temp.write(static_cast<const void*>(&meshing_temp));
 }
 
-void MeshingEngine2::issueMeshingCommand(u32 chunk_id, Vec3i32 chunk_position, std::span<u16> voxel_data, u32 vbo_offset, u32 vbo_size) {
+void MeshingEngine2::issueMeshingCommand(u32 chunk_id, Vec3i32 chunk_position, std::span<const u16> voxel_data, u64 vbo_offset) {
     Command cmd = {
         .chunk_id       = chunk_id,
         .chunk_position = chunk_position,
         .voxel_data     = voxel_data,
         .vbo_offset     = vbo_offset,
-        .vbo_size       = vbo_size,
         .fence          = nullptr,
         .axis_progress  = 0
     };
 
-    if (_commands.empty()) {
+    if (_active_command.fence == nullptr) {
         _active_command = cmd;
         firstCommandExec(_active_command);
         return;
@@ -110,41 +109,18 @@ bool MeshingEngine2::pollMeshingCommand(Future& future) {
     glDeleteSync(static_cast<GLsync>(_active_command.fence));
     
     future.chunk_id = _active_command.chunk_id;
-    // u32 tmp_written_vertex_counts[6];
 
     Temp temp{};
+    // glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+    _ssbo_meshing_temp.read(static_cast<void*>(&temp), 0, sizeof(Temp));
+    future.written_vertices[X_POS] = temp.written_vertices_in_dwords[X_POS] / (sizeof(Vertex)/sizeof(f32));
+    future.written_vertices[X_NEG] = temp.written_vertices_in_dwords[X_NEG] / (sizeof(Vertex)/sizeof(f32));
+    future.written_vertices[Y_POS] = temp.written_vertices_in_dwords[Y_POS] / (sizeof(Vertex)/sizeof(f32));
+    future.written_vertices[Y_NEG] = temp.written_vertices_in_dwords[Y_NEG] / (sizeof(Vertex)/sizeof(f32));
+    future.written_vertices[Z_POS] = temp.written_vertices_in_dwords[Z_POS] / (sizeof(Vertex)/sizeof(f32));
+    future.written_vertices[Z_NEG] = temp.written_vertices_in_dwords[Z_NEG] / (sizeof(Vertex)/sizeof(f32));
 
     // glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
-    // _ssbo_meshing_temp.read(
-    //     static_cast<void*>(tmp_written_vertex_counts),
-    //     offsetof(Temp, written_vertex_counts),
-    //     sizeof(Temp::written_vertex_counts)
-    // );
-    _ssbo_meshing_temp.read(static_cast<void*>(&temp), 0, sizeof(Temp));
-
-    std::cout << 
-        temp.axes_steps[X_POS] << std::endl <<  
-        temp.axes_steps[X_NEG] << std::endl << 
-        temp.axes_steps[Y_POS] << std::endl << 
-        temp.axes_steps[Y_NEG] << std::endl << 
-        temp.axes_steps[Z_POS] << std::endl << 
-        temp.axes_steps[Z_NEG] << std::endl << std::endl <<
-        temp.written_vertex_counts[X_POS] << std::endl <<  
-        temp.written_vertex_counts[X_NEG] << std::endl << 
-        temp.written_vertex_counts[Y_POS] << std::endl << 
-        temp.written_vertex_counts[Y_NEG] << std::endl << 
-        temp.written_vertex_counts[Z_POS] << std::endl << 
-        temp.written_vertex_counts[Z_NEG] << std::endl;
-
-        
-    future.written_vertices_counts[X_POS] = temp.written_vertex_counts[X_POS];
-    future.written_vertices_counts[X_NEG] = temp.written_vertex_counts[X_NEG];
-    future.written_vertices_counts[Y_POS] = temp.written_vertex_counts[Y_POS];
-    future.written_vertices_counts[Y_NEG] = temp.written_vertex_counts[Y_NEG];
-    future.written_vertices_counts[Z_POS] = temp.written_vertex_counts[Z_POS];
-    future.written_vertices_counts[Z_NEG] = temp.written_vertex_counts[Z_NEG];
-
-    glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
     glBindBufferBase(GL_SHADER_STORAGE_BUFFER, VE001_SH_CONFIG_SSBO_BINDING_MESH_DATA, 0);
 
     if (!_commands.read(_active_command)) {
@@ -171,7 +147,7 @@ void MeshingEngine2::firstCommandExec(Command& command) {
     glBindBufferRange(
         GL_SHADER_STORAGE_BUFFER, 
         VE001_SH_CONFIG_SSBO_BINDING_MESH_DATA, _vbo_id,
-        command.vbo_offset, command.vbo_size
+        static_cast<GLintptr>(command.vbo_offset), static_cast<GLintptr>(_engine_context.chunk_max_mesh_size)
     );
 
     command.axis_progress += _engine_context.meshing_axis_progress_step;

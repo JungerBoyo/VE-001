@@ -46,7 +46,7 @@ struct ChunkPool {
         /// @brief free chunk id
         vmath::u32 chunk_id{ 0U };
         /// @brief free gpu region to allocate offset into vbo_id 
-        vmath::u32 gpu_region_offset{ 0U };
+        vmath::u64 gpu_region_offset{ 0U };
         /// @brief free cpu region to allocate (derived from <_voxel_data>)
         std::span<vmath::u16> cpu_region;
     };
@@ -58,7 +58,7 @@ struct ChunkPool {
         /// @brief indicies of draw commands belonging to that chunk
         vmath::u32 draw_cmd_indices[6];
         /// @brief allocated gpu region offset into vbo_id 
-        vmath::u32 gpu_region_offset{ 0U };
+        vmath::u64 gpu_region_offset{ 0U };
         /// @brief pointer to allocated cpu region for this chunk 
         std::span<vmath::u16> cpu_region;
         /// @brief unique id of this chunk
@@ -66,6 +66,7 @@ struct ChunkPool {
         /// @brief indicates if chunk is meshed and actively drawn 
         bool complete;
     };
+
     ////////////////////////////
 
 
@@ -89,11 +90,9 @@ struct ChunkPool {
     ///     GPU SIDE VOXEL DATA    ///
     //////////////////////////////////
 
-    /// @brief pointer to mapped vbo storing mesh data. WRITE ONLY, 
-    /// PERSISTED (no need for remapping) AND COHERENT (no need for manual sync)
-    // void* _vbo_ptr{ nullptr };
     /// @brief buffer of draw commands which draw submeshes stored in vbo
     std::vector<DrawArraysIndirectCmd> _draw_cmds;
+
     ///////////////////////////
 
       
@@ -104,6 +103,7 @@ struct ChunkPool {
     /// @brief is divided into regions, reflects meshes (stored in vbo) in voxel data
     /// (cpu side)
     std::vector<vmath::u16> _voxel_data;
+
     //////////////////////////////////
 
 
@@ -115,6 +115,7 @@ struct ChunkPool {
     static constexpr vmath::i32 VERTEX_SIZE{ sizeof(Vertex) };
     /// @brief count of all submeshes
     vmath::i32 _submeshes_count{ 0 };
+    
     //////////////////////////////////
 
     
@@ -136,6 +137,18 @@ struct ChunkPool {
 
     ////////////////////////////////////
 
+
+    ////////////////////////////////////////
+    ///       METADATA (DEBUG/INFO)      ///
+    ////////////////////////////////////////
+
+    /// @brief gpu memory usage in bytes (mesh)
+    vmath::u64 gpu_memory_usage{ 0UL };
+    /// @brief cpu memory usage in bytes (voxel values)
+    vmath::u64 cpu_memory_usage{ 0UL };    
+    
+    ////////////////////////////////////////
+
     /// @brief context holds common data to all engine components
     const EngineContext& _engine_context;
 
@@ -150,10 +163,12 @@ struct ChunkPool {
     /// @brief allocates chunk from _free_chunks
     /// @param voxel_write_data function writing voxel data to voxel data region (CPU)
     /// @param position position of the chunk
+    /// @return allocated chunk id or UINT32_MAX if allocatation failed
     vmath::u32 allocateChunk(const std::function<void(void*)>& voxel_write_data, vmath::Vec3i32 position) noexcept;
     /// @brief allocates chunk from _free_chunks
     /// @param src voxel data
     /// @param position position of the chunk
+    /// @return allocated chunk id or UINT32_MAX if allocatation failed
     vmath::u32 allocateChunk(std::span<const vmath::u16> src, vmath::Vec3i32 position) noexcept;
     /// @brief completes chunk eg. chunk starts to be drawn by the drawAll command 
     /// called by poll() function if chunk's mesh is finished
@@ -171,7 +186,8 @@ struct ChunkPool {
     /// @brief draws all chunks
     void drawAll();
     /// @brief polls for chunks that are meshed and are ready to be completed (one at a time)
-    void poll();
+    /// @return true if chunk was completed false otherwise
+    bool poll();
     /// @brief deinitializes chunk pool
     void deinit();
 };
