@@ -10,6 +10,7 @@
 #include "gpu_buffer.h"
 #include "ringbuffer.h"
 #include "engine_context.h"
+#include "chunk_id.h"
 
 namespace ve001 {
 
@@ -44,7 +45,7 @@ struct MeshingEngine2 {
     /// @brief command descripting meshing execution of a single chunk
     struct Command {
         /// @brief id of chunk meshed by command
-        vmath::u32 chunk_id; 
+        ChunkId chunk_id; 
         /// @brief position of the chunk
         vmath::Vec3i32 chunk_position;
         /// @brief pointer to voxel data to be issued before meshing starts
@@ -62,7 +63,7 @@ struct MeshingEngine2 {
     struct Future {
         /// @brief indentifier of a succesfully meshed chunk (maps to
         /// chunk id in ChunkPool)
-        vmath::u32 chunk_id;
+        ChunkId chunk_id;
         /// @brief written vertices count *per face* indexed with ve001::Face enum. 
         /// Needed to determine how much vertices to render
         std::array<vmath::u32, 6> written_vertices;
@@ -100,7 +101,7 @@ struct MeshingEngine2 {
     /// @param vbo_offset offset into VBO from ChunkPool (needed for range binding VBO)
     /// @param vbo_size size of VBO from <vbo_offset> from ChunkPool (needed for range binding VBO)
     void issueMeshingCommand(
-        vmath::u32 chunk_id,
+        ChunkId chunk_id,
         vmath::Vec3i32 chunk_position,
         std::span<const vmath::u16> voxel_data,
         vmath::u64 vbo_offset

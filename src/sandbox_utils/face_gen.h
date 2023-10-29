@@ -4,6 +4,8 @@
 #include <vmath/vmath.h>
 #include <array>
 
+using namespace vmath;
+
 namespace ve001 {
 
 struct Vertex {

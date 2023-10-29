@@ -96,6 +96,13 @@ struct Vec {
         return result;
     }
 
+    static Vec<T, S> div(Vec<T, S> dividend, Vec<T, S> divisor) {
+        for (std::size_t i{ 0U }; i < S; ++i) {
+            dividend.values[i] /= divisor.values[i];
+        }
+        return dividend;
+    }
+
     static Vec<T, S> divScalar(Vec<T, S> vec, T scalar) {
         for (std::size_t i{ 0U }; i < S; ++i) {
             vec.values[i] /= scalar;
@@ -151,6 +158,14 @@ Vec<T, 3> cross(Vec<T, 3> lhs, Vec<T, 3> rhs) {
         lhs.values[2]*rhs.values[0] - rhs.values[2]*lhs.values[0],
         lhs.values[0]*rhs.values[1] - rhs.values[0]*lhs.values[1]
     );
+}
+
+template<std::size_t S>
+Vec<f32, S> vroundf(Vec<f32, S> vec) {
+    for (std::size_t i{ 0U }; i < S; ++i) {
+        vec.values[i] = std::roundf(vec.values[i]);
+    }
+    return vec;
 }
 
 template<std::size_t N, std::size_t M>

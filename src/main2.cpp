@@ -196,34 +196,8 @@ int main()
     glEnable(GL_DEPTH_TEST);
     glEnable(GL_CULL_FACE);
 
-    ve001::VoxelTerrainGenerator terrain_generator({.terrain_size = EXTENT,
-                                                    .terrain_density = 32U,
-                                                    .noise_type = VoxelTerrainGenerator::Config::NoiseType::PERLIN,
-                                                    .quantize_values = 1U,
-                                                    .quantized_value_size = sizeof(u16),
-                                                    .seed = 0xABABDEAD});
-    terrain_generator.init();
-
-    std::vector<u16> noise(EXTENT[0] * EXTENT[1] * EXTENT[2], 0U);
-
-    constexpr i32 TERRAIN_SIZE{ 7 };
-
-    std::array<Vec3i32, TERRAIN_SIZE*TERRAIN_SIZE> chunk_positions;
-    for (i32 z{ 0 }; z < TERRAIN_SIZE; ++z) {
-        for (i32 x{ 0 }; x < TERRAIN_SIZE; ++x) {
-            chunk_positions[x + z * TERRAIN_SIZE] = {x, -1, z};
-        }
-    }
-
-    Engine engine(EXTENT);
-    engine.init(3); // chunk_positions.size());
-
-    // u32 mesh_memory_footprint{ 0U };
-    for (const auto chunk_position : chunk_positions)
-    {
-        terrain_generator.next(static_cast<void *>(noise.data()), 0U, 0U, chunk_position);
-        const auto chunk_id = engine._chunk_pool.allocateChunk(std::span<u16>(noise), chunk_position);
-    }
+    Engine engine({120.F, 120.F, 120.F}, {0.F, 0.F, 0.F}, EXTENT);
+    engine.init();
 
     MaterialAllocator material_allocator(1U, 1U, 6U, 96U, 96U);
 
@@ -320,9 +294,10 @@ int main()
     }};
 
     // light.move({-20.F, 40.F, 20.F});
-    camera.move({0.F, 40.F, 6.F});
+    camera.move({0.F, 0.F, 0.F});
 
-    const auto render_scene = [&chunk_pool = engine._chunk_pool]()
+
+    const auto render_scene = [&chunk_pool = engine._world_grid._chunk_pool]()
     { chunk_pool.drawAll(); };
 
     f32 prev_frame_time{0.F};
@@ -382,9 +357,13 @@ int main()
         //         done = true;
         //     }
         // }
-        if (engine._chunk_pool.poll()) {
-            engine._chunk_pool.update();
+        engine._world_grid.update(camera.position);
+
+        if (engine._world_grid._chunk_pool.poll()) {
+            lighting.rotateLight(dir_light_id, light.looking_dir);
         }
+
+        engine._world_grid._chunk_pool.update();
 
         if (camera_rotated && light_as_camera)
         {
@@ -397,6 +376,7 @@ int main()
             lighting.moveLight(light_bobo.id, light.position);
             camera_moved = false;
         }
+
         // render shadow map
         if (lighting.update(render_scene))
         {
@@ -407,24 +387,24 @@ int main()
         glViewport(0, 0, window_width, window_height);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         engine._engine_context.shader_repo[ShaderType::MULTI_LIGHTS_SHADER].bind();
-        engine._chunk_pool.drawAll();
+        engine._world_grid._chunk_pool.drawAll();
 
         window.swapBuffers();
         window.pollEvents();
     }
 
     logger->info("Number of triangles was :: {:L}", 
-        engine._chunk_pool.gpu_memory_usage / (6 * sizeof(Vertex))
+        engine._world_grid._chunk_pool.gpu_memory_usage / (6 * sizeof(Vertex))
     );
     logger->info("GPU memory usage was :: {}B, {}kB, {}MB", 
-        engine._chunk_pool.gpu_memory_usage,
-        engine._chunk_pool.gpu_memory_usage / 1024,
-        engine._chunk_pool.gpu_memory_usage / (1024 * 1024)
+        engine._world_grid._chunk_pool.gpu_memory_usage,
+        engine._world_grid._chunk_pool.gpu_memory_usage / 1024,
+        engine._world_grid._chunk_pool.gpu_memory_usage / (1024 * 1024)
     );
     logger->info("CPU memory usage was :: {}B, {}kB, {}MB", 
-        engine._chunk_pool.cpu_memory_usage,
-        engine._chunk_pool.cpu_memory_usage / 1024,
-        engine._chunk_pool.cpu_memory_usage / (1024 * 1024)
+        engine._world_grid._chunk_pool.cpu_memory_usage,
+        engine._world_grid._chunk_pool.cpu_memory_usage / 1024,
+        engine._world_grid._chunk_pool.cpu_memory_usage / (1024 * 1024)
     );
 
     general_ubo.deinit();

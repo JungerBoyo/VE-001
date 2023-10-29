@@ -42,7 +42,6 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
     gl_context 
     vmath
     sandbox_utils 
-    voxel_terrain_generator
     ve001_engine
     glfw
     sh_config

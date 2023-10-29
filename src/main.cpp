@@ -193,7 +193,6 @@ int main() {
         .quantized_value_size = sizeof(u8),
         .seed = 0x2223128
     });
-    terrain_generator.init();
 
     std::vector<u8> noise{1, 0, 0, 1, 0, 1, 1, 0} ;//(EXTENT[0] * EXTENT[1] * EXTENT[2], 1U);
 

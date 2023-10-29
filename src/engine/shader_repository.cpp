@@ -5,8 +5,8 @@
 using namespace vmath;
 using namespace ve001;
 
-static constexpr std::string_view BASE_SHADERS_BIN = "shaders/bin/";
-static constexpr std::string_view BASE_SHADERS_SRC = "shaders/src/";
+static constexpr std::string_view BASE_SHADERS_BIN = "/home/regu/codium_repos/VE-001/shaders/bin/";
+static constexpr std::string_view BASE_SHADERS_SRC = "/home/regu/codium_repos/VE-001/shaders/src/";
 
 struct ShaderDescriptor {
     enum class Type {

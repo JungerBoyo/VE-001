@@ -10,6 +10,7 @@
 #include "ringbuffer.h"
 #include "meshing_engine2.h"
 #include "engine_context.h"
+#include "chunk_id.h"
 
 namespace ve001 {
 
@@ -38,13 +39,13 @@ struct ChunkPool {
         Face orientation;
         /// @brief what is the chunk id to which the drawn by this command
         /// submesh belongs
-        vmath::u32 chunk_id{ 0U };
+        ChunkId chunk_id{ 0U };
     };
 
     /// @brief structure stores free chunk metadata
     struct FreeChunk {
         /// @brief free chunk id
-        vmath::u32 chunk_id{ 0U };
+        ChunkId chunk_id{ 0U };
         /// @brief free gpu region to allocate offset into vbo_id 
         vmath::u64 gpu_region_offset{ 0U };
         /// @brief free cpu region to allocate (derived from <_voxel_data>)
@@ -62,7 +63,7 @@ struct ChunkPool {
         /// @brief pointer to allocated cpu region for this chunk 
         std::span<vmath::u16> cpu_region;
         /// @brief unique id of this chunk
-        vmath::u32 chunk_id{ 0U };
+        ChunkId chunk_id{ 0U };
         /// @brief indicates if chunk is meshed and actively drawn 
         bool complete;
     };
@@ -111,8 +112,6 @@ struct ChunkPool {
     ///       METADATA (MESH)      ///
     //////////////////////////////////
 
-    /// @brief vertex size position + texcoord (24 bytes) 
-    static constexpr vmath::i32 VERTEX_SIZE{ sizeof(Vertex) };
     /// @brief count of all submeshes
     vmath::i32 _submeshes_count{ 0 };
     
@@ -164,19 +163,19 @@ struct ChunkPool {
     /// @param voxel_write_data function writing voxel data to voxel data region (CPU)
     /// @param position position of the chunk
     /// @return allocated chunk id or UINT32_MAX if allocatation failed
-    vmath::u32 allocateChunk(const std::function<void(void*)>& voxel_write_data, vmath::Vec3i32 position) noexcept;
+    ChunkId allocateChunk(const std::function<void(void*)>& voxel_write_data, vmath::Vec3i32 position) noexcept;
     /// @brief allocates chunk from _free_chunks
     /// @param src voxel data
     /// @param position position of the chunk
     /// @return allocated chunk id or UINT32_MAX if allocatation failed
-    vmath::u32 allocateChunk(std::span<const vmath::u16> src, vmath::Vec3i32 position) noexcept;
+    ChunkId allocateChunk(std::span<const vmath::u16> src, vmath::Vec3i32 position) noexcept;
     /// @brief completes chunk eg. chunk starts to be drawn by the drawAll command 
     /// called by poll() function if chunk's mesh is finished
     /// @param future holds data from meshing_engine with which to update the chunk
     void completeChunk(MeshingEngine2::Future future);
     /// @brief deallocates chunk
     /// @param chunk_id chunk's id to deallocate
-    void deallocateChunk(vmath::u32 chunk_id) noexcept;
+    void deallocateChunk(ChunkId chunk_id) noexcept;
     /// @brief deallocates draw commands of the chunk. Called by deallocateChunk only
     /// if deallocated chunk is complete
     /// @param chunk reference to chunk from which to deallocate draw commands

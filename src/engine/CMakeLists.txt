@@ -37,6 +37,8 @@ add_library(ve001_engine STATIC
     shader_repository.h
     shader_repository.cpp
 
+    chunk_id.h
+
     chunk_pool.h
     chunk_pool.cpp
     vertex.h
@@ -52,5 +54,6 @@ add_library(ve001_engine STATIC
 )
 target_link_libraries(ve001_engine PRIVATE 
     glad::glad
+    voxel_terrain_generator
     stb_impl
 )

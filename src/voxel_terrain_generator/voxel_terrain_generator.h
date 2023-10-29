@@ -8,8 +8,6 @@
 
 #include "noise_func.h"
 
-using namespace vmath;
-
 namespace ve001 {
 
 struct VoxelTerrainGenerator {
@@ -27,13 +25,13 @@ struct VoxelTerrainGenerator {
          * @brief Size of single piece of terrain
          * generated per iteration
         */
-        Vec3i32 terrain_size;
+        vmath::Vec3i32 terrain_size;
         /**
          * @brief Since generator uses simplex/perlin noise,
          * this argument configures how many voxels
          * there are per simplex/perlin grid cell.
         */
-        u32 terrain_density;
+        vmath::u32 terrain_density;
         /**
          * @brief CPU or GPU
         */
@@ -64,16 +62,16 @@ struct VoxelTerrainGenerator {
          * max number of states to which to translate to.
          * (useful when generating eg. texture index).
         */
-        u32 quantize_values;
+        vmath::u32 quantize_values;
         /**
          * @brief size in bytes of quatized value if <quantize_values> == 0U
          * it has no effect since values are floating point. Possible values 1, 2, 3 and 4
         */
-        u32 quantized_value_size;
+        vmath::u32 quantized_value_size;
         /**
          * @brief seed to generate random gradients
         */
-        u32 seed;
+        vmath::u32 seed;
     };
 
 private:
@@ -81,13 +79,10 @@ private:
     std::unique_ptr<NoiseFunc3D> noise_func_3d{ nullptr };
     std::unique_ptr<NoiseFunc2D> noise_func_2d{ nullptr };
     // Vec3i32 current_location{ 0 };
-    std::function<void(void*, f32)> fn_write_value;
+    std::function<void(void*, vmath::f32)> fn_write_value;
 
 public:    
     VoxelTerrainGenerator(Config config);
-
-    void init();
-
     /**
      * @brief generates next terrain chunk
      * @param dst generated data is written here
@@ -97,12 +92,7 @@ public:
      * (eg. if values in the buffer have interleaved layout)
      * @param chunk_position discrete position of the chunk in chunk extents
     */
-    void next(void* dst, u32 offset, u32 stride, Vec3i32 chunk_position);
-
-    /**
-     * @brief deinitializes generator
-    */
-    void deinit();
+    void next(void* dst, vmath::u32 offset, vmath::u32 stride, vmath::Vec3i32 chunk_position);
 };
 
 }

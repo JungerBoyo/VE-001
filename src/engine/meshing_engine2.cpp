@@ -52,7 +52,7 @@ void MeshingEngine2::init(u32 vbo_id) {
             {static_cast<u32>(_engine_context.chunk_max_submesh_size/sizeof(f32) * 2UL), 0U, 0U, 0U }, // +y
             {static_cast<u32>(_engine_context.chunk_max_submesh_size/sizeof(f32) * 3UL), 0U, 0U, 0U }, // -y
             {static_cast<u32>(_engine_context.chunk_max_submesh_size/sizeof(f32) * 4UL), 0U, 0U, 0U }, // +z
-            {static_cast<u32>(_engine_context.chunk_max_submesh_size/sizeof(f32) * 5UL), 0U, 0U, 0U }  // +z
+            {static_cast<u32>(_engine_context.chunk_max_submesh_size/sizeof(f32) * 5UL), 0U, 0U, 0U }  // -z
         },
         .chunk_position = {0, 0, 0},
         .chunk_size = _engine_context.chunk_size
@@ -107,6 +107,7 @@ bool MeshingEngine2::pollMeshingCommand(Future& future) {
     }
 
     glDeleteSync(static_cast<GLsync>(_active_command.fence));
+    _active_command.fence = nullptr;
     
     future.chunk_id = _active_command.chunk_id;
 
@@ -143,6 +144,11 @@ void MeshingEngine2::firstCommandExec(Command& command) {
         offsetof(Descriptor, chunk_position),
         sizeof(Descriptor::chunk_position)
     );
+
+    std::cout << "meshing chunk at position { " << 
+        command.chunk_position[0] << " " <<
+        command.chunk_position[1] << " " <<
+        command.chunk_position[2] << " }\n";
 
     glBindBufferRange(
         GL_SHADER_STORAGE_BUFFER, 

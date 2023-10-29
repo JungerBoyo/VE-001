@@ -3,6 +3,7 @@
 #include <glad/glad.h>
 
 #include <cstring>
+#include <iostream>
 
 using namespace ve001;
 using namespace vmath;
@@ -52,6 +53,7 @@ void ChunkPool::init(i32 max_chunks) noexcept {
         _chunk_id_to_index.resize(max_chunks, INVALID_CHUNK_INDEX);
         _voxel_data.resize(static_cast<u64>(max_chunks) * _engine_context.chunk_size_1D);
         _free_chunks = RingBuffer<FreeChunk>(_chunks_count, {});
+        _draw_cmds.reserve(_chunks_count * 6);
         for (std::size_t i{ 0U }; i < _chunks_count; ++i) {
             _free_chunks.write({
                 .chunk_id = static_cast<u32>(i),
@@ -69,48 +71,14 @@ void ChunkPool::init(i32 max_chunks) noexcept {
 }
 
 u32 ChunkPool::allocateChunk(const std::function<void(void*)>& voxel_write_data, Vec3i32 position) noexcept {
-    u32 chunk_id{ std::numeric_limits<u32>::max() };
-
     if (_free_chunks.empty()) {
-        return chunk_id; // TODO: Error
+        return INVALID_CHUNK_ID; // TODO: Error
     }
 
     FreeChunk free_chunk{};
     _free_chunks.read(free_chunk);
 
     voxel_write_data(static_cast<void*>(free_chunk.cpu_region.data()));
-
-    auto& chunk = _chunks.emplace_back(Chunk{
-        position, 
-        {0}, // bcs chunk isn't complete yet
-        free_chunk.gpu_region_offset,
-        free_chunk.cpu_region,
-        free_chunk.chunk_id,
-        false
-    });
-
-    _chunk_id_to_index.push_back(chunk_id);
-
-    _meshing_engine.issueMeshingCommand(
-        chunk.chunk_id, position,
-        chunk.cpu_region, 
-        chunk.gpu_region_offset
-    );
-
-    return chunk_id;
-}
-
-vmath::u32 ChunkPool::allocateChunk(std::span<const vmath::u16> src, vmath::Vec3i32 position) noexcept {
-    if (_free_chunks.empty()) {
-        return std::numeric_limits<u32>::max(); // TODO: Error
-    }
-
-    FreeChunk free_chunk{};
-    _free_chunks.read(free_chunk);
-
-    std::memcpy(static_cast<void*>(free_chunk.cpu_region.data()), static_cast<const void*>(src.data()), src.size() * sizeof(u16));
-
-    cpu_memory_usage += src.size() * sizeof(u16);
 
     auto& chunk = _chunks.emplace_back(Chunk{
         position, 
@@ -132,8 +100,43 @@ vmath::u32 ChunkPool::allocateChunk(std::span<const vmath::u16> src, vmath::Vec3
     return chunk.chunk_id;
 }
 
+vmath::u32 ChunkPool::allocateChunk(std::span<const vmath::u16> src, vmath::Vec3i32 position) noexcept {
+    if (_free_chunks.empty()) {
+        return INVALID_CHUNK_ID; // TODO: Error
+    }
+
+    FreeChunk free_chunk{};
+    _free_chunks.read(free_chunk);
+
+    std::memcpy(static_cast<void*>(free_chunk.cpu_region.data()), static_cast<const void*>(src.data()), src.size() * sizeof(u16));
+
+    cpu_memory_usage += src.size() * sizeof(u16);
+
+    auto& chunk = _chunks.emplace_back(Chunk{
+        position, 
+        {0U, 0U, 0U, 0U, 0U, 0U}, // bcs chunk isn't complete yet
+        free_chunk.gpu_region_offset,
+        free_chunk.cpu_region,
+        free_chunk.chunk_id,
+        false
+    });
+
+    _chunk_id_to_index[chunk.chunk_id] = _chunks.size() - 1;
+
+    _meshing_engine.issueMeshingCommand(
+        free_chunk.chunk_id, position,
+        free_chunk.cpu_region, 
+        free_chunk.gpu_region_offset
+    );
+
+    return chunk.chunk_id;
+}
+
 void ChunkPool::completeChunk(MeshingEngine2::Future future) {
     const auto chunk_index = _chunk_id_to_index[future.chunk_id];
+    if (chunk_index == INVALID_CHUNK_INDEX) {
+        return;
+    }
     auto& chunk = _chunks[chunk_index];
     chunk.complete = true;
     const auto base_cmd_index = static_cast<u32>(_draw_cmds.size());
@@ -189,8 +192,17 @@ bool ChunkPool::poll() {
 }
 
 void ChunkPool::deallocateChunk(u32 chunk_id) noexcept {
+    // if (chunk_id == INVALID_CHUNK_ID) {
+    //     return false;
+    // }
+
     const auto chunk_index = _chunk_id_to_index[chunk_id];
-    auto& chunk = _chunks[chunk_index];
+    // if (chunk_index == INVALID_CHUNK_INDEX) {
+    //     return false;
+    // }
+    const auto chunk = _chunks[chunk_index];
+
+    // std::cout << "deallocating chunk of id: " << chunk_id << std::endl;
 
     if (chunk.complete) {
         deallocateChunkDrawCommands(chunk);
@@ -202,6 +214,7 @@ void ChunkPool::deallocateChunk(u32 chunk_id) noexcept {
         _chunk_id_to_index[last_chunk.chunk_id] = chunk_index;
     }
 
+
     _chunk_id_to_index[chunk_id] = INVALID_CHUNK_INDEX;
     _free_chunks.write({
         .chunk_id = chunk_id,
@@ -211,8 +224,10 @@ void ChunkPool::deallocateChunk(u32 chunk_id) noexcept {
     _chunks.pop_back();
 }
 void ChunkPool::deallocateChunkDrawCommands(const Chunk& chunk) {
-    for (std::size_t i{ 0U }; i < 6U; ++i) {
+    for (u32 i{ 0U }; i < 6; ++i) {
         const auto draw_cmd_index = chunk.draw_cmd_indices[i];
+        // std::cout << "deallocating draw command of index: " << draw_cmd_index << ", which starts drawing from vertex "
+        //           << _draw_cmds[draw_cmd_index].first << std::endl;
         if (draw_cmd_index != _draw_cmds.size() - 1U) {
             auto& last_draw_cmd = _draw_cmds.back();
             const auto last_draw_cmd_chunk_index = _chunk_id_to_index[last_draw_cmd.chunk_id];
@@ -225,6 +240,15 @@ void ChunkPool::deallocateChunkDrawCommands(const Chunk& chunk) {
         }
         _draw_cmds.pop_back();
     }
+
+    // std::cout << "Now draw commands in queue are\n";
+
+    // u32 i{ 0U };
+    // for (const auto draw_cmd : _draw_cmds) {
+    //     std::cout << "\t" << i << " - " << draw_cmd.first << ", " << "belongs to " << draw_cmd.chunk_id << std::endl;
+    //     ++i;
+    // }
+    // std::cout << std::endl;
 }
 
 void ChunkPool::deinit() {
