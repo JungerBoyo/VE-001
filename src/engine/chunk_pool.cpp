@@ -192,9 +192,9 @@ bool ChunkPool::poll() {
 }
 
 void ChunkPool::deallocateChunk(u32 chunk_id) noexcept {
-    // if (chunk_id == INVALID_CHUNK_ID) {
-    //     return false;
-    // }
+    if (chunk_id == INVALID_CHUNK_ID) {
+        return;
+    }
 
     const auto chunk_index = _chunk_id_to_index[chunk_id];
     // if (chunk_index == INVALID_CHUNK_INDEX) {

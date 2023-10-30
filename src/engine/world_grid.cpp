@@ -370,7 +370,7 @@ void WorldGrid::update(Vec3f32 new_position) {
     }
     _to_allocate_chunks.clear();
 
-    std::cout << "new position = { " << position_in_chunk_space[0] << " " << position_in_chunk_space[1] << " " << position_in_chunk_space[2] << " }\n";
+    // std::cout << "new position = { " << position_in_chunk_space[0] << " " << position_in_chunk_space[1] << " " << position_in_chunk_space[2] << " }\n";
     if(!validate()) {
         std::cout << "validation failed!\n";
     }
