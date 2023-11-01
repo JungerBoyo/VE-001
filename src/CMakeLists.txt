@@ -2,9 +2,11 @@ find_package(fmt REQUIRED)
 find_package(glad REQUIRED)
 find_package(stb REQUIRED)
 find_package(spdlog REQUIRED)
-find_package(glm REQUIRED)
+# find_package(glm REQUIRED)
+find_package(FastNoise2 REQUIRED)
 
-link_libraries(glm::glm)
+link_libraries(FastNoise2::FastNoise)
+# link_libraries(glm::glm)
 
 if (USE_SDL2)
     add_compile_definitions(${PROJECT_NAME}_USE_SDL2=1)
@@ -35,7 +37,6 @@ endif()
 # endif()
 
 add_executable(${PROJECT_NAME} main.cpp)
-add_executable(${PROJECT_NAME}_test main2.cpp)
 
 target_link_libraries(${PROJECT_NAME} PRIVATE 
     window 
@@ -47,19 +48,7 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
     sh_config
     logger
 )
-target_link_libraries(${PROJECT_NAME}_test PRIVATE 
-    window 
-    gl_context 
-    vmath
-    sandbox_utils 
-    voxel_terrain_generator
-    ve001_engine
-    glfw
-    sh_config
-    logger
-)
 add_dependencies(${PROJECT_NAME} compile_and_copy_shaders_dirs)
-add_dependencies(${PROJECT_NAME}_test compile_and_copy_shaders_dirs)
 
 add_subdirectory(tools)
 

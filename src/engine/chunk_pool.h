@@ -8,7 +8,7 @@
 #include "vertex.h"
 #include "enums.h"
 #include "ringbuffer.h"
-#include "meshing_engine2.h"
+#include "meshing_engine.h"
 #include "engine_context.h"
 #include "chunk_id.h"
 
@@ -94,6 +94,8 @@ struct ChunkPool {
     /// @brief buffer of draw commands which draw submeshes stored in vbo
     std::vector<DrawArraysIndirectCmd> _draw_cmds;
 
+    bool _draw_cmds_dirty{ false };
+
     ///////////////////////////
 
       
@@ -134,6 +136,7 @@ struct ChunkPool {
     /// @brief used chunks
     std::vector<Chunk> _chunks;
 
+
     ////////////////////////////////////
 
 
@@ -153,7 +156,7 @@ struct ChunkPool {
 
     /// @brief meshing engine of the chunk pool. It schedules meshing
     /// tasks on the GPU
-    MeshingEngine2 _meshing_engine{ _engine_context };
+    MeshingEngine _meshing_engine{ _engine_context };
 
     ChunkPool(const EngineContext& engine_context) : _engine_context(engine_context) {}
     /// @brief initializes chunk pool
@@ -172,7 +175,7 @@ struct ChunkPool {
     /// @brief completes chunk eg. chunk starts to be drawn by the drawAll command 
     /// called by poll() function if chunk's mesh is finished
     /// @param future holds data from meshing_engine with which to update the chunk
-    void completeChunk(MeshingEngine2::Future future);
+    void completeChunk(MeshingEngine::Future future);
     /// @brief deallocates chunk
     /// @param chunk_id chunk's id to deallocate
     void deallocateChunk(ChunkId chunk_id) noexcept;

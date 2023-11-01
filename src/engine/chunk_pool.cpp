@@ -132,7 +132,7 @@ vmath::u32 ChunkPool::allocateChunk(std::span<const vmath::u16> src, vmath::Vec3
     return chunk.chunk_id;
 }
 
-void ChunkPool::completeChunk(MeshingEngine2::Future future) {
+void ChunkPool::completeChunk(MeshingEngine::Future future) {
     const auto chunk_index = _chunk_id_to_index[future.chunk_id];
     if (chunk_index == INVALID_CHUNK_INDEX) {
         return;
@@ -158,15 +158,19 @@ void ChunkPool::completeChunk(MeshingEngine2::Future future) {
         });
         gpu_memory_usage += static_cast<u64>(future.written_vertices[i]) * sizeof(Vertex);
     }
+    _draw_cmds_dirty = true;
 }
 
 void ChunkPool::update() {
     if (_draw_cmds.size() > 0U) {
-        glNamedBufferSubData(
-            _dibo_id, 0, 
-            _draw_cmds.size() * sizeof(DrawArraysIndirectCmd),
-            static_cast<void*>(_draw_cmds.data())
-        );
+        if (_draw_cmds_dirty) {
+            glNamedBufferSubData(
+                _dibo_id, 0, 
+                _draw_cmds.size() * sizeof(DrawArraysIndirectCmd),
+                static_cast<void*>(_draw_cmds.data())
+            );
+            _draw_cmds_dirty = false;
+        }
 
         glBindBuffer(GL_DRAW_INDIRECT_BUFFER, _dibo_id);
         glBindVertexArray(_vao_id);
@@ -184,7 +188,7 @@ void ChunkPool::drawAll() {
     }
 }
 bool ChunkPool::poll() {
-    if (MeshingEngine2::Future future{}; _meshing_engine.pollMeshingCommand(future)) {
+    if (MeshingEngine::Future future{}; _meshing_engine.pollMeshingCommand(future)) {
         completeChunk(future);
         return true;
     }
@@ -197,9 +201,9 @@ void ChunkPool::deallocateChunk(u32 chunk_id) noexcept {
     }
 
     const auto chunk_index = _chunk_id_to_index[chunk_id];
-    // if (chunk_index == INVALID_CHUNK_INDEX) {
-    //     return false;
-    // }
+    if (chunk_index == INVALID_CHUNK_INDEX) {
+        return;
+    }
     const auto chunk = _chunks[chunk_index];
 
     // std::cout << "deallocating chunk of id: " << chunk_id << std::endl;
@@ -213,7 +217,6 @@ void ChunkPool::deallocateChunk(u32 chunk_id) noexcept {
         _chunks[chunk_index] = last_chunk;
         _chunk_id_to_index[last_chunk.chunk_id] = chunk_index;
     }
-
 
     _chunk_id_to_index[chunk_id] = INVALID_CHUNK_INDEX;
     _free_chunks.write({
@@ -240,7 +243,7 @@ void ChunkPool::deallocateChunkDrawCommands(const Chunk& chunk) {
         }
         _draw_cmds.pop_back();
     }
-
+    _draw_cmds_dirty = true;
     // std::cout << "Now draw commands in queue are\n";
 
     // u32 i{ 0U };

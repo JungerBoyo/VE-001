@@ -8,67 +8,88 @@
 using namespace vmath;
 using namespace ve001;
 
+thread_local std::vector<vmath::f32> VoxelTerrainGenerator::_tmp_noise;
+thread_local std::vector<vmath::u16> VoxelTerrainGenerator::_noise_double_buffer[2];
+thread_local vmath::u32 VoxelTerrainGenerator::_current_buffer;
+thread_local FastNoise::SmartNode<> VoxelTerrainGenerator::_smart_node;
+
 VoxelTerrainGenerator::VoxelTerrainGenerator(Config config) 
-    : config(config),
-      fn_write_value(config.quantize_values == 0U ?
-        std::function([](void* dst, f32 value) {
-            const auto normalized_value{ (value + 1.F)/2.F };
-            std::memcpy(dst, static_cast<const void*>(&normalized_value), sizeof(f32));
-        }) :
-        std::function([quantize_values = config.quantize_values, size = config.quantized_value_size](void* dst, f32 value) {
-            const auto quantized_value{std::clamp(
-                static_cast<u32>(std::roundf(((value + 1.F)/2.F) * static_cast<f32>(quantize_values))),
-                0U,
-                quantize_values
-            )};
-            std::memcpy(dst, static_cast<const void*>(&quantized_value), size);
-        })
-      ),
-      noise_func_3d(config.noise_type == Config::NoiseType::PERLIN ? 
-        std::unique_ptr<NoiseFunc3D>(new PerlinNoiseFunc3D(config.seed)) : 
-        std::unique_ptr<NoiseFunc3D>(new SimplexNoiseFunc3D(config.seed))
-      ),
-      noise_func_2d(std::make_unique<PerlinNoiseFunc2D>(config.seed))
-       {}
-
-void VoxelTerrainGenerator::next(void* dst, u32 offset, u32 stride, Vec3i32 chunk_position) {
-    const auto p0 = Vec3i32::mul(chunk_position, config.terrain_size);
-    const auto p1 = Vec3i32::add(p0, config.terrain_size);
-
-    u8* dst_u8 = static_cast<u8*>(dst);
-    dst_u8 += offset;
-
-    if (stride == 0U) { 
-        stride = config.quantize_values > 0U ? config.quantized_value_size : sizeof(f32); 
+    : _done(false), _config(config), _gen_terrain_promises(512)
+    {
+    try {
+        const auto threads_count = std::thread::hardware_concurrency();
+        for (std::uint32_t i{ 0U }; i < threads_count; ++i) {
+            _threads.push_back(std::jthread(&VoxelTerrainGenerator::thread, this));
+        }
+    } catch([[maybe_unused]] const std::exception&) {
+        _done = true;
     }
+}
 
-    // std::vector<f32> height_map(config.terrain_size[0] * config.terrain_size[2], 0.F);
-    // for (i32 z{ p0[2] }; z < p1[2]; ++z) {
-    //     for (i32 x{ p0[0] }; x < p1[0]; ++x) {
-    //         height_map[(x - p0[0]) + (z - p0[2]) * config.terrain_size[0]] = std::clamp((noise_func_2d->invoke(
-    //             {static_cast<f32>(x), static_cast<f32>(z)},
-    //             32 
-    //         ) + 1.F) / 2.F, 0.F, 1.F);
-    //     }
+void VoxelTerrainGenerator::thread() {
+    _current_buffer = 0U;
+    _tmp_noise.resize(_config.terrain_size[0] * _config.terrain_size[1] * _config.terrain_size[2], 0.F);
+    _noise_double_buffer[0].resize(_config.terrain_size[0] * _config.terrain_size[1] * _config.terrain_size[2], 0U);
+    _noise_double_buffer[1].resize(_config.terrain_size[0] * _config.terrain_size[1] * _config.terrain_size[2], 0U);
+    // if (_config.noise_type == Config::NoiseType::SIMPLEX) {
+        auto fn_simplex = FastNoise::New<FastNoise::Simplex>(FastSIMD::Level_AVX512);
+        auto fn_fractal = FastNoise::New<FastNoise::FractalFBm>(FastSIMD::Level_AVX512);
+        fn_fractal->SetSource(fn_simplex);
+        fn_fractal->SetGain(11.F);
+        fn_fractal->SetWeightedStrength(18.44F);
+        fn_fractal->SetOctaveCount(2);
+        fn_fractal->SetLacunarity(-.2F);
+
+        auto fn_position_output = FastNoise::New<FastNoise::PositionOutput>(FastSIMD::Level_AVX512);
+        fn_position_output->Set<FastNoise::Dim::Y>(-2.56F, -.14F);
+        fn_position_output->Set<FastNoise::Dim::X>(-.42F, 0.F);
+
+        auto fn_add = FastNoise::New<FastNoise::Add>(FastSIMD::Level_AVX512);
+        fn_add->SetLHS(fn_fractal);
+        fn_add->SetRHS(fn_position_output);
+        _smart_node = fn_add;
+
+    // } else {
+    //     _smart_node = FastNoise::New<FastNoise::Perlin>(FastSIMD::Level_AVX512);
     // }
 
-    for (i32 z{ p0[2] }; z < p1[2]; ++z) {
-        for (i32 y{ p0[1] }; y < p1[1]; ++y) {
-            for (i32 x{ p0[0] }; x < p1[0]; ++x) {
-                // const auto height = static_cast<f32>(y - p0[1])/static_cast<f32>(config.terrain_size[1]);
-                // const auto height_value = height_map[(x - p0[0]) + (z - p0[2]) * config.terrain_size[0]];
-                // if (height > height_value) {
-                    auto value = noise_func_3d->invoke(Vec3f32{
-                        static_cast<f32>(x),
-                        static_cast<f32>(y),
-                        static_cast<f32>(z)
-                    }, config.terrain_density);
-                    fn_write_value(static_cast<void*>(dst_u8), value/* * height_value*/);
-                // } else {
-                //     fn_write_value(static_cast<void*>(dst_u8), 0.F);
-                // }
-                dst_u8 += stride;
+    while (!_done) {
+        Promise promise;
+        if (_gen_terrain_promises.read(promise)) {
+            const auto p0 = Vec3i32::mul(promise.position, _config.terrain_size);
+            const auto p1 = _config.terrain_size; //Vec3i32::add(p0, _config.terrain_size);
+
+            _smart_node->GenUniformGrid3D(
+                _tmp_noise.data(), 
+                p0[0], p0[1], p0[2], p1[0], p1[1], p1[2], 
+                _config.noise_frequency, _config.seed
+            );
+
+            auto& buffer = _noise_double_buffer[_current_buffer];
+
+            std::size_t i{ 0UL };
+            u32 not_empty{ 0UL };
+            for (const auto noise_value : _tmp_noise) {
+                const auto value = static_cast<u16>(std::clamp(std::roundf(((noise_value + 1.F)/2.F) * static_cast<f32>(_config.quantize_values)), 0.F, 1.F));
+                not_empty += static_cast<u32>(value > 0);
+                buffer[i++] = value;
             }
+            if (not_empty) {
+                _current_buffer = _current_buffer ^ 0x1U;
+            }
+
+            promise.gen_result_promise.set_value(not_empty ? std::optional(std::span<const u16>(buffer)) : std::nullopt);
+        } else {
+            std::this_thread::yield();
         }
     }
+}
+
+std::future<std::optional<std::span<const vmath::u16>>> VoxelTerrainGenerator::gen(Vec3i32 chunk_position) {
+    std::promise<std::optional<std::span<const vmath::u16>>> promise;
+    std::future<std::optional<std::span<const vmath::u16>>> result(promise.get_future());
+
+    _gen_terrain_promises.write({std::move(promise), chunk_position});
+
+    return result;
 }

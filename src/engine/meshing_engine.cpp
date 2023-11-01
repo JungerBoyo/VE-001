@@ -1,160 +1,184 @@
 #include "meshing_engine.h"
 
-using namespace vmath;
+#include "vertex.h"
+
+#include <glad/glad.h>
+
+#include <cstring>
+
+#include <iostream>
+
 using namespace ve001;
+using namespace vmath;
 
-MeshingEngine::MeshingEngine(Config config) : config(config) {}
+#define VE001_SH_CONFIG_UBO_BINDING_MESHING_DESCRIPTOR  2
+#define VE001_SH_CONFIG_SSBO_BINDING_VOXEL_DATA         5
+#define VE001_SH_CONFIG_SSBO_BINDING_MESHING_TEMP       6
+#define VE001_SH_CONFIG_SSBO_BINDING_MESH_DATA          7
 
-std::array<u32, 6> MeshingEngine::mesh(
-    void* dst, 
-    u32 offset, 
-    u32 stride, 
-    u32 face_stride, 
-    Vec3i32 position, 
-    const std::function<bool(i32, i32, i32)>& fn_visibility_query,
-    const std::function<u32(void*, MeshedRegionDescriptor)>& fn_write_quad
-) {
+void MeshingEngine::init(u32 vbo_id) {
+    _vbo_id = vbo_id;
 
-    std::array<u32, 6> result;
-    for (u32 i{ 0U }; i < 6U; ++i) {
-        result[i] = meshAxis(
-            static_cast<Face>(i), 
-            static_cast<void*>(static_cast<u8*>(dst) + i * face_stride), 
-            face_stride, 
-            offset, 
-            stride, 
-            position, 
-            fn_visibility_query,
-            fn_write_quad
-        );    
+    glCreateBuffers(1, &_ssbo_voxel_data_id);
+    glNamedBufferStorage(
+        _ssbo_voxel_data_id,
+        _engine_context.chunk_voxel_data_size,
+        nullptr,
+        GL_MAP_WRITE_BIT|GL_MAP_PERSISTENT_BIT|GL_MAP_COHERENT_BIT
+    );
+    _ssbo_voxel_data_ptr = glMapNamedBufferRange(
+        _ssbo_voxel_data_id,
+        0U,
+        _engine_context.chunk_voxel_data_size,
+        GL_MAP_WRITE_BIT|GL_MAP_PERSISTENT_BIT|GL_MAP_COHERENT_BIT
+    );
+
+    if (_ssbo_voxel_data_ptr == nullptr) {
+        glDeleteBuffers(1, &_ssbo_voxel_data_id);
+        return;// TODO: Error
     }
-    return result;
+
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, VE001_SH_CONFIG_SSBO_BINDING_VOXEL_DATA, _ssbo_voxel_data_id);
+
+    _ubo_meshing_descriptor.init();
+    _ubo_meshing_descriptor.bind(GL_UNIFORM_BUFFER, VE001_SH_CONFIG_UBO_BINDING_MESHING_DESCRIPTOR);
+    _ssbo_meshing_temp.init();
+    _ssbo_meshing_temp.bind(GL_SHADER_STORAGE_BUFFER, VE001_SH_CONFIG_SSBO_BINDING_MESHING_TEMP);
+
+    Descriptor meshing_descriptor = {
+        .vbo_offsets = {  // passed in floats
+            {static_cast<u32>(_engine_context.chunk_max_submesh_size/sizeof(f32) * 0UL), 0U, 0U, 0U }, // +x
+            {static_cast<u32>(_engine_context.chunk_max_submesh_size/sizeof(f32) * 1UL), 0U, 0U, 0U }, // -x
+            {static_cast<u32>(_engine_context.chunk_max_submesh_size/sizeof(f32) * 2UL), 0U, 0U, 0U }, // +y
+            {static_cast<u32>(_engine_context.chunk_max_submesh_size/sizeof(f32) * 3UL), 0U, 0U, 0U }, // -y
+            {static_cast<u32>(_engine_context.chunk_max_submesh_size/sizeof(f32) * 4UL), 0U, 0U, 0U }, // +z
+            {static_cast<u32>(_engine_context.chunk_max_submesh_size/sizeof(f32) * 5UL), 0U, 0U, 0U }  // -z
+        },
+        .chunk_position = {0, 0, 0},
+        .chunk_size = _engine_context.chunk_size
+    };
+    _ubo_meshing_descriptor.write(static_cast<const void*>(&meshing_descriptor));
+
+    Temp meshing_temp{};
+    _ssbo_meshing_temp.write(static_cast<const void*>(&meshing_temp));
 }
 
-u32 MeshingEngine::meshAxis(
-    Face meshing_face, 
-    void* face_dst, 
-    u32 face_dst_max_size,
-    u32 offset, 
-    u32 stride, 
-    Vec3i32 position, 
-    const std::function<bool(i32, i32, i32)>& fn_visibility_query,
-    const std::function<u32(void*, MeshedRegionDescriptor)>& fn_write_quad
-) {
-    u32 result{ 0U };
-    // axis id X, Y or Z
-    const u32 axis_id = meshing_face / 2;
+void MeshingEngine::issueMeshingCommand(u32 chunk_id, Vec3i32 chunk_position, std::span<const u16> voxel_data, u64 vbo_offset) {
+    Command cmd = {
+        .chunk_id       = chunk_id,
+        .chunk_position = chunk_position,
+        .voxel_data     = voxel_data,
+        .vbo_offset     = vbo_offset,
+        .fence          = nullptr,
+        .axis_progress  = 0
+    };
 
-    const Vec3u32 logical_indices((axis_id + 1) % 3, (axis_id + 2) % 3, axis_id);
-    const Vec3u32 real_indices(
-        (2U + axis_id * 2U) % 3, 
-        (0U + axis_id * 2U) % 3, 
-        (1U + axis_id * 2U) % 3
-    );
-
-    // positions the args in logical way where 
-    // Z - is the current axis
-    // X, Y - are extents of the plane perpedicular to the axis
-    const Vec3i32 logical_extent(
-        config.chunk_size[logical_indices[0]],
-        config.chunk_size[logical_indices[1]],
-        config.chunk_size[logical_indices[2]]
-    );
-    
-    u8* face_dst_u8 = static_cast<u8*>(face_dst) + offset;
-
-    // dynamic bitset
-    std::vector<bool> plane_of_states(logical_extent[0]*logical_extent[1], false);
-
-    // depending on the meshing axis (eg. pos/neg), 
-    const i32 edge_value = (meshing_face % 2) == 1 ? 0 : logical_extent[2] - 1;
-    const i32 polarity = (meshing_face % 2) == 1 ? -1 : 1;
-    // axis iteration loop(plane/slice-wise)
-    Vec3i32 i(0);
-    for (; i[2] < logical_extent[2]; ++i[2]) {
-        i[1] = 0;
-        for (; i[1] < logical_extent[1]; ++i[1]) {
-            i[0] = 0;
-            for (; i[0] < logical_extent[0]; ++i[0]) {
-                if (fn_visibility_query(i[real_indices[0]], i[real_indices[1]], i[real_indices[2]])) {
-                    if (i[2] == edge_value) {
-                        plane_of_states[i[0] + i[1] * logical_extent[0]] = true;
-                        continue;
-                    } 
-                    i[2] += polarity;
-                    if (!fn_visibility_query(i[real_indices[0]], i[real_indices[1]], i[real_indices[2]])) {
-                        plane_of_states[i[0] + i[1] * logical_extent[0]] = true;
-                    }
-                    i[2] -= polarity;
-                }
-            }
-        }
-
-        i[1] = 0;
-        for(; i[1] < logical_extent[1]; ++i[1]) {
-            i[0] = 0;
-            while(i[0] < logical_extent[0]) {
-                if (plane_of_states[i[0] + i[1] * logical_extent[0]]) {
-                    Vec2i32 mesh_region(1);
-                    for ( ;i[0] + mesh_region[0] < logical_extent[0]; ++mesh_region[0]) {
-                        if (!plane_of_states[(i[0] + mesh_region[0]) + i[1] * logical_extent[0]]) {
-                           break; 
-                        }
-                    }
-
-                    for ( ;i[1] + mesh_region[1] < logical_extent[1]; ++mesh_region[1]) {
-                        for (i32 tmp_mesh_region{ 0 }; i[0] + tmp_mesh_region < i[0] + mesh_region[0]; ++tmp_mesh_region) {
-                            if (!plane_of_states[(i[0] + tmp_mesh_region) + (i[1] + mesh_region[1]) * logical_extent[0]]) {
-                                goto break_outer;
-                            }
-                        }
-                    }
-                break_outer:
-                    Vec3i32 region_extent(0);
-                    region_extent[logical_indices[2]] = 1;
-                    region_extent[logical_indices[1]] = mesh_region[1];
-                    region_extent[logical_indices[0]] = mesh_region[0];
-                    
-                    Vec2i32 squashed_region_extent(
-                        mesh_region[axis_id == 0 ? 1 : 0], 
-                        mesh_region[axis_id == 0 ? 0 : 1]
-                    );                    
-
-                    Vec3i32 region_offset(
-                        position[0] * config.chunk_size[0], 
-                        position[1] * config.chunk_size[1], 
-                        position[2] * config.chunk_size[2]
-                    );
-                    region_offset[logical_indices[2]] += i[2];
-                    region_offset[logical_indices[1]] += i[1];
-                    region_offset[logical_indices[0]] += i[0];
-
-                    const auto vertex_count = fn_write_quad(static_cast<void*>(face_dst_u8), {
-                        .face = meshing_face,
-                        .region_extent = region_extent,
-                        .region_offset = region_offset,
-                        .squashed_region_extent = squashed_region_extent
-                    });
-                    result += vertex_count;
-                    face_dst_u8 += vertex_count * stride;
-                    if (face_dst_u8 - static_cast<u8*>(face_dst) > face_dst_max_size) {
-                        return result;
-                    }
-
-                    for (i32 y{ i[1] }; y < i[1] + mesh_region[1]; ++y) {
-                        for (i32 x{ i[0] }; x < i[0] + mesh_region[0]; ++x) {
-                            plane_of_states[x + y * logical_extent[0]] = false;
-                        }
-                    }
-
-                    i[0] += mesh_region[0];
-                } else {
-                    ++i[0];
-                }
-            }
-        }
-        std::fill(plane_of_states.begin(), plane_of_states.end(), false);
+    if (_active_command.fence == nullptr) {
+        _active_command = cmd;
+        firstCommandExec(_active_command);
+        return;
     }
 
-    return result;
+    if (!_commands.write(std::move(cmd))) {
+        return; //TODO: Error
+    }
+}
+
+bool MeshingEngine::pollMeshingCommand(Future& future) {
+    if (_active_command.fence == nullptr) {
+        return false;
+    }
+
+    const auto wait_result = glClientWaitSync(static_cast<GLsync>(_active_command.fence), 0, 0);
+    if (wait_result == GL_WAIT_FAILED) {
+        return false; //TODO: error
+    }
+    if (wait_result == GL_TIMEOUT_EXPIRED) {
+        return false;
+    }
+
+    // otherwise GL_ALREADY_SIGNALED or GL_CONDITION_SATISFIED
+    if (_active_command.axis_progress < _engine_context.chunk_size[0] ||
+        _active_command.axis_progress < _engine_context.chunk_size[1] ||
+        _active_command.axis_progress < _engine_context.chunk_size[2]
+    ) {
+        subsequentCommandExec(_active_command);
+        return false;
+    }
+
+    glDeleteSync(static_cast<GLsync>(_active_command.fence));
+    _active_command.fence = nullptr;
+    
+    future.chunk_id = _active_command.chunk_id;
+
+    Temp temp{};
+    // glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+    _ssbo_meshing_temp.read(static_cast<void*>(&temp), 0, sizeof(Temp));
+    future.written_vertices[X_POS] = temp.written_vertices_in_dwords[X_POS] / (sizeof(Vertex)/sizeof(f32));
+    future.written_vertices[X_NEG] = temp.written_vertices_in_dwords[X_NEG] / (sizeof(Vertex)/sizeof(f32));
+    future.written_vertices[Y_POS] = temp.written_vertices_in_dwords[Y_POS] / (sizeof(Vertex)/sizeof(f32));
+    future.written_vertices[Y_NEG] = temp.written_vertices_in_dwords[Y_NEG] / (sizeof(Vertex)/sizeof(f32));
+    future.written_vertices[Z_POS] = temp.written_vertices_in_dwords[Z_POS] / (sizeof(Vertex)/sizeof(f32));
+    future.written_vertices[Z_NEG] = temp.written_vertices_in_dwords[Z_NEG] / (sizeof(Vertex)/sizeof(f32));
+
+    // glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, VE001_SH_CONFIG_SSBO_BINDING_MESH_DATA, 0);
+
+    if (!_commands.read(_active_command)) {
+        _active_command.fence = nullptr;
+    } else {
+        firstCommandExec(_active_command);
+    }
+
+    return true;
+}
+
+void MeshingEngine::firstCommandExec(Command& command) {
+    std::memcpy(_ssbo_voxel_data_ptr, static_cast<const void*>(command.voxel_data.data()), _engine_context.chunk_voxel_data_size);
+
+    Temp meshing_temp{};
+    _ssbo_meshing_temp.write(static_cast<const void*>(&meshing_temp));
+
+    _ubo_meshing_descriptor.write(
+        static_cast<const void*>(&command.chunk_position),
+        offsetof(Descriptor, chunk_position),
+        sizeof(Descriptor::chunk_position)
+    );
+
+    // std::cout << "meshing chunk at position { " << 
+    //     command.chunk_position[0] << " " <<
+    //     command.chunk_position[1] << " " <<
+    //     command.chunk_position[2] << " }\n";
+
+    glBindBufferRange(
+        GL_SHADER_STORAGE_BUFFER, 
+        VE001_SH_CONFIG_SSBO_BINDING_MESH_DATA, _vbo_id,
+        static_cast<GLintptr>(command.vbo_offset), static_cast<GLintptr>(_engine_context.chunk_max_mesh_size)
+    );
+
+    command.axis_progress += _engine_context.meshing_axis_progress_step;
+
+    _engine_context.shader_repo[ShaderType::GREEDY_MESHING_SHADER].bind();
+    glDispatchCompute(6, 1, 1);
+    command.fence = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
+}
+
+void MeshingEngine::subsequentCommandExec(Command& command) {
+    command.axis_progress += _engine_context.meshing_axis_progress_step;
+
+    glDeleteSync(static_cast<GLsync>(command.fence));
+
+    _engine_context.shader_repo[ShaderType::GREEDY_MESHING_SHADER].bind();
+    glDispatchCompute(6, 1, 1);
+    command.fence = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
+}
+
+void MeshingEngine::deinit() {
+    if (_ssbo_voxel_data_ptr != nullptr) {
+        glUnmapNamedBuffer(_ssbo_voxel_data_id);
+    }
+    _ssbo_voxel_data_ptr = nullptr;
+    glDeleteBuffers(1, &_ssbo_voxel_data_id);
+    _ubo_meshing_descriptor.deinit();
+    _ssbo_meshing_temp.deinit();
 }

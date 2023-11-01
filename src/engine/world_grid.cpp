@@ -1,13 +1,10 @@
 #include "world_grid.h"
 
 #include <iostream>
+#include <FastNoise/FastNoise.h>
 
 using namespace vmath;
 using namespace ve001;
-
-/*
-
-*/
 
 static bool isInElipsoid(Vec3f32 ellipsoid_center, Vec3f32 semi_axes, Vec3f32 point) {
     const auto diff = Vec3f32::sub(point, ellipsoid_center);
@@ -20,7 +17,7 @@ static bool isInElipsoid(Vec3f32 ellipsoid_center, Vec3f32 semi_axes, Vec3f32 po
     //         (point[1] - ellipsoid_center[1]) * (point[1] - ellipsoid_center[1]) + 
     //         (point[2] - ellipsoid_center[2]) * (point[2] - ellipsoid_center[2]);
 
-    return true;
+    // return true;
 }
 
 static bool isInBoundingBox(Vec3i32 p0, Vec3i32 p1, Vec3i32 point) {
@@ -62,13 +59,13 @@ WorldGrid::WorldGrid(const EngineContext& engine_context, Vec3f32 world_size, Ve
     _grid_size(Vec3i32::add(Vec3i32::mulScalar(Vec3i32::cast(Vec3f32::div(world_size, Vec3f32::cast(engine_context.chunk_size))), 2), 1)),
     _terrain_generator({
         .terrain_size = _engine_context.chunk_size,
-        .terrain_density = 16U,
-        .noise_type = VoxelTerrainGenerator::Config::NoiseType::PERLIN,
+        .noise_type = VoxelTerrainGenerator::Config::NoiseType::SIMPLEX,
+        .noise_frequency = .01F,
         .quantize_values = 1U,
-        .quantized_value_size = sizeof(u16),
-        .seed = 0xABABDEAD
+        .seed = 0xABAB9999
     }),
-    _noise(_engine_context.chunk_size_1D, 1U) {
+    _to_allocate_chunks(512) 
+    {
 }
 
 constexpr std::array<Vec3i32, 6> NEIGHBOURS_OFFSETS{{
@@ -79,25 +76,57 @@ constexpr std::array<Vec3i32, 6> NEIGHBOURS_OFFSETS{{
 
 // #define DEBUG_WORLD_GRID
 
+struct Timer {
+    f64& duration;
+
+    Timer(f64& duration) :
+        duration(duration), begin_timer(std::chrono::high_resolution_clock::now()) {}
+
+    ~Timer() {
+        const auto end_timer{std::chrono::high_resolution_clock::now()};
+
+        const auto begin_ms{std::chrono::time_point_cast<std::chrono::microseconds>(begin_timer).time_since_epoch().count()};
+        const auto end_ms{std::chrono::time_point_cast<std::chrono::microseconds>(end_timer).time_since_epoch().count()};
+
+        duration = static_cast<f64>(end_ms - begin_ms)/1000.;
+    }
+
+    const std::chrono::time_point<std::chrono::high_resolution_clock> begin_timer;
+};
+
 void WorldGrid::init() {
-    // determine position in chunk space 
-    // _grid_size = Vec3i32::sub(_grid_size, {1});
+    const auto chunk_size_f32 = Vec3f32::cast(_engine_context.chunk_size);
+    const auto max_chunks_along_x = static_cast<i32>(std::floor((2.F * _semi_axes[0])/chunk_size_f32[0]));
+    const auto max_chunks_along_y = static_cast<i32>(std::floor((2.F * _semi_axes[1])/chunk_size_f32[1]));
+    const auto max_chunks_along_z = static_cast<i32>(std::floor((2.F * _semi_axes[2])/chunk_size_f32[2]));
+    const auto max_chunks = max_chunks_along_x*max_chunks_along_y*max_chunks_along_z;
+   
+    _tmp_indices.resize(_grid_size[0] * _grid_size[1] * _grid_size[2], VisibleChunk::INVALID_NEIGHBOUR_INDEX);
+
+    _visible_chunks.reserve(max_chunks);
+    _chunk_pool.init(max_chunks);
+    _free_visible_chunk_ids.resize(max_chunks);
+    u32 i{ 0U };
+    for (auto& visible_chunk_id : _free_visible_chunk_ids) {
+        visible_chunk_id = i++;
+    }
+    _visible_chunk_id_to_index.resize(max_chunks, INVALID_VISIBLE_CHUNK_INDEX);
+
     const auto position_in_chunk_space = Vec3i32::cast(vmath::vroundf(Vec3f32::div(_current_position, Vec3f32::cast(_engine_context.chunk_size))));
     const auto half_grid_size = Vec3i32::divScalar(_grid_size, 2);//1;
     const auto world_p0_in_chunk_space = Vec3i32::sub(position_in_chunk_space, half_grid_size);
-    const auto world_p1_in_chunk_space = Vec3i32::add(position_in_chunk_space, half_grid_size/*Vec3i32::sub(half_grid_size, {1})*/);
-
-    _visible_chunks.reserve(_grid_size[0] * _grid_size[1] * _grid_size[2]);
-    _tmp_indices.resize(_grid_size[0] * _grid_size[1] * _grid_size[2], VisibleChunk::INVALID_NEIGHBOUR_INDEX);
-
-    u32 i{ 0U };
+    const auto world_p1_in_chunk_space = Vec3i32::add(position_in_chunk_space, half_grid_size);
+    i = 0U; 
     for(i32 z{ world_p0_in_chunk_space[2] }; z <= world_p1_in_chunk_space[2]; ++z) {
         for(i32 y{ world_p0_in_chunk_space[1] }; y <= world_p1_in_chunk_space[1]; ++y) {
             for(i32 x{ world_p0_in_chunk_space[0] }; x <= world_p1_in_chunk_space[0]; ++x) {
                 const Vec3i32 xyz(x, y, z);
                 const auto xyz_real = Vec3f32::cast(Vec3i32::mul(_engine_context.chunk_size, xyz));
                 if (isInElipsoid(_current_position, _semi_axes, xyz_real)) {
-                    _visible_chunks.emplace_back(INVALID_CHUNK_ID, xyz);
+                    const auto visible_chunk_id = _free_visible_chunk_ids.back();
+                    _free_visible_chunk_ids.pop_back();
+                    _visible_chunk_id_to_index[visible_chunk_id] = static_cast<u32>(_visible_chunks.size());
+                    _visible_chunks.emplace_back(visible_chunk_id, INVALID_CHUNK_ID, xyz);
                     const auto position_index = 
                         (x - world_p0_in_chunk_space[0]) +
                         (y - world_p0_in_chunk_space[1]) * _grid_size[0] +
@@ -107,16 +136,63 @@ void WorldGrid::init() {
             }
         }
     }
-    _chunk_pool.init(static_cast<i32>(_visible_chunks.size()));
 
-    makeCorridor(_noise, _engine_context.chunk_size);
+
+
+    auto fn_simplex = FastNoise::New<FastNoise::Simplex>(FastSIMD::Level_AVX512);
+    auto fn_fractal = FastNoise::New<FastNoise::FractalFBm>(FastSIMD::Level_AVX512);
+    fn_fractal->SetSource(fn_simplex);
+    fn_fractal->SetGain(11.F);
+    fn_fractal->SetWeightedStrength(18.44F);
+    fn_fractal->SetOctaveCount(2);
+    fn_fractal->SetLacunarity(-.2F);
+
+    auto fn_position_output = FastNoise::New<FastNoise::PositionOutput>(FastSIMD::Level_AVX512);
+    fn_position_output->Set<FastNoise::Dim::Y>(-2.56F, -.14F);
+    fn_position_output->Set<FastNoise::Dim::X>(-.42F, 0.F);
+    auto fn_add = FastNoise::New<FastNoise::Add>(FastSIMD::Level_AVX512);
+    fn_add->SetLHS(fn_fractal);
+    fn_add->SetRHS(fn_position_output);
+
+    // auto fn_domain_warp_gradient = FastNoise::New<FastNoise::DomainWarpGradient>(FastSIMD::Level_AVX2);
+    std::vector<f32> noise_f32(_engine_context.chunk_size[0] * _engine_context.chunk_size[1] * _engine_context.chunk_size[2], 0.F);
+    std::vector<vmath::u16> noise(_engine_context.chunk_size[0] * _engine_context.chunk_size[1] * _engine_context.chunk_size[2], 0U);
+
+    // f64 duration{ 0.F };
+    // {
+    //     Timer timer(duration);
+    //     fn_simplex->GenUniformGrid3D(
+    //         noise_f32.data(), 
+    //         0, 0, 0, 
+    //         _engine_context.chunk_size[0], _engine_context.chunk_size[1], _engine_context.chunk_size[2], 
+    //         .01F, 0xABAB9999
+    //     );
+    // // }
+    // i = 0U;
+    // for (const auto noise_value : noise_f32) {
+    //     _noise[i++] = static_cast<u16>(std::roundf((noise_value + 1.F)/2.F));
+    // }
+    // std::cout << "elapsed " << duration << "[ms]\n";
+
+    // makeCorridor(_noise, _engine_context.chunk_size);
 
     for(auto& chunk : _visible_chunks) {
-        // _terrain_generator.next(static_cast<void*>(_noise.data()), 0U, 0U, chunk.position_in_chunks);
+
+        const auto p0 = Vec3i32::mul(chunk.position_in_chunks, _engine_context.chunk_size);
+        fn_add->GenUniformGrid3D(
+            noise_f32.data(), 
+            p0[0], p0[1], p0[2], 
+            _engine_context.chunk_size[0], _engine_context.chunk_size[1], _engine_context.chunk_size[2], 
+            .01F, 0xABAB9999
+        );
+        i = 0U;
+        for (const auto noise_value : noise_f32) {
+            noise[i++] = static_cast<u16>(std::clamp(std::roundf((noise_value + 1.F)/2.F), 0.F, 1.F));
+        }
 #ifdef DEBUG_WORLD_GRID
         chunk.chunk_id = INVALID_CHUNK_ID;
 #else
-        chunk.chunk_id = _chunk_pool.allocateChunk(std::span<const u16>(_noise), chunk.position_in_chunks);
+        chunk.chunk_id = _chunk_pool.allocateChunk(std::span<const u16>(noise), chunk.position_in_chunks);
 #endif
         u32 neighbour{ 0U };
         for (const auto neighbour_offset : NEIGHBOURS_OFFSETS) {
@@ -178,7 +254,7 @@ bool WorldGrid::validate() {
 
 
 void WorldGrid::update(Vec3f32 new_position) {
-    static constexpr f32 epsilon{ .00001F };
+    static constexpr f32 epsilon{ .01F };
     const auto move_vec = Vec3f32::sub(new_position, _current_position);
     if (std::abs(move_vec[0]) <= epsilon &&
         std::abs(move_vec[1]) <= epsilon &&
@@ -186,117 +262,85 @@ void WorldGrid::update(Vec3f32 new_position) {
         return;
     }
 
-    // if (new_position[0] == _current_position[0] &&
-    //     new_position[1] == _current_position[1] &&
-    //     new_position[2] == _current_position[2]) {
-        
-    //     return;
-    // }
-
-    // // if (std::abs(move_vec[0]) > static_cast<f32>(_engine_context.chunk_size[0]) ||
-    // //     std::abs(move_vec[1]) > static_cast<f32>(_engine_context.chunk_size[1]) ||
-    // //     std::abs(move_vec[2]) > static_cast<f32>(_engine_context.chunk_size[2])) {
-    // //     /// ...            
-    // // }
-
-    // if (std::abs(_current_position[0] - new_position[0]) <= static_cast<f32>(_engine_context.chunk_size[0])  &&
-    //     std::abs(_current_position[1] - new_position[1]) <= static_cast<f32>(_engine_context.chunk_size[1])  && 
-    //     std::abs(_current_position[2] - new_position[2]) <= static_cast<f32>(_engine_context.chunk_size[2])) {
-    //     return;
-    // }
-
     _current_position = new_position;
-
-    // elipsa przesówa się a bounding box się nie przesówa bo jest dyskretny?? możliwe
 
     const auto position_in_chunk_space = Vec3i32::cast(vmath::vroundf(Vec3f32::div(_current_position, Vec3f32::cast(_engine_context.chunk_size))));
     const auto half_grid_size = Vec3i32::divScalar(_grid_size, 2);//1;
     const auto world_p0_in_chunk_space = Vec3i32::sub(position_in_chunk_space, half_grid_size);
-    const auto world_p1_in_chunk_space = Vec3i32::add(position_in_chunk_space, half_grid_size/*Vec3i32::sub(half_grid_size, {1})*/);
-    // const auto world_p1_in_chunk_space = Vec3i32::add(position_in_chunk_space, half_grid_size);
-
+    const auto world_p1_in_chunk_space = Vec3i32::add(position_in_chunk_space, half_grid_size);
 
     auto start_visible_chunks_size = _visible_chunks.size();
     for (u32 i{ 0U }; i < start_visible_chunks_size;) {
-        if (_visible_chunks[i].neighbours_count < 6) {
-            // if (isInBoundingBox(world_p0_in_chunk_space, world_p1_in_chunk_space, _visible_chunks[i].position_in_chunks)) {
-            //     const auto position = Vec3f32::cast(Vec3i32::mul(_engine_context.chunk_size, _visible_chunks[i].position_in_chunks));
-            //     if (isInElipsoid(_current_position, _semi_axes, position)) {
-                    for (u32 neighbour{ 0U }; neighbour < 6U; ++neighbour)  {
-                        const auto neighbour_index = _visible_chunks[i].neighbours_indices[neighbour];
-                        if (neighbour_index == VisibleChunk::INVALID_NEIGHBOUR_INDEX) {
-                            const auto neighbour_position_in_chunks = Vec3i32::add(_visible_chunks[i].position_in_chunks, NEIGHBOURS_OFFSETS[neighbour]);
-                            if (isInBoundingBox(world_p0_in_chunk_space, world_p1_in_chunk_space, neighbour_position_in_chunks)) {
-                                const auto neighbour_position_index = 
-                                    (neighbour_position_in_chunks[0] - world_p0_in_chunk_space[0]) +
-                                    (neighbour_position_in_chunks[1] - world_p0_in_chunk_space[1]) * _grid_size[0] +
-                                    (neighbour_position_in_chunks[2] - world_p0_in_chunk_space[2]) * _grid_size[0] * _grid_size[1];
-                                if (_tmp_indices[neighbour_position_index] != VisibleChunk::INVALID_NEIGHBOUR_INDEX) {
-                                    const auto neighbour_index = _tmp_indices[neighbour_position_index];
-                                    _visible_chunks[i].neighbours_indices[neighbour] = neighbour_index;
-                                    ++_visible_chunks[i].neighbours_count;
-                                    _visible_chunks[neighbour_index].neighbours_indices[oppositeNeighbour(neighbour)] = i;
-                                    ++_visible_chunks[neighbour_index].neighbours_count;
-                                    continue;
-                                }
-                                const auto neighbour_position = Vec3f32::cast(Vec3i32::mul(neighbour_position_in_chunks, _engine_context.chunk_size));
-                                if (!isInElipsoid(_current_position, _semi_axes, neighbour_position)) {
-                                    continue;
-                                }
-                                const auto visible_neighbour_chunk_index = _visible_chunks.size();
+        pollToAllocateChunks();
 
-                                std::cout << "hello { " << neighbour_position_in_chunks[0] << " " 
-                                                        << neighbour_position_in_chunks[1] << " "
-                                                        << neighbour_position_in_chunks[2] << " }\n";
-                                if (
-                                    neighbour_position_in_chunks[0] == 0 &&
-                                    neighbour_position_in_chunks[1] == 1 &&
-                                    neighbour_position_in_chunks[2] == 1                                
-                                ) {
-                                    std::cout << "here!!\n";
-                                }
+        if (_visible_chunks[i].neighbours_count < 6) {
+            for (u32 neighbour{ 0U }; neighbour < 6U; ++neighbour)  {
+                const auto neighbour_index = _visible_chunks[i].neighbours_indices[neighbour];
+                if (neighbour_index == VisibleChunk::INVALID_NEIGHBOUR_INDEX) {
+                    const auto neighbour_position_in_chunks = Vec3i32::add(_visible_chunks[i].position_in_chunks, NEIGHBOURS_OFFSETS[neighbour]);
+                    if (isInBoundingBox(world_p0_in_chunk_space, world_p1_in_chunk_space, neighbour_position_in_chunks)) {
+                        const auto neighbour_position_index = 
+                            (neighbour_position_in_chunks[0] - world_p0_in_chunk_space[0]) +
+                            (neighbour_position_in_chunks[1] - world_p0_in_chunk_space[1]) * _grid_size[0] +
+                            (neighbour_position_in_chunks[2] - world_p0_in_chunk_space[2]) * _grid_size[0] * _grid_size[1];
+                        if (_tmp_indices[neighbour_position_index] != VisibleChunk::INVALID_NEIGHBOUR_INDEX) {
+                            const auto neighbour_index = _tmp_indices[neighbour_position_index];
+                            _visible_chunks[i].neighbours_indices[neighbour] = neighbour_index;
+                            ++_visible_chunks[i].neighbours_count;
+                            _visible_chunks[neighbour_index].neighbours_indices[oppositeNeighbour(neighbour)] = i;
+                            ++_visible_chunks[neighbour_index].neighbours_count;
+                            continue;
+                        }
+                        const auto neighbour_position = Vec3f32::cast(Vec3i32::mul(neighbour_position_in_chunks, _engine_context.chunk_size));
+                        if (!isInElipsoid(_current_position, _semi_axes, neighbour_position)) {
+                            continue;
+                        }
+                        const auto visible_neighbour_chunk_index = _visible_chunks.size();
+
+                        // std::cout << "hello { " << neighbour_position_in_chunks[0] << " " 
+                        //                         << neighbour_position_in_chunks[1] << " "
+                        //                         << neighbour_position_in_chunks[2] << " }\n";
 
 #ifndef DEBUG_WORLD_GRID
-                                const auto chunk_id = _chunk_pool.allocateChunk(std::span<const u16>(_noise), neighbour_position_in_chunks);
-                                if (chunk_id == INVALID_CHUNK_ID) {
-                                    _to_allocate_chunks.push_back(neighbour_position_in_chunks);                                     
-                                }
-                                auto& visible_neighbour_chunk = _visible_chunks.emplace_back(chunk_id, neighbour_position_in_chunks);
+                        const auto visible_chunk_id = _free_visible_chunk_ids.back();
+                        _free_visible_chunk_ids.pop_back();
+                        _visible_chunk_id_to_index[visible_chunk_id] = visible_neighbour_chunk_index;
+                        auto& visible_neighbour_chunk = _visible_chunks.emplace_back(visible_chunk_id, INVALID_CHUNK_ID, neighbour_position_in_chunks);
+                        _to_allocate_chunks.write({
+                            std::move(_terrain_generator.gen(neighbour_position_in_chunks)),
+                            visible_chunk_id
+                        });
 #else
-                                auto& visible_neighbour_chunk = _visible_chunks.emplace_back(INVALID_CHUNK_ID, neighbour_position_in_chunks);
+                        auto& visible_neighbour_chunk = _visible_chunks.emplace_back(INVALID_CHUNK_ID, neighbour_position_in_chunks);
 #endif
-                                _visible_chunks[i].neighbours_indices[neighbour] = visible_neighbour_chunk_index;
-                                ++_visible_chunks[i].neighbours_count;
-                                visible_neighbour_chunk.neighbours_indices[oppositeNeighbour(neighbour)] = i;
-                                ++visible_neighbour_chunk.neighbours_count;
-                                _tmp_indices[neighbour_position_index] = visible_neighbour_chunk_index;
+                        _visible_chunks[i].neighbours_indices[neighbour] = visible_neighbour_chunk_index;
+                        ++_visible_chunks[i].neighbours_count;
+                        visible_neighbour_chunk.neighbours_indices[oppositeNeighbour(neighbour)] = i;
+                        ++visible_neighbour_chunk.neighbours_count;
+                        _tmp_indices[neighbour_position_index] = visible_neighbour_chunk_index;
 
-                                for (u32 neighbour_neighbour{ 0U }; neighbour_neighbour < 6U; ++neighbour_neighbour) {
-                                    const auto neighbour_neighbour_position_in_chunks = Vec3i32::add(neighbour_position_in_chunks, NEIGHBOURS_OFFSETS[neighbour_neighbour]);
-                                    if (isInBoundingBox(world_p0_in_chunk_space, world_p1_in_chunk_space, neighbour_neighbour_position_in_chunks)) {
-                                        const auto nieghbour_neighbour_position_index = 
-                                            (neighbour_neighbour_position_in_chunks[0] - world_p0_in_chunk_space[0]) +
-                                            (neighbour_neighbour_position_in_chunks[1] - world_p0_in_chunk_space[1]) * _grid_size[0] +
-                                            (neighbour_neighbour_position_in_chunks[2] - world_p0_in_chunk_space[2]) * _grid_size[0] * _grid_size[1];
-                                        
-                                        if (_tmp_indices[nieghbour_neighbour_position_index] != VisibleChunk::INVALID_NEIGHBOUR_INDEX) {
-                                            const auto visible_neighbour_neighbour_chunk_index = _tmp_indices[nieghbour_neighbour_position_index];
-                                            auto& visible_neighbour_neighbour_chunk = _visible_chunks[visible_neighbour_neighbour_chunk_index];
+                        for (u32 neighbour_neighbour{ 0U }; neighbour_neighbour < 6U; ++neighbour_neighbour) {
+                            const auto neighbour_neighbour_position_in_chunks = Vec3i32::add(neighbour_position_in_chunks, NEIGHBOURS_OFFSETS[neighbour_neighbour]);
+                            if (isInBoundingBox(world_p0_in_chunk_space, world_p1_in_chunk_space, neighbour_neighbour_position_in_chunks)) {
+                                const auto nieghbour_neighbour_position_index = 
+                                    (neighbour_neighbour_position_in_chunks[0] - world_p0_in_chunk_space[0]) +
+                                    (neighbour_neighbour_position_in_chunks[1] - world_p0_in_chunk_space[1]) * _grid_size[0] +
+                                    (neighbour_neighbour_position_in_chunks[2] - world_p0_in_chunk_space[2]) * _grid_size[0] * _grid_size[1];
+                                
+                                if (_tmp_indices[nieghbour_neighbour_position_index] != VisibleChunk::INVALID_NEIGHBOUR_INDEX) {
+                                    const auto visible_neighbour_neighbour_chunk_index = _tmp_indices[nieghbour_neighbour_position_index];
+                                    auto& visible_neighbour_neighbour_chunk = _visible_chunks[visible_neighbour_neighbour_chunk_index];
 
-                                            visible_neighbour_chunk.neighbours_indices[neighbour_neighbour] = visible_neighbour_neighbour_chunk_index;
-                                            ++visible_neighbour_chunk.neighbours_count;
-                                            visible_neighbour_neighbour_chunk.neighbours_indices[oppositeNeighbour(neighbour_neighbour)] = visible_neighbour_chunk_index;
-                                            ++visible_neighbour_neighbour_chunk.neighbours_count;
-                                        }
-                                    }
+                                    visible_neighbour_chunk.neighbours_indices[neighbour_neighbour] = visible_neighbour_neighbour_chunk_index;
+                                    ++visible_neighbour_chunk.neighbours_count;
+                                    visible_neighbour_neighbour_chunk.neighbours_indices[oppositeNeighbour(neighbour_neighbour)] = visible_neighbour_chunk_index;
+                                    ++visible_neighbour_neighbour_chunk.neighbours_count;
                                 }
                             }
                         }
                     }
-                    // ++i;
-                    // continue;
-            //     }
-            // }
+                }
+            }
             
             const auto position = Vec3f32::cast(Vec3i32::mul(_engine_context.chunk_size, _visible_chunks[i].position_in_chunks));
             if (!isInBoundingBox(world_p0_in_chunk_space, world_p1_in_chunk_space, _visible_chunks[i].position_in_chunks) ||
@@ -305,6 +349,8 @@ void WorldGrid::update(Vec3f32 new_position) {
                 const auto increment = static_cast<u32>(_visible_chunks.size() > start_visible_chunks_size);
 
                 const auto removed_chunk_id = _visible_chunks[i].chunk_id;
+
+                const auto chunk = _visible_chunks[i];
 
                 const auto last_chunk_index = static_cast<u32>(_visible_chunks.size() - 1U);
                 if (i != last_chunk_index) {
@@ -334,6 +380,8 @@ void WorldGrid::update(Vec3f32 new_position) {
                         }
                     }
                     
+                    _visible_chunk_id_to_index[last_chunk.visible_chunk_id] = i;
+                    
                     _visible_chunks[i] = _visible_chunks.back();
                 } else {
                     for (u32 neighbour{ 0U }; neighbour < 6; ++neighbour) {
@@ -346,7 +394,9 @@ void WorldGrid::update(Vec3f32 new_position) {
                     }
                 }
 
-                std::cout << "goodbye { " << position[0] << ", " << position[1] << ", " << position[2] << " }\n";
+                // std::cout << "goodbye { " << position[0] << ", " << position[1] << ", " << position[2] << " }\n";
+                _free_visible_chunk_ids.push_back(chunk.visible_chunk_id);
+                _visible_chunk_id_to_index[chunk.visible_chunk_id] = INVALID_VISIBLE_CHUNK_INDEX;
                 _visible_chunks.pop_back();
                 start_visible_chunks_size -= (1-increment);
                 i += increment;
@@ -361,14 +411,7 @@ void WorldGrid::update(Vec3f32 new_position) {
         }
     }
 
-    for (const auto to_allocate_chunk : _to_allocate_chunks) {
-        const auto to_allocate_chunk_index = 
-            (to_allocate_chunk[0] - world_p0_in_chunk_space[0]) +
-            (to_allocate_chunk[1] - world_p0_in_chunk_space[1]) * _grid_size[0] +
-            (to_allocate_chunk[2] - world_p0_in_chunk_space[2]) * _grid_size[0] * _grid_size[1];
-        _visible_chunks[_tmp_indices[to_allocate_chunk_index]].chunk_id = _chunk_pool.allocateChunk(std::span<const u16>(_noise), to_allocate_chunk);
-    }
-    _to_allocate_chunks.clear();
+    while (pollToAllocateChunks()) {}
 
     // std::cout << "new position = { " << position_in_chunk_space[0] << " " << position_in_chunk_space[1] << " " << position_in_chunk_space[2] << " }\n";
     if(!validate()) {
@@ -377,6 +420,46 @@ void WorldGrid::update(Vec3f32 new_position) {
     
 
     std::fill(_tmp_indices.begin(), _tmp_indices.end(), VisibleChunk::INVALID_NEIGHBOUR_INDEX);
+}
+
+bool WorldGrid::pollToAllocateChunks() {
+    if (ToAllocateChunk* to_allocate_chunk{ nullptr }; _to_allocate_chunks.peek(to_allocate_chunk) && to_allocate_chunk != nullptr) {
+        // std::cout << "Here!\n";
+        if (to_allocate_chunk->data.valid()) {
+            if (to_allocate_chunk->data.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
+                if (const auto visible_chunk_index = _visible_chunk_id_to_index[to_allocate_chunk->visible_chunk_id]; visible_chunk_index != INVALID_VISIBLE_CHUNK_INDEX) {
+                    const auto data = to_allocate_chunk->data.get();
+                    if (data.has_value()) {
+                        const auto chunk_id = _chunk_pool.allocateChunk(data.value(), _visible_chunks[visible_chunk_index].position_in_chunks);
+                        if (chunk_id != INVALID_CHUNK_ID) {
+                            _visible_chunks[visible_chunk_index].chunk_id = chunk_id;
+                        } else {
+                            to_allocate_chunk->ready_data = data.value();
+                        }
+                    }
+                    _to_allocate_chunks.emptyRead();
+                } else {
+                    _to_allocate_chunks.emptyRead();
+                }
+            }
+        } else {
+            if (const auto visible_chunk_index = _visible_chunk_id_to_index[to_allocate_chunk->visible_chunk_id]; visible_chunk_index != INVALID_VISIBLE_CHUNK_INDEX) {
+                if (to_allocate_chunk->ready_data.has_value()) {
+                    const auto chunk_id = _chunk_pool.allocateChunk(to_allocate_chunk->ready_data.value(), _visible_chunks[visible_chunk_index].position_in_chunks);
+                    if (chunk_id != INVALID_CHUNK_ID) {
+                        _visible_chunks[visible_chunk_index].chunk_id = chunk_id;
+                    } 
+                } else {
+                    _to_allocate_chunks.emptyRead();
+                }
+            } else {
+                to_allocate_chunk->ready_data = std::nullopt;
+                _to_allocate_chunks.emptyRead();
+            }
+        }
+        return true;
+    } 
+    return false;
 }
 
 void WorldGrid::deinit() {

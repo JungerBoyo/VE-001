@@ -1,10 +1,6 @@
 add_library(ve001_engine STATIC
-    chunk_mesh_pool.h
-    chunk_mesh_pool.cpp
     errors.h
     ringbuffer.h
-    meshing_engine.h
-    meshing_engine.cpp
     cubemap.h
     cubemap.cpp
     enums.h
@@ -43,17 +39,21 @@ add_library(ve001_engine STATIC
     chunk_pool.cpp
     vertex.h
 
-    meshing_engine2.h
-    meshing_engine2.cpp
+    meshing_engine.h
+    meshing_engine.cpp
 
     engine.h
     engine.cpp
 
     world_grid.h
     world_grid.cpp
+
+    # thread_pool.h
+    # threadsafe_ringbuffer.h
 )
 target_link_libraries(ve001_engine PRIVATE 
     glad::glad
     voxel_terrain_generator
     stb_impl
+    # FastNoise2::FastNoise
 )
