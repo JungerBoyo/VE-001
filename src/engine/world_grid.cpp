@@ -62,7 +62,7 @@ WorldGrid::WorldGrid(const EngineContext& engine_context, Vec3f32 world_size, Ve
         .noise_type = VoxelTerrainGenerator::Config::NoiseType::SIMPLEX,
         .noise_frequency = .01F,
         .quantize_values = 1U,
-        .seed = 0xABAB9999
+        .seed = 0xC1111999
     }),
     _to_allocate_chunks(512) 
     {
@@ -183,7 +183,7 @@ void WorldGrid::init() {
             noise_f32.data(), 
             p0[0], p0[1], p0[2], 
             _engine_context.chunk_size[0], _engine_context.chunk_size[1], _engine_context.chunk_size[2], 
-            .01F, 0xABAB9999
+            .01F, 0xC1111999
         );
         i = 0U;
         for (const auto noise_value : noise_f32) {

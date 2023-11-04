@@ -55,7 +55,7 @@ struct ChunkPool {
     /// @brief structure stores chunk metadata information
     struct Chunk {
         /// @brief chunk world space position 
-        vmath::Vec3i32 position;
+        vmath::Vec3f32 position;
         /// @brief indicies of draw commands belonging to that chunk
         vmath::u32 draw_cmd_indices[6];
         /// @brief allocated gpu region offset into vbo_id 
@@ -94,6 +94,7 @@ struct ChunkPool {
     /// @brief buffer of draw commands which draw submeshes stored in vbo
     std::vector<DrawArraysIndirectCmd> _draw_cmds;
 
+    std::size_t _draw_cmds_parition_size{ 0UL };
     bool _draw_cmds_dirty{ false };
 
     ///////////////////////////
@@ -181,17 +182,61 @@ struct ChunkPool {
     void deallocateChunk(ChunkId chunk_id) noexcept;
     /// @brief deallocates draw commands of the chunk. Called by deallocateChunk only
     /// if deallocated chunk is complete
-    /// @param chunk reference to chunk from which to deallocate draw commands
-    void deallocateChunkDrawCommands(const Chunk& chunk);
+    /// @param chunk_id chunk's id from which to deallocate draw commands
+    void deallocateChunkDrawCommands(ChunkId chunk_id);
     /// @brief updates the state. Update draw command buffer binds vbo as vertex buffer, binds vao
-    void update();
+    /// @param use_partition commands will be supplied based on last paritioning call (paritionDrawCmds)
+    void update(bool use_partition);
     /// @brief draws all chunks
-    void drawAll();
+    /// @param use_partition number of draw commands will be based on last paritioning call (paritionDrawCmds) 
+    void drawAll(bool use_partition);
     /// @brief polls for chunks that are meshed and are ready to be completed (one at a time)
     /// @return true if chunk was completed false otherwise
     bool poll();
     /// @brief deinitializes chunk pool
     void deinit();
+
+    // bool validate() {
+    //     for (const auto draw_cmd : _draw_cmds) {
+    //         if (_chunk_id_to_index[draw_cmd.chunk_id] == INVALID_CHUNK_INDEX) {
+    //             return false;
+    //         }
+    //     }
+    //     return true;
+    // }
+    
+    /// @brief function paritions the _draw_cmds based on <unary_op> setting the <_draw_cmds_parition_size> member
+    /// @tparam ...Args types of aux arguments to pass to unary_op function
+    /// @param unary_op unary operation which is criterion based on which the commands are partitioned
+    /// @param use_last_partition If true then the previous parition will be paritioned again
+    /// @param args Aux arguments to pass to unary_op function
+    template<typename ...Args> 
+    void partitionDrawCmds(bool(*unary_op)(Face orientation, vmath::Vec3f32 position, Args... args), bool use_last_partition, Args... args) {
+        std::size_t begin{ 0UL };
+        std::size_t end{ use_last_partition ? _draw_cmds_parition_size : _draw_cmds.size() - 1UL };
+
+        while(true) {
+            while(begin < _draw_cmds.size() && unary_op(_draw_cmds[begin].orientation, _chunks[_chunk_id_to_index[_draw_cmds[begin].chunk_id]].position, args...)) { ++begin; }
+            while(end != std::numeric_limits<std::size_t>::max() && !unary_op(_draw_cmds[end].orientation, _chunks[_chunk_id_to_index[_draw_cmds[end].chunk_id]].position, args...)) { --end; }
+            
+            if (end == std::numeric_limits<std::size_t>::max() || begin >= end) {
+                break;
+            }
+
+            _chunks[_chunk_id_to_index[_draw_cmds[begin].chunk_id]].
+                draw_cmd_indices[_draw_cmds[begin].orientation] = end;
+            
+            _chunks[_chunk_id_to_index[_draw_cmds[end].chunk_id]].
+                draw_cmd_indices[_draw_cmds[end].orientation] = begin;
+            
+            std::swap(_draw_cmds[end], _draw_cmds[begin]);
+
+            --end;
+            ++begin;
+        }
+        _draw_cmds_parition_size = begin;
+        _draw_cmds_dirty = true;
+    }
 };
 
 }

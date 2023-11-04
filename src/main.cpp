@@ -69,6 +69,17 @@ void createCubeMapTextureArray(MaterialAllocator &material_allocator, const std:
 
 static constexpr Vec3i32 EXTENT(64, 64, 64);
 
+static constexpr std::array<Vec3f32, 8> CORNERS{{
+    {-static_cast<f32>(EXTENT[0]/2), -static_cast<f32>(EXTENT[1]/2), -static_cast<f32>(EXTENT[2]/2)},
+    {-static_cast<f32>(EXTENT[0]/2), -static_cast<f32>(EXTENT[1]/2),  static_cast<f32>(EXTENT[2]/2)},
+    {-static_cast<f32>(EXTENT[0]/2),  static_cast<f32>(EXTENT[1]/2), -static_cast<f32>(EXTENT[2]/2)},
+    {-static_cast<f32>(EXTENT[0]/2),  static_cast<f32>(EXTENT[1]/2),  static_cast<f32>(EXTENT[2]/2)},
+    { static_cast<f32>(EXTENT[0]/2), -static_cast<f32>(EXTENT[1]/2), -static_cast<f32>(EXTENT[2]/2)},
+    { static_cast<f32>(EXTENT[0]/2), -static_cast<f32>(EXTENT[1]/2),  static_cast<f32>(EXTENT[2]/2)},
+    { static_cast<f32>(EXTENT[0]/2),  static_cast<f32>(EXTENT[1]/2), -static_cast<f32>(EXTENT[2]/2)},
+    { static_cast<f32>(EXTENT[0]/2),  static_cast<f32>(EXTENT[1]/2),  static_cast<f32>(EXTENT[2]/2)},
+}};
+
 static f32 timestep{0U};
 static Camera camera{};
 // static Vec3f32 light_pos(1.F, 0.F, 0.F); // ~light_pos~ light_dir
@@ -180,6 +191,55 @@ void mousePosCallback(GLFWwindow *win_handle, f64 x_pos, f64 y_pos)
 }
 #endif
 
+
+constexpr std::array<Vec3f32, 6> FACE_NORMAL_LOOKUP_TABLE {{
+    { 1.F, 0.F, 0.F}, 
+    {-1.F, 0.F, 0.F},
+    { 0.F, 1.F, 0.F},
+    { 0.F,-1.F, 0.F},
+    { 0.F, 0.F, 1.F},
+    { 0.F, 0.F,-1.F}
+}};
+
+bool backFaceCullingUnaryOp(Face orientation, vmath::Vec3f32 position) {
+    const auto normal = Vec3f32::normalize(Vec3f32::sub(position, camera.position));
+
+    for (const auto corner : CORNERS) {
+        const auto normal = Vec3f32::normalize(Vec3f32::sub(Vec3f32::add(position, corner), camera.position));
+        if (Vec3f32::dot(normal, FACE_NORMAL_LOOKUP_TABLE[orientation]) <= .0F) {
+
+            return true;
+        }
+    }
+    return false;
+}
+
+static constexpr f32 CULLING_BIAS{ .8F };
+bool frustumAndBackFaceCullingUnaryOp(Face orientation, vmath::Vec3f32 position, vmath::Mat4f32 view_proj_matrix) {
+    const auto normal = Vec3f32::normalize(Vec3f32::sub(position, camera.position));
+    for (const auto corner : CORNERS) {
+        const auto point = Vec3f32::add(position, corner);
+        const auto normal = Vec3f32::normalize(Vec3f32::sub(point, camera.position));
+        if (Vec3f32::dot(normal, FACE_NORMAL_LOOKUP_TABLE[orientation]) <= .2F) {
+            const auto point_in_view_space = Mat4f32::mulVec(view_proj_matrix, Vec4f32(point[0], point[1], point[2], 1.F));
+
+            const auto w = point_in_view_space[3] + CULLING_BIAS * point_in_view_space[3];
+
+            if (point_in_view_space[2] < -w || point_in_view_space[2] > w) {
+                continue;
+            }
+
+            if (point_in_view_space[0] < -w || point_in_view_space[0] > w ||
+                point_in_view_space[1] < -w || point_in_view_space[1] > w) {
+                continue;
+            }   
+
+            return true;
+        }
+    }
+    return false;
+}
+
 int main()
 {
     if (!ve001::window.init("demo", 640, 480, nullptr))
@@ -196,6 +256,7 @@ int main()
     glEnable(GL_CULL_FACE);
 
     Engine engine({300.F, 256.F, 300.F}, {0.F, 0.F, 0.F}, EXTENT);
+    // Engine engine({64.F, 64.F, 64.F}, {0.F, 0.F, 0.F}, EXTENT);
     engine.init();
 
     MaterialAllocator material_allocator(1U, 1U, 6U, 96U, 96U);
@@ -295,9 +356,8 @@ int main()
     // light.move({-20.F, 40.F, 20.F});
     camera.move({0.F, 0.F, 0.F});
 
-
     const auto render_scene = [&chunk_pool = engine._world_grid._chunk_pool]()
-    { chunk_pool.drawAll(); };
+    { chunk_pool.drawAll(!light_as_camera); };
 
     f32 prev_frame_time{0.F};
     while (!window.shouldClose())
@@ -356,13 +416,33 @@ int main()
         //         done = true;
         //     }
         // }
+
+
         engine._world_grid.update(camera.position);
+        
+        // if (!engine._world_grid._chunk_pool.validate()) {
+        //     logger->warn("here!!\n");
+        // }
 
         if (engine._world_grid._chunk_pool.poll()) {
             lighting.rotateLight(dir_light_id, light.looking_dir);
         }
+        // if (!engine._world_grid._chunk_pool.validate()) {
+        //     logger->warn("here!!\n");
+        // }
 
-        engine._world_grid._chunk_pool.update();
+        if ((camera_moved || camera_rotated) && !light_as_camera) {
+            // engine._world_grid._chunk_pool.partitionDrawCmds(backFaceCullingUnaryOp, false);
+            engine._world_grid._chunk_pool.partitionDrawCmds(frustumAndBackFaceCullingUnaryOp, false, mvp);
+            camera_moved = false;
+            camera_rotated = false;
+        }
+
+        // if (!engine._world_grid._chunk_pool.validate()) {
+        //     logger->warn("here!!\n");
+        // }
+        
+        engine._world_grid._chunk_pool.update(!light_as_camera);
 
         if (camera_rotated && light_as_camera)
         {
@@ -386,7 +466,18 @@ int main()
         glViewport(0, 0, window_width, window_height);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         engine._engine_context.shader_repo[ShaderType::MULTI_LIGHTS_SHADER].bind();
-        engine._world_grid._chunk_pool.drawAll();
+        engine._world_grid._chunk_pool.drawAll(!light_as_camera);
+
+        if (static int i = 0; !light_as_camera && i == 80) {
+            logger->info("Num of draw commands: {}", engine._world_grid._chunk_pool._draw_cmds_parition_size);
+            i = 0;
+        } else if (i == 80) {
+            logger->info("Num of draw commands: {}", engine._world_grid._chunk_pool._draw_cmds.size());
+            i = 0;
+        } else {
+            ++i;
+        }
+
 
         window.swapBuffers();
         window.pollEvents();

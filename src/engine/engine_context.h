@@ -13,6 +13,8 @@ struct EngineContext {
     ShaderRepository shader_repo;
     /// @brief chunk size/resolution 
     vmath::Vec3i32 chunk_size;
+    /// @brief half chunk size/resolution 
+    vmath::Vec3i32 half_chunk_size;
     /// @brief chunk size/resolution in 1D
     vmath::u64 chunk_size_1D;
     /// @brief chunk size in voxel context (single voxel chunk)

@@ -81,8 +81,8 @@ u32 ChunkPool::allocateChunk(const std::function<void(void*)>& voxel_write_data,
     voxel_write_data(static_cast<void*>(free_chunk.cpu_region.data()));
 
     auto& chunk = _chunks.emplace_back(Chunk{
-        position, 
-        {0}, // bcs chunk isn't complete yet
+        Vec3f32::cast(Vec3i32::sub(Vec3i32::mul(position, _engine_context.chunk_size), _engine_context.half_chunk_size)), 
+        {0U, 0U, 0U, 0U, 0U, 0U}, // bcs chunk isn't complete yet
         free_chunk.gpu_region_offset,
         free_chunk.cpu_region,
         free_chunk.chunk_id,
@@ -100,7 +100,7 @@ u32 ChunkPool::allocateChunk(const std::function<void(void*)>& voxel_write_data,
     return chunk.chunk_id;
 }
 
-vmath::u32 ChunkPool::allocateChunk(std::span<const vmath::u16> src, vmath::Vec3i32 position) noexcept {
+vmath::u32 ChunkPool::allocateChunk(std::span<const vmath::u16> src, Vec3i32 position) noexcept {
     if (_free_chunks.empty()) {
         return INVALID_CHUNK_ID; // TODO: Error
     }
@@ -113,7 +113,7 @@ vmath::u32 ChunkPool::allocateChunk(std::span<const vmath::u16> src, vmath::Vec3
     cpu_memory_usage += src.size() * sizeof(u16);
 
     auto& chunk = _chunks.emplace_back(Chunk{
-        position, 
+        Vec3f32::cast(Vec3i32::sub(Vec3i32::mul(position, _engine_context.chunk_size), _engine_context.half_chunk_size)), 
         {0U, 0U, 0U, 0U, 0U, 0U}, // bcs chunk isn't complete yet
         free_chunk.gpu_region_offset,
         free_chunk.cpu_region,
@@ -161,28 +161,33 @@ void ChunkPool::completeChunk(MeshingEngine::Future future) {
     _draw_cmds_dirty = true;
 }
 
-void ChunkPool::update() {
+void ChunkPool::update(bool use_partition) {
     if (_draw_cmds.size() > 0U) {
+        if (use_partition && _draw_cmds_parition_size == 0U) {
+            return;
+        }
         if (_draw_cmds_dirty) {
             glNamedBufferSubData(
                 _dibo_id, 0, 
-                _draw_cmds.size() * sizeof(DrawArraysIndirectCmd),
+                (use_partition ? _draw_cmds_parition_size : _draw_cmds.size()) * sizeof(DrawArraysIndirectCmd),
                 static_cast<void*>(_draw_cmds.data())
             );
             _draw_cmds_dirty = false;
+            glBindBuffer(GL_DRAW_INDIRECT_BUFFER, _dibo_id);
         }
-
-        glBindBuffer(GL_DRAW_INDIRECT_BUFFER, _dibo_id);
         glBindVertexArray(_vao_id);
         glBindBuffer(GL_ARRAY_BUFFER, _vbo_id);
     }
 }
-void ChunkPool::drawAll() {
+void ChunkPool::drawAll(bool use_partition) {
     if (_draw_cmds.size() > 0U) {
+        if (use_partition && _draw_cmds_parition_size == 0U) {
+            return;
+        }
         glMultiDrawArraysIndirect(
             GL_TRIANGLES, 
-            static_cast<void*>(0), 
-            static_cast<GLsizei>(_draw_cmds.size()),
+            static_cast<void*>(0),
+            use_partition ? _draw_cmds_parition_size : _draw_cmds.size(),
             sizeof(DrawArraysIndirectCmd)
         );
     }
@@ -206,12 +211,18 @@ void ChunkPool::deallocateChunk(u32 chunk_id) noexcept {
     }
     const auto chunk = _chunks[chunk_index];
 
+    // if (chunk_id == 3) {
+    //     std::cout << "(0) here!!\n";
+    // }
     // std::cout << "deallocating chunk of id: " << chunk_id << std::endl;
 
     if (chunk.complete) {
-        deallocateChunkDrawCommands(chunk);
+        deallocateChunkDrawCommands(chunk_id);
     }
 
+    // if (!validate()) {
+    //     std::cout << "here!!\n";
+    // }
     if (chunk_index != _chunks.size() - 1U) {
         const auto last_chunk = _chunks.back();
         _chunks[chunk_index] = last_chunk;
@@ -225,8 +236,12 @@ void ChunkPool::deallocateChunk(u32 chunk_id) noexcept {
         .cpu_region = chunk.cpu_region
     });
     _chunks.pop_back();
+    // if (!validate()) {
+    //     std::cout << "here!!\n";
+    // }
 }
-void ChunkPool::deallocateChunkDrawCommands(const Chunk& chunk) {
+void ChunkPool::deallocateChunkDrawCommands(ChunkId chunk_id) {
+    const auto& chunk = _chunks[_chunk_id_to_index[chunk_id]];
     for (u32 i{ 0U }; i < 6; ++i) {
         const auto draw_cmd_index = chunk.draw_cmd_indices[i];
         // std::cout << "deallocating draw command of index: " << draw_cmd_index << ", which starts drawing from vertex "
@@ -240,10 +255,17 @@ void ChunkPool::deallocateChunkDrawCommands(const Chunk& chunk) {
             last_draw_cmd_chunk.draw_cmd_indices[last_draw_cmd_submesh_index] = draw_cmd_index;
 
             _draw_cmds[draw_cmd_index] = last_draw_cmd;
+            // if (_chunk_id_to_index[_draw_cmds[draw_cmd_index].chunk_id] == INVALID_CHUNK_INDEX) {
+            //     std::cout << "here!!\n";
+            // }
         }
         _draw_cmds.pop_back();
     }
     _draw_cmds_dirty = true;
+
+    // if (!validate()) {
+    //     std::cout << "here!!\n";
+    // }
     // std::cout << "Now draw commands in queue are\n";
 
     // u32 i{ 0U };
