@@ -54,16 +54,10 @@ static void makeCorridor(std::vector<u16>& data, Vec3i32 chunk_size) {
 }
 
 
-WorldGrid::WorldGrid(const EngineContext& engine_context, Vec3f32 world_size, Vec3f32 initial_position) : _engine_context(engine_context), 
+WorldGrid::WorldGrid(const EngineContext& engine_context, vmath::Vec3f32 world_size, vmath::Vec3f32 initial_position, std::unique_ptr<ChunkGenerator> chunk_generator) : _engine_context(engine_context), 
     _current_position(initial_position), _semi_axes(world_size), _chunk_pool(engine_context), 
     _grid_size(Vec3i32::add(Vec3i32::mulScalar(Vec3i32::cast(Vec3f32::div(world_size, Vec3f32::cast(engine_context.chunk_size))), 2), 1)),
-    _terrain_generator({
-        .terrain_size = _engine_context.chunk_size,
-        .noise_type = VoxelTerrainGenerator::Config::NoiseType::SIMPLEX,
-        .noise_frequency = .01F,
-        .quantize_values = 1U,
-        .seed = 0xC1111999
-    }),
+    _chunk_data_streamer(std::move(chunk_generator), 512),
     _to_allocate_chunks(512) 
     {
 }
@@ -183,7 +177,7 @@ void WorldGrid::init() {
             noise_f32.data(), 
             p0[0], p0[1], p0[2], 
             _engine_context.chunk_size[0], _engine_context.chunk_size[1], _engine_context.chunk_size[2], 
-            .01F, 0xC1111999
+            .01F, 0xC0000B99
         );
         i = 0U;
         for (const auto noise_value : noise_f32) {
@@ -307,7 +301,7 @@ void WorldGrid::update(Vec3f32 new_position) {
                         _visible_chunk_id_to_index[visible_chunk_id] = visible_neighbour_chunk_index;
                         auto& visible_neighbour_chunk = _visible_chunks.emplace_back(visible_chunk_id, INVALID_CHUNK_ID, neighbour_position_in_chunks);
                         _to_allocate_chunks.write({
-                            std::move(_terrain_generator.gen(neighbour_position_in_chunks)),
+                            std::move(_chunk_data_streamer.gen(neighbour_position_in_chunks)),
                             visible_chunk_id
                         });
 #else
@@ -424,7 +418,6 @@ void WorldGrid::update(Vec3f32 new_position) {
 
 bool WorldGrid::pollToAllocateChunks() {
     if (ToAllocateChunk* to_allocate_chunk{ nullptr }; _to_allocate_chunks.peek(to_allocate_chunk) && to_allocate_chunk != nullptr) {
-        // std::cout << "Here!\n";
         if (to_allocate_chunk->data.valid()) {
             if (to_allocate_chunk->data.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
                 if (const auto visible_chunk_index = _visible_chunk_id_to_index[to_allocate_chunk->visible_chunk_id]; visible_chunk_index != INVALID_VISIBLE_CHUNK_INDEX) {

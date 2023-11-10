@@ -11,7 +11,8 @@
 
 #include "ringbuffer.h"
 
-#include <voxel_terrain_generator/voxel_terrain_generator.h>
+// #include <voxel_terrain_generator/voxel_terrain_generator.h>
+#include "chunk_data_streamer.h"
 
 namespace ve001 {
 
@@ -49,7 +50,7 @@ struct WorldGrid {
     vmath::Vec3f32 _semi_axes;
     vmath::Vec3i32 _grid_size;
 
-    VoxelTerrainGenerator _terrain_generator;
+    ChunkDataStreamer _chunk_data_streamer;
     RingBuffer<ToAllocateChunk> _to_allocate_chunks;
 
     std::vector<VisibleChunkId> _free_visible_chunk_ids;
@@ -60,7 +61,7 @@ struct WorldGrid {
 
     ChunkPool _chunk_pool;
 
-    WorldGrid(const EngineContext& engine_context, vmath::Vec3f32 world_size, vmath::Vec3f32 initial_position);
+    WorldGrid(const EngineContext& engine_context, vmath::Vec3f32 world_size, vmath::Vec3f32 initial_position, std::unique_ptr<ChunkGenerator> chunk_generator);
     void init();
     void update(vmath::Vec3f32 new_position);
     bool pollToAllocateChunks();

@@ -50,6 +50,14 @@ add_library(ve001_engine STATIC
 
     # thread_pool.h
     # threadsafe_ringbuffer.h
+
+    chunk_data_streamer.h
+    chunk_data_streamer.cpp
+
+    chunk_generator.h
+
+    noise_terrain_generator.h
+    noise_terrain_generator.cpp
 )
 target_link_libraries(ve001_engine PRIVATE 
     glad::glad

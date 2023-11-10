@@ -213,7 +213,7 @@ struct ChunkPool {
     template<typename ...Args> 
     void partitionDrawCmds(bool(*unary_op)(Face orientation, vmath::Vec3f32 position, Args... args), bool use_last_partition, Args... args) {
         std::size_t begin{ 0UL };
-        std::size_t end{ use_last_partition ? _draw_cmds_parition_size : _draw_cmds.size() - 1UL };
+        std::size_t end{ use_last_partition ? _draw_cmds_parition_size - 1UL : _draw_cmds.size() - 1UL };
 
         while(true) {
             while(begin < _draw_cmds.size() && unary_op(_draw_cmds[begin].orientation, _chunks[_chunk_id_to_index[_draw_cmds[begin].chunk_id]].position, args...)) { ++begin; }

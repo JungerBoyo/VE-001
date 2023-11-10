@@ -148,6 +148,14 @@ struct Vec {
         }
         return vec;
     }
+
+    template<typename _T>
+    static Vec<T, S> diff(Vec<T, S> lhs, Vec<T, S> rhs) {
+        for (std::size_t i{ 0U }; i < S; ++i) {
+            lhs.values[i] = std::abs(static_cast<_T>(lhs.values[i] - rhs.values[i]));
+        }
+        return lhs;
+    }
 };
 
 

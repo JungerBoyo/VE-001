@@ -68,6 +68,7 @@ void createCubeMapTextureArray(MaterialAllocator &material_allocator, const std:
 }
 
 static constexpr Vec3i32 EXTENT(64, 64, 64);
+static constexpr Vec3f32 EXTENT_F32(64.F, 64.F, 64.F);
 
 static constexpr std::array<Vec3f32, 8> CORNERS{{
     {-static_cast<f32>(EXTENT[0]/2), -static_cast<f32>(EXTENT[1]/2), -static_cast<f32>(EXTENT[2]/2)},
@@ -79,6 +80,10 @@ static constexpr std::array<Vec3f32, 8> CORNERS{{
     { static_cast<f32>(EXTENT[0]/2),  static_cast<f32>(EXTENT[1]/2), -static_cast<f32>(EXTENT[2]/2)},
     { static_cast<f32>(EXTENT[0]/2),  static_cast<f32>(EXTENT[1]/2),  static_cast<f32>(EXTENT[2]/2)},
 }};
+
+// struct Plane {
+//     Vec3f32 normal
+// };
 
 static f32 timestep{0U};
 static Camera camera{};
@@ -200,13 +205,45 @@ constexpr std::array<Vec3f32, 6> FACE_NORMAL_LOOKUP_TABLE {{
     { 0.F, 0.F, 1.F},
     { 0.F, 0.F,-1.F}
 }};
+u32 getCameraMask() {
+    u32 mask{ 0U };    
 
-bool backFaceCullingUnaryOp(Face orientation, vmath::Vec3f32 position) {
+    if (camera.looking_dir[0] > 0.F) {
+        mask |= (1U << Face::X_NEG);
+    } else if (camera.looking_dir[0] < 0.F) {
+        mask |= (1U << Face::X_POS);
+    } else {
+        mask |= (3U << Face::X_NEG);
+    }
+    
+    if (camera.looking_dir[1] > 0.F) {
+        mask |= (1U << Face::Y_NEG);
+    } else if (camera.looking_dir[1] < 0.F) {
+        mask |= (1U << Face::Y_POS);
+    } else {
+        mask |= (3U << Face::Y_NEG);
+    }
+    
+    if (camera.looking_dir[2] > 0.F) {
+        mask |= (1U << Face::Z_NEG);
+    } else if (camera.looking_dir[2] < 0.F) {
+        mask |= (1U << Face::Z_POS);
+    } else {
+        mask |= (3U << Face::Z_NEG);
+    }
+
+    return mask;
+}
+bool backFaceCullingUnaryOp(Face orientation, vmath::Vec3f32 position, u32 camera_mask) {
     const auto normal = Vec3f32::normalize(Vec3f32::sub(position, camera.position));
+
+    if ((camera_mask & (1U << orientation)) > 0U) {
+        return true;
+    }
 
     for (const auto corner : CORNERS) {
         const auto normal = Vec3f32::normalize(Vec3f32::sub(Vec3f32::add(position, corner), camera.position));
-        if (Vec3f32::dot(normal, FACE_NORMAL_LOOKUP_TABLE[orientation]) <= .0F) {
+        if (Vec3f32::dot(normal, FACE_NORMAL_LOOKUP_TABLE[orientation]) <= .1F) {
 
             return true;
         }
@@ -214,31 +251,109 @@ bool backFaceCullingUnaryOp(Face orientation, vmath::Vec3f32 position) {
     return false;
 }
 
-static constexpr f32 CULLING_BIAS{ .8F };
-bool frustumAndBackFaceCullingUnaryOp(Face orientation, vmath::Vec3f32 position, vmath::Mat4f32 view_proj_matrix) {
-    const auto normal = Vec3f32::normalize(Vec3f32::sub(position, camera.position));
-    for (const auto corner : CORNERS) {
-        const auto point = Vec3f32::add(position, corner);
-        const auto normal = Vec3f32::normalize(Vec3f32::sub(point, camera.position));
-        if (Vec3f32::dot(normal, FACE_NORMAL_LOOKUP_TABLE[orientation]) <= .2F) {
-            const auto point_in_view_space = Mat4f32::mulVec(view_proj_matrix, Vec4f32(point[0], point[1], point[2], 1.F));
+struct Plane { 
+    f32 A, B, C, D; 
+};
 
-            const auto w = point_in_view_space[3] + CULLING_BIAS * point_in_view_space[3];
+std::array<Plane, 6> computeFrustumPlanes(Mat4f32 view_proj_matrix) {
+    std::array<Plane, 6> result; 
 
-            if (point_in_view_space[2] < -w || point_in_view_space[2] > w) {
-                continue;
+    // Left plane
+    result[Face::X_POS].A = view_proj_matrix[0][3] + view_proj_matrix[0][0];
+    result[Face::X_POS].B = view_proj_matrix[1][3] + view_proj_matrix[1][0];
+    result[Face::X_POS].C = view_proj_matrix[2][3] + view_proj_matrix[2][0];
+    result[Face::X_POS].D = view_proj_matrix[3][3] + view_proj_matrix[3][0];
+
+    // Right plane
+    result[Face::X_NEG].A = view_proj_matrix[0][3] - view_proj_matrix[0][0];
+    result[Face::X_NEG].B = view_proj_matrix[1][3] - view_proj_matrix[1][0];
+    result[Face::X_NEG].C = view_proj_matrix[2][3] - view_proj_matrix[2][0];
+    result[Face::X_NEG].D = view_proj_matrix[3][3] - view_proj_matrix[3][0];
+
+    // Top plane
+    result[Face::Y_POS].A = view_proj_matrix[0][3] - view_proj_matrix[0][1];
+    result[Face::Y_POS].B = view_proj_matrix[1][3] - view_proj_matrix[1][1];
+    result[Face::Y_POS].C = view_proj_matrix[2][3] - view_proj_matrix[2][1];
+    result[Face::Y_POS].D = view_proj_matrix[3][3] - view_proj_matrix[3][1];
+
+    // Bottom plane
+    result[Face::Y_NEG].A = view_proj_matrix[0][3] + view_proj_matrix[0][1];
+    result[Face::Y_NEG].B = view_proj_matrix[1][3] + view_proj_matrix[1][1];
+    result[Face::Y_NEG].C = view_proj_matrix[2][3] + view_proj_matrix[2][1];
+    result[Face::Y_NEG].D = view_proj_matrix[3][3] + view_proj_matrix[3][1];
+
+    // Near plane
+    result[Face::Z_POS].A = view_proj_matrix[0][3] + view_proj_matrix[0][2];
+    result[Face::Z_POS].B = view_proj_matrix[1][3] + view_proj_matrix[1][2];
+    result[Face::Z_POS].C = view_proj_matrix[2][3] + view_proj_matrix[2][2];
+    result[Face::Z_POS].D = view_proj_matrix[3][3] + view_proj_matrix[3][2];
+
+    // Far plane
+    result[Face::Z_NEG].A = view_proj_matrix[0][3] - view_proj_matrix[0][2];
+    result[Face::Z_NEG].B = view_proj_matrix[1][3] - view_proj_matrix[1][2];
+    result[Face::Z_NEG].C = view_proj_matrix[2][3] - view_proj_matrix[2][2];
+    result[Face::Z_NEG].D = view_proj_matrix[3][3] - view_proj_matrix[3][2];
+
+    for (auto& plane : result) {
+        const auto length = Vec3f32({plane.A, plane.B, plane.C}).len();
+        plane.A /= length;
+        plane.B /= length;
+        plane.C /= length;
+        plane.D /= length;
+    }
+    return result;
+}
+
+bool frustumCullingUnaryOp(Face orientation, vmath::Vec3f32 position, const std::array<Plane, 6>& planes) {
+    const auto diff = Vec3f32::diff<f32>(camera.position, position);
+
+    // if (diff[0] < EXTENT_F32[0]/2.F || diff[1] < EXTENT_F32[1]/2.F || diff[2] <= EXTENT_F32[2]/2.F) {
+    //     return true;
+    // }
+
+    for (const auto plane : planes) {
+        bool all_corners_outside{ true };
+        for (const auto corner : CORNERS) {
+            const auto point = Vec3f32::add(corner, position);
+            const auto dist = Vec3f32::dot(point, {plane.A, plane.B, plane.C}) + plane.D;
+
+            if (dist >= 0.F) {
+                all_corners_outside = false;
+                break;
             }
-
-            if (point_in_view_space[0] < -w || point_in_view_space[0] > w ||
-                point_in_view_space[1] < -w || point_in_view_space[1] > w) {
-                continue;
-            }   
-
-            return true;
+        }
+        if (all_corners_outside) {
+            return false;
         }
     }
-    return false;
+    return true;
 }
+
+// static constexpr f32 CULLING_BIAS{ .8F };
+// bool frustumAndBackFaceCullingUnaryOp(Face orientation, vmath::Vec3f32 position, u32 camera_mask, vmath::Mat4f32 view_proj_matrix) {
+//     const auto normal = Vec3f32::normalize(Vec3f32::sub(position, camera.position));
+//     for (const auto corner : CORNERS) {
+//         const auto point = Vec3f32::add(position, corner);
+//         const auto normal = Vec3f32::normalize(Vec3f32::sub(point, camera.position));
+//         if (Vec3f32::dot(normal, FACE_NORMAL_LOOKUP_TABLE[orientation]) <= .2F) {
+//             const auto point_in_view_space = Mat4f32::mulVec(view_proj_matrix, Vec4f32(point[0], point[1], point[2], 1.F));
+
+//             const auto w = point_in_view_space[3] + CULLING_BIAS * point_in_view_space[3];
+
+//             if (point_in_view_space[2] < -w || point_in_view_space[2] > w) {
+//                 continue;
+//             }
+
+//             if (point_in_view_space[0] < -w || point_in_view_space[0] > w ||
+//                 point_in_view_space[1] < -w || point_in_view_space[1] > w) {
+//                 continue;
+//             }   
+
+//             return true;
+//         }
+//     }
+//     return false;
+// }
 
 int main()
 {
@@ -427,21 +542,14 @@ int main()
         if (engine._world_grid._chunk_pool.poll()) {
             lighting.rotateLight(dir_light_id, light.looking_dir);
         }
-        // if (!engine._world_grid._chunk_pool.validate()) {
-        //     logger->warn("here!!\n");
-        // }
 
         if ((camera_moved || camera_rotated) && !light_as_camera) {
-            // engine._world_grid._chunk_pool.partitionDrawCmds(backFaceCullingUnaryOp, false);
-            engine._world_grid._chunk_pool.partitionDrawCmds(frustumAndBackFaceCullingUnaryOp, false, mvp);
+            engine._world_grid._chunk_pool.partitionDrawCmds(backFaceCullingUnaryOp, false, getCameraMask());
+            engine._world_grid._chunk_pool.partitionDrawCmds<const std::array<Plane, 6>&>(frustumCullingUnaryOp, true, computeFrustumPlanes(mvp));
             camera_moved = false;
             camera_rotated = false;
         }
 
-        // if (!engine._world_grid._chunk_pool.validate()) {
-        //     logger->warn("here!!\n");
-        // }
-        
         engine._world_grid._chunk_pool.update(!light_as_camera);
 
         if (camera_rotated && light_as_camera)
