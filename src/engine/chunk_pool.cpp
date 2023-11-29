@@ -31,28 +31,28 @@ static void setVertexLayout(u32 vao, u32 vbo) {
 void ChunkPool::init(i32 max_chunks) noexcept {
     _chunks_count = max_chunks;
 
-    u32 tmp[2] = { 0U, 0U };
+    u32 tmp[3] = { 0U, 0U, 0U };
 
-    glCreateBuffers(2, tmp);
+    glCreateBuffers(3, tmp);
     _vbo_id = tmp[0];
-    _dibo_id = tmp[1];
+    _ibo_id = tmp[1];
+    _dibo_id = tmp[2];
 
     glNamedBufferStorage(_vbo_id, static_cast<i64>(_chunks_count) * static_cast<i64>(_engine_context.chunk_max_mesh_size), nullptr, 0);
-    
+
     glCreateVertexArrays(1, &_vao_id);
     setVertexLayout(_vao_id, _vbo_id);
 
     glNamedBufferStorage(
         _dibo_id,
-        6 * max_chunks * sizeof(DrawArraysIndirectCmd),
+        6 * max_chunks * sizeof(DrawElementsIndirectCmd),
         nullptr,
         GL_MAP_WRITE_BIT|GL_MAP_PERSISTENT_BIT|GL_MAP_COHERENT_BIT
-        //GL_DYNAMIC_STORAGE_BIT
     );
 
     _dibo_mapped_ptr = glMapNamedBufferRange(
         _dibo_id, 
-        0, 6 * max_chunks * sizeof(DrawArraysIndirectCmd),
+        0, 6 * max_chunks * sizeof(DrawElementsIndirectCmd),
         GL_MAP_WRITE_BIT|GL_MAP_PERSISTENT_BIT|GL_MAP_COHERENT_BIT
     );
 
@@ -69,8 +69,21 @@ void ChunkPool::init(i32 max_chunks) noexcept {
                 .cpu_region = std::span<u16>(_voxel_data.data() + i * _engine_context.chunk_size_1D, _engine_context.chunk_size_1D)
             });
         }
+
+        static constexpr u32 INDICES_PATTERN[6] = { 0, 1, 2, 0, 2, 3 };
+        std::vector<u32> indices(_engine_context.chunk_max_submesh_indices_size/sizeof(u32));
+        for (std::size_t i{ 0UL }, q{ 0UL }; i < indices.size(); i += 6, q += 4) {
+            indices[i + 0] = INDICES_PATTERN[0] + static_cast<u32>(q);
+            indices[i + 1] = INDICES_PATTERN[1] + static_cast<u32>(q);
+            indices[i + 2] = INDICES_PATTERN[2] + static_cast<u32>(q);
+            indices[i + 3] = INDICES_PATTERN[3] + static_cast<u32>(q);
+            indices[i + 4] = INDICES_PATTERN[4] + static_cast<u32>(q);
+            indices[i + 5] = INDICES_PATTERN[5] + static_cast<u32>(q);
+        }
+        glNamedBufferStorage(_ibo_id, static_cast<i64>(_engine_context.chunk_max_submesh_indices_size), static_cast<const void*>(indices.data()), 0);
+
     } catch ([[maybe_unsused]] const std::exception& e) {
-        glDeleteBuffers(2, tmp);
+        glDeleteBuffers(3, tmp);
         glDeleteVertexArrays(1, &_vao_id);
         return; // TODO: Error
     }
@@ -140,8 +153,8 @@ vmath::u32 ChunkPool::allocateChunk(std::span<const vmath::u16> src, Vec3i32 pos
     return chunk.chunk_id;
 }
 
-void ChunkPool::completeChunk(MeshingEngine::Future future) {
-    const auto chunk_index = _chunk_id_to_index[future.chunk_id];
+void ChunkPool::completeChunk(MeshingEngine::Result result) {
+    const auto chunk_index = _chunk_id_to_index[result.chunk_id];
     if (chunk_index == INVALID_CHUNK_INDEX) {
         return;
     }
@@ -156,15 +169,16 @@ void ChunkPool::completeChunk(MeshingEngine::Future future) {
     chunk.draw_cmd_indices[Z_NEG] = base_cmd_index + Z_NEG;
 
     for (std::size_t i{ 0U }; i < 6U; ++i) {
-        const auto& draw_cmd = _draw_cmds.emplace_back(DrawArraysIndirectCmd{
-            .count = future.written_vertices[i],
+        const auto& draw_cmd = _draw_cmds.emplace_back(DrawElementsIndirectCmd{
+            .count = result.written_indices[i],
             .instance_count = 1U,
-            .first = static_cast<u32>((((static_cast<u64>(future.chunk_id) * 6UL) + i) * _engine_context.chunk_max_submesh_size)/sizeof(Vertex)),
+            .first_index = 0U,
+            .base_vertex =  static_cast<i32>((((static_cast<u64>(result.chunk_id) * 6UL) + i) * _engine_context.chunk_max_submesh_size)/sizeof(Vertex)),
             .base_instance = 0U,
             .orientation = static_cast<Face>(i),
-            .chunk_id = future.chunk_id
+            .chunk_id = result.chunk_id
         });
-        gpu_memory_usage += static_cast<u64>(future.written_vertices[i]) * sizeof(Vertex);
+        gpu_memory_usage += static_cast<u64>(result.written_indices[i]/6) * sizeof(Vertex) * 4;
     }
     _draw_cmds_dirty = true;
 }
@@ -175,12 +189,13 @@ void ChunkPool::update(bool use_partition) {
             return;
         }
         if (_draw_cmds_dirty) {
-            const auto size = (use_partition ? _draw_cmds_parition_size : _draw_cmds.size()) * sizeof(DrawArraysIndirectCmd);
+            const auto size = (use_partition ? _draw_cmds_parition_size : _draw_cmds.size()) * sizeof(DrawElementsIndirectCmd);
             std::memcpy(_dibo_mapped_ptr, static_cast<const void*>(_draw_cmds.data()), size);
             _draw_cmds_dirty = false;
             glBindBuffer(GL_DRAW_INDIRECT_BUFFER, _dibo_id);
         }
         glBindVertexArray(_vao_id);
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, _ibo_id);
         glBindBuffer(GL_ARRAY_BUFFER, _vbo_id);
     }
 }
@@ -189,17 +204,18 @@ void ChunkPool::drawAll(bool use_partition) {
         if (use_partition && _draw_cmds_parition_size == 0U) {
             return;
         }
-        glMultiDrawArraysIndirect(
-            GL_TRIANGLES, 
-            static_cast<void*>(0),
+        glMultiDrawElementsIndirect(
+            GL_TRIANGLES,
+            GL_UNSIGNED_INT,
+            nullptr,
             use_partition ? _draw_cmds_parition_size : _draw_cmds.size(),
-            sizeof(DrawArraysIndirectCmd)
+            sizeof(DrawElementsIndirectCmd)
         );
     }
 }
 bool ChunkPool::poll() {
-    if (MeshingEngine::Future future{}; _meshing_engine.pollMeshingCommand(future)) {
-        completeChunk(future);
+    if (MeshingEngine::Result result{}; _meshing_engine.pollMeshingCommand(result)) {
+        completeChunk(result);
         return true;
     }
     return false;
@@ -216,6 +232,7 @@ void ChunkPool::deallocateChunk(u32 chunk_id) noexcept {
     }
     const auto chunk = _chunks[chunk_index];
 
+
     if (chunk.complete) {
         deallocateChunkDrawCommands(chunk_id);
     }
@@ -226,6 +243,7 @@ void ChunkPool::deallocateChunk(u32 chunk_id) noexcept {
         _chunk_id_to_index[last_chunk.chunk_id] = chunk_index;
     }
 
+    
     _chunk_id_to_index[chunk_id] = INVALID_CHUNK_INDEX;
     _free_chunks.write({
         .chunk_id = chunk_id,
@@ -238,6 +256,7 @@ void ChunkPool::deallocateChunkDrawCommands(ChunkId chunk_id) {
     const auto& chunk = _chunks[_chunk_id_to_index[chunk_id]];
     for (u32 i{ 0U }; i < 6; ++i) {
         const auto draw_cmd_index = chunk.draw_cmd_indices[i];
+        gpu_memory_usage -= static_cast<u64>(_draw_cmds[draw_cmd_index].count/6) * sizeof(Vertex) * 4;
         if (draw_cmd_index != _draw_cmds.size() - 1U) {
             auto& last_draw_cmd = _draw_cmds.back();
             const auto last_draw_cmd_chunk_index = _chunk_id_to_index[last_draw_cmd.chunk_id];
@@ -269,10 +288,11 @@ void ChunkPool::deinit() {
     glUnmapNamedBuffer(_dibo_id);
     _dibo_mapped_ptr = nullptr;
 
-    u32 tmp[2] = { _vbo_id, _dibo_id };
-    glDeleteBuffers(2, tmp);
+    u32 tmp[3] = { _vbo_id, _dibo_id, _ibo_id };
+    glDeleteBuffers(3, tmp);
     _vbo_id = 0U;
     _dibo_id = 0U;
+    _ibo_id = 0U;
 
     _free_chunks.clear();
     _draw_cmds.clear();

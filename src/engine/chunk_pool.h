@@ -25,13 +25,15 @@ struct ChunkPool {
 
     /// @brief structure stores drawing command data
     /// which is then stored in draw command buffer
-    struct DrawArraysIndirectCmd {
-        /// @brief number of verticies
+    struct DrawElementsIndirectCmd {
+        /// @brief number of indices
         vmath::u32 count;
         /// @brief number of instances
         vmath::u32 instance_count;
-        /// @brief first vertex from which to start
-        vmath::u32 first;
+        /// @brief first index from which to start
+        vmath::u32 first_index;
+        /// @brief base vertex from which indices start to apply
+        vmath::i32 base_vertex;
         /// @brief base instance from which to start
         vmath::u32 base_instance;
 
@@ -77,6 +79,9 @@ struct ChunkPool {
 
     /// @brief id of vbo storing all submeshes in regions
     vmath::u32 _vbo_id{ 0U };
+    /// @brief id of ibo storing indices, it's the same for each submesh in each chunk
+    /// it's size is always max_submesh_size
+    vmath::u32 _ibo_id{ 0U };
     /// @brief id of vao describing vertex layout in vbo
     vmath::u32 _vao_id{ 0U };
     /// @brief id of dibo which is a handle to command buffer 
@@ -93,14 +98,13 @@ struct ChunkPool {
     //////////////////////////////////
 
     /// @brief buffer of draw commands which draw submeshes stored in vbo
-    std::vector<DrawArraysIndirectCmd> _draw_cmds;
+    std::vector<DrawElementsIndirectCmd> _draw_cmds;
 
     std::size_t _draw_cmds_parition_size{ 0UL };
     bool _draw_cmds_dirty{ false };
-
     ///////////////////////////
 
-      
+
     //////////////////////////////////
     ///     CPU SIDE VOXEL DATA    ///
     //////////////////////////////////
@@ -176,8 +180,8 @@ struct ChunkPool {
     ChunkId allocateChunk(std::span<const vmath::u16> src, vmath::Vec3i32 position) noexcept;
     /// @brief completes chunk eg. chunk starts to be drawn by the drawAll command 
     /// called by poll() function if chunk's mesh is finished
-    /// @param future holds data from meshing_engine with which to update the chunk
-    void completeChunk(MeshingEngine::Future future);
+    /// @param result holds data from meshing_engine with which to update the chunk
+    void completeChunk(MeshingEngine::Result result);
     /// @brief deallocates chunk
     /// @param chunk_id chunk's id to deallocate
     void deallocateChunk(ChunkId chunk_id) noexcept;

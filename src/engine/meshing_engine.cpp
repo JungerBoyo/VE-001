@@ -84,7 +84,7 @@ void MeshingEngine::issueMeshingCommand(u32 chunk_id, Vec3i32 chunk_position, st
     }
 }
 
-bool MeshingEngine::pollMeshingCommand(Future& future) {
+bool MeshingEngine::pollMeshingCommand(Result& result) {
     if (_active_command.fence == nullptr) {
         return false;
     }
@@ -109,19 +109,17 @@ bool MeshingEngine::pollMeshingCommand(Future& future) {
     glDeleteSync(static_cast<GLsync>(_active_command.fence));
     _active_command.fence = nullptr;
     
-    future.chunk_id = _active_command.chunk_id;
+    result.chunk_id = _active_command.chunk_id;
 
     Temp temp{};
-    // glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
     _ssbo_meshing_temp.read(static_cast<void*>(&temp), 0, sizeof(Temp));
-    future.written_vertices[X_POS] = temp.written_vertices_in_dwords[X_POS] / (sizeof(Vertex)/sizeof(f32));
-    future.written_vertices[X_NEG] = temp.written_vertices_in_dwords[X_NEG] / (sizeof(Vertex)/sizeof(f32));
-    future.written_vertices[Y_POS] = temp.written_vertices_in_dwords[Y_POS] / (sizeof(Vertex)/sizeof(f32));
-    future.written_vertices[Y_NEG] = temp.written_vertices_in_dwords[Y_NEG] / (sizeof(Vertex)/sizeof(f32));
-    future.written_vertices[Z_POS] = temp.written_vertices_in_dwords[Z_POS] / (sizeof(Vertex)/sizeof(f32));
-    future.written_vertices[Z_NEG] = temp.written_vertices_in_dwords[Z_NEG] / (sizeof(Vertex)/sizeof(f32));
+    result.written_indices[X_POS] = temp.written_quads[X_POS] * 6U;
+    result.written_indices[X_NEG] = temp.written_quads[X_NEG] * 6U;
+    result.written_indices[Y_POS] = temp.written_quads[Y_POS] * 6U;
+    result.written_indices[Y_NEG] = temp.written_quads[Y_NEG] * 6U;
+    result.written_indices[Z_POS] = temp.written_quads[Z_POS] * 6U;
+    result.written_indices[Z_NEG] = temp.written_quads[Z_NEG] * 6U;
 
-    // glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
     glBindBufferBase(GL_SHADER_STORAGE_BUFFER, VE001_SH_CONFIG_SSBO_BINDING_MESH_DATA, 0);
 
     if (!_commands.read(_active_command)) {
@@ -144,11 +142,6 @@ void MeshingEngine::firstCommandExec(Command& command) {
         offsetof(Descriptor, chunk_position),
         sizeof(Descriptor::chunk_position)
     );
-
-    // std::cout << "meshing chunk at position { " << 
-    //     command.chunk_position[0] << " " <<
-    //     command.chunk_position[1] << " " <<
-    //     command.chunk_position[2] << " }\n";
 
     glBindBufferRange(
         GL_SHADER_STORAGE_BUFFER, 

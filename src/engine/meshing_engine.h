@@ -1,5 +1,5 @@
-#ifndef VE001_MESHING_ENGINE_2_H
-#define VE001_MESHING_ENGINE_2_H
+#ifndef VE001_MESHING_ENGINE_H
+#define VE001_MESHING_ENGINE_H
 
 #include <vmath/vmath.h>
 #include <functional>
@@ -31,16 +31,17 @@ struct MeshingEngine {
         /// @brief written vertex counts by the current meshing command execution
         /// (depending on <_chunk_size> there could be a need to invoke meshing
         /// few times per chunk). It is written and read in the shader.
-        vmath::u32 written_vertices_in_dwords[6] = {0};
+        // vmath::u32 written_vertices_in_dwords[6] = {0};
+
+        /// @brief written quads' counts by the current meshing command execution
+        /// (depending on <_chunk_size> there could be a need to invoke meshing
+        /// few times per chunk). It is written and read in the shader.
+        vmath::u32 written_quads[6] = {0};
         /// @brief axes steps of the current meshing command execution
         /// (depending on <_chunk_size> there could be a need to invoke meshing
         /// few times per chunk). It is written and read in the shader.
         vmath::u32 axes_steps[6] = {0};
     };
-
-    /// !!! ///
-    // Vertex vbo[] <-- implicit (range bound VBO mesh buffer from ChunkPool) see 
-    /////////////// greedy meshing shader
 
     /// @brief command descripting meshing execution of a single chunk
     struct Command {
@@ -53,20 +54,20 @@ struct MeshingEngine {
         /// @brief offset into vbo containing a mesh (maps to vbo in ChunkPool)
         vmath::u64 vbo_offset;
         /// @brief gl fence for which to wait in case the command is active one
-        /// also indicates !!!if the command is initialized (nullptr here if not)!!!
+        /// also indicates !!!IF COMMAND IS INITIALIZED (nullptr here if not)!!!
         void* fence{ nullptr };
-        /// @brief axis progress keeps track ofa how many planes on each axes were meshed
+        /// @brief axis progress keeps track of how many planes on each axes were meshed
         vmath::i32 axis_progress;
     };
 
     /// @brief is an interface and holds completed command data 
-    struct Future {
+    struct Result {
         /// @brief indentifier of a succesfully meshed chunk (maps to
         /// chunk id in ChunkPool)
         ChunkId chunk_id;
-        /// @brief written vertices count *per face* indexed with ve001::Face enum. 
-        /// Needed to determine how much vertices to render
-        std::array<vmath::u32, 6> written_vertices;
+        /// @brief written indices count *per face* indexed with ve001::Face enum.
+        /// determines how many indices to render
+        std::array<vmath::u32, 6> written_indices;
     };
 
     /// @brief id of buffer holding voxel data for subsequent meshing command execution
@@ -109,9 +110,9 @@ struct MeshingEngine {
 
     /// @brief Function polls for the result from next command. It isn't waiting (the call
     // is non blocking), only checks once.
-    /// @param future the future variable to which the function the write into
+    /// @param result variable to which the function write result into
     /// @return true if valid value was written into the <future> param false if not
-    bool pollMeshingCommand(Future& future);
+    bool pollMeshingCommand(Result& result);
 
     /// @brief executes command meaning dispatches meshing based on parameters 
     /// in the <command>. It is first execution so the data is passed to the gpu here
