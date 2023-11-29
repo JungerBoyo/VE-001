@@ -6,7 +6,7 @@ using namespace vmath;
 ChunkDataStreamer::ChunkDataStreamer(std::unique_ptr<ChunkGenerator> chunk_generator, std::size_t capacity)
     : _chunk_generator(std::move(chunk_generator)), _gen_promises(capacity) {
     try {
-        const auto threads_count = std::thread::hardware_concurrency();
+        const auto threads_count = std::thread::hardware_concurrency() == 0 ? 1 : std::thread::hardware_concurrency() - 2;
         for (std::uint32_t i{ 0U }; i < threads_count; ++i) {
             _threads.push_back(std::jthread(&ChunkDataStreamer::thread, this));
         }

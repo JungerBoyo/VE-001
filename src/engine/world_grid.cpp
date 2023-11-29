@@ -30,28 +30,7 @@ static bool isInBoundingBox(Vec3i32 p0, Vec3i32 p1, Vec3i32 point) {
          point[2] <= p1[2]);
 }
 
-static void makeCorridor(std::vector<u16>& data, Vec3i32 chunk_size) {
-    i32 i{ 0 };
-    for(i32 z{ 0 }; z < chunk_size[2]; ++z) {
-        for(i32 y{ 0 }; y < chunk_size[1]; ++y) {
-            for(i32 x{ 0 }; x < chunk_size[0]; ++x) {
-                if (((x >= 0 && x < chunk_size[0]/4) ||
-                     (y >= 0 && y < chunk_size[1]/4) ||
-                     (z >= 0 && z < chunk_size[2]/4)) 
-                                && 
-                    ((x >= 3*chunk_size[0]/4 && x < chunk_size[0]) ||
-                     (y >= 3*chunk_size[1]/4 && y < chunk_size[1]) ||
-                     (z >= 3*chunk_size[2]/4 && z < chunk_size[2]))
-                ) {
-                    data[i] = 1U;
-                } else {
-                    data[i] = 0U;
-                }
-                ++i;
-            }
-        }
-    }
-}
+
 
 
 WorldGrid::WorldGrid(const EngineContext& engine_context, vmath::Vec3f32 world_size, vmath::Vec3f32 initial_position, std::unique_ptr<ChunkGenerator> chunk_generator) : _engine_context(engine_context), 
@@ -131,63 +110,11 @@ void WorldGrid::init() {
         }
     }
 
-
-
-    auto fn_simplex = FastNoise::New<FastNoise::Simplex>(FastSIMD::Level_AVX512);
-    auto fn_fractal = FastNoise::New<FastNoise::FractalFBm>(FastSIMD::Level_AVX512);
-    fn_fractal->SetSource(fn_simplex);
-    fn_fractal->SetGain(11.F);
-    fn_fractal->SetWeightedStrength(18.44F);
-    fn_fractal->SetOctaveCount(2);
-    fn_fractal->SetLacunarity(-.2F);
-
-    auto fn_position_output = FastNoise::New<FastNoise::PositionOutput>(FastSIMD::Level_AVX512);
-    fn_position_output->Set<FastNoise::Dim::Y>(-2.56F, -.14F);
-    fn_position_output->Set<FastNoise::Dim::X>(-.42F, 0.F);
-    auto fn_add = FastNoise::New<FastNoise::Add>(FastSIMD::Level_AVX512);
-    fn_add->SetLHS(fn_fractal);
-    fn_add->SetRHS(fn_position_output);
-
-    // auto fn_domain_warp_gradient = FastNoise::New<FastNoise::DomainWarpGradient>(FastSIMD::Level_AVX2);
-    std::vector<f32> noise_f32(_engine_context.chunk_size[0] * _engine_context.chunk_size[1] * _engine_context.chunk_size[2], 0.F);
-    std::vector<vmath::u16> noise(_engine_context.chunk_size[0] * _engine_context.chunk_size[1] * _engine_context.chunk_size[2], 0U);
-
-    // f64 duration{ 0.F };
-    // {
-    //     Timer timer(duration);
-    //     fn_simplex->GenUniformGrid3D(
-    //         noise_f32.data(), 
-    //         0, 0, 0, 
-    //         _engine_context.chunk_size[0], _engine_context.chunk_size[1], _engine_context.chunk_size[2], 
-    //         .01F, 0xABAB9999
-    //     );
-    // // }
-    // i = 0U;
-    // for (const auto noise_value : noise_f32) {
-    //     _noise[i++] = static_cast<u16>(std::roundf((noise_value + 1.F)/2.F));
-    // }
-    // std::cout << "elapsed " << duration << "[ms]\n";
-
-    // makeCorridor(_noise, _engine_context.chunk_size);
-
     for(auto& chunk : _visible_chunks) {
-
-        const auto p0 = Vec3i32::mul(chunk.position_in_chunks, _engine_context.chunk_size);
-        fn_add->GenUniformGrid3D(
-            noise_f32.data(), 
-            p0[0], p0[1], p0[2], 
-            _engine_context.chunk_size[0], _engine_context.chunk_size[1], _engine_context.chunk_size[2], 
-            .01F, 0xC0000B99
-        );
-        i = 0U;
-        for (const auto noise_value : noise_f32) {
-            noise[i++] = static_cast<u16>(std::clamp(std::roundf((noise_value + 1.F)/2.F), 0.F, 1.F));
-        }
-#ifdef DEBUG_WORLD_GRID
-        chunk.chunk_id = INVALID_CHUNK_ID;
-#else
-        chunk.chunk_id = _chunk_pool.allocateChunk(std::span<const u16>(noise), chunk.position_in_chunks);
-#endif
+        _to_allocate_chunks.write({
+            std::move(_chunk_data_streamer.gen(chunk.position_in_chunks)),
+            chunk.visible_chunk_id
+        });
         u32 neighbour{ 0U };
         for (const auto neighbour_offset : NEIGHBOURS_OFFSETS) {
             const auto neighbour_position = Vec3i32::add(chunk.position_in_chunks, neighbour_offset);
@@ -203,7 +130,12 @@ void WorldGrid::init() {
             }
             ++neighbour;
         }
+
+        pollToAllocateChunks();
     }
+
+    while (pollToAllocateChunks()) {}
+
     std::fill(_tmp_indices.begin(), _tmp_indices.end(), VisibleChunk::INVALID_NEIGHBOUR_INDEX);
 }
 
@@ -265,8 +197,6 @@ void WorldGrid::update(Vec3f32 new_position) {
 
     auto start_visible_chunks_size = _visible_chunks.size();
     for (u32 i{ 0U }; i < start_visible_chunks_size;) {
-        pollToAllocateChunks();
-
         if (_visible_chunks[i].neighbours_count < 6) {
             for (u32 neighbour{ 0U }; neighbour < 6U; ++neighbour)  {
                 const auto neighbour_index = _visible_chunks[i].neighbours_indices[neighbour];
@@ -291,11 +221,6 @@ void WorldGrid::update(Vec3f32 new_position) {
                         }
                         const auto visible_neighbour_chunk_index = _visible_chunks.size();
 
-                        // std::cout << "hello { " << neighbour_position_in_chunks[0] << " " 
-                        //                         << neighbour_position_in_chunks[1] << " "
-                        //                         << neighbour_position_in_chunks[2] << " }\n";
-
-#ifndef DEBUG_WORLD_GRID
                         const auto visible_chunk_id = _free_visible_chunk_ids.back();
                         _free_visible_chunk_ids.pop_back();
                         _visible_chunk_id_to_index[visible_chunk_id] = visible_neighbour_chunk_index;
@@ -304,9 +229,7 @@ void WorldGrid::update(Vec3f32 new_position) {
                             std::move(_chunk_data_streamer.gen(neighbour_position_in_chunks)),
                             visible_chunk_id
                         });
-#else
-                        auto& visible_neighbour_chunk = _visible_chunks.emplace_back(INVALID_CHUNK_ID, neighbour_position_in_chunks);
-#endif
+
                         _visible_chunks[i].neighbours_indices[neighbour] = visible_neighbour_chunk_index;
                         ++_visible_chunks[i].neighbours_count;
                         visible_neighbour_chunk.neighbours_indices[oppositeNeighbour(neighbour)] = i;
@@ -388,30 +311,23 @@ void WorldGrid::update(Vec3f32 new_position) {
                     }
                 }
 
-                // std::cout << "goodbye { " << position[0] << ", " << position[1] << ", " << position[2] << " }\n";
                 _free_visible_chunk_ids.push_back(chunk.visible_chunk_id);
                 _visible_chunk_id_to_index[chunk.visible_chunk_id] = INVALID_VISIBLE_CHUNK_INDEX;
                 _visible_chunks.pop_back();
                 start_visible_chunks_size -= (1-increment);
                 i += increment;
-#ifndef DEBUG_WORLD_GRID
                 _chunk_pool.deallocateChunk(removed_chunk_id);
-#endif
             } else {
                 ++i;
             }
+            
+            pollToAllocateChunks();
         } else {
             ++i;
         }
     }
 
     while (pollToAllocateChunks()) {}
-
-    // std::cout << "new position = { " << position_in_chunk_space[0] << " " << position_in_chunk_space[1] << " " << position_in_chunk_space[2] << " }\n";
-    if(!validate()) {
-        std::cout << "validation failed!\n";
-    }
-    
 
     std::fill(_tmp_indices.begin(), _tmp_indices.end(), VisibleChunk::INVALID_NEIGHBOUR_INDEX);
 }

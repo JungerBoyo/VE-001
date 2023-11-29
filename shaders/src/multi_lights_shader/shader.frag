@@ -124,7 +124,7 @@ vec3 directionalLightsContrib(vec3 frag_pos, vec3 view_dir, vec3 normal, vec3 ma
         
         vec3 ambient = light.ambient;// * material_diffuse;
         vec3 diffuse = light.diffuse * diffuse_component;// * material_diffuse;
-        vec3 specular = light.specular * spec_component * material_specular.xyz;// * material_diffuse;
+        vec3 specular = vec3(0.0);//light.specular * spec_component * material_specular.xyz;// * material_diffuse;
 
         result += (ambient + visibility * (diffuse + specular)) * material_diffuse;
     }
@@ -161,7 +161,7 @@ vec3 pointLightsContrib(vec3 frag_pos, vec3 view_dir, vec3 normal, vec3 material
 
         vec3 ambient = light.ambient;// * material_diffuse;
         vec3 diffuse = light.diffuse * diffuse_component;// * material_diffuse;
-        vec3 specular = light.specular * spec_component * material_specular.xyz;
+        vec3 specular = vec3(0.0);//light.specular * spec_component * material_specular.xyz;
 
         result += attenuation * material_diffuse * (ambient + visibility * (diffuse + specular));
     }
@@ -203,7 +203,7 @@ vec3 spotLightsContrib(vec3 frag_pos, vec3 view_dir, vec3 normal, vec3 material_
         
         vec3 ambient = light.ambient; //* material_diffuse;
         vec3 diffuse = light.diffuse * diffuse_component;// * material_diffuse;
-        vec3 specular = light.specular * spec_component * material_specular.xyz;
+        vec3 specular = vec3(0.0);//light.specular * spec_component * material_specular.xyz;
 
         result += attenuation * material_diffuse * (ambient + intensity * visibility * (diffuse + specular));
     }

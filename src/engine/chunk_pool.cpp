@@ -38,15 +38,23 @@ void ChunkPool::init(i32 max_chunks) noexcept {
     _dibo_id = tmp[1];
 
     glNamedBufferStorage(_vbo_id, static_cast<i64>(_chunks_count) * static_cast<i64>(_engine_context.chunk_max_mesh_size), nullptr, 0);
+    
+    glCreateVertexArrays(1, &_vao_id);
+    setVertexLayout(_vao_id, _vbo_id);
 
     glNamedBufferStorage(
         _dibo_id,
         6 * max_chunks * sizeof(DrawArraysIndirectCmd),
         nullptr,
-        GL_DYNAMIC_STORAGE_BIT
+        GL_MAP_WRITE_BIT|GL_MAP_PERSISTENT_BIT|GL_MAP_COHERENT_BIT
+        //GL_DYNAMIC_STORAGE_BIT
     );
-    glCreateVertexArrays(1, &_vao_id);
-    setVertexLayout(_vao_id, _vbo_id);
+
+    _dibo_mapped_ptr = glMapNamedBufferRange(
+        _dibo_id, 
+        0, 6 * max_chunks * sizeof(DrawArraysIndirectCmd),
+        GL_MAP_WRITE_BIT|GL_MAP_PERSISTENT_BIT|GL_MAP_COHERENT_BIT
+    );
 
     try {
         _chunks.reserve(max_chunks);
@@ -167,11 +175,8 @@ void ChunkPool::update(bool use_partition) {
             return;
         }
         if (_draw_cmds_dirty) {
-            glNamedBufferSubData(
-                _dibo_id, 0, 
-                (use_partition ? _draw_cmds_parition_size : _draw_cmds.size()) * sizeof(DrawArraysIndirectCmd),
-                static_cast<void*>(_draw_cmds.data())
-            );
+            const auto size = (use_partition ? _draw_cmds_parition_size : _draw_cmds.size()) * sizeof(DrawArraysIndirectCmd);
+            std::memcpy(_dibo_mapped_ptr, static_cast<const void*>(_draw_cmds.data()), size);
             _draw_cmds_dirty = false;
             glBindBuffer(GL_DRAW_INDIRECT_BUFFER, _dibo_id);
         }
@@ -211,18 +216,10 @@ void ChunkPool::deallocateChunk(u32 chunk_id) noexcept {
     }
     const auto chunk = _chunks[chunk_index];
 
-    // if (chunk_id == 3) {
-    //     std::cout << "(0) here!!\n";
-    // }
-    // std::cout << "deallocating chunk of id: " << chunk_id << std::endl;
-
     if (chunk.complete) {
         deallocateChunkDrawCommands(chunk_id);
     }
 
-    // if (!validate()) {
-    //     std::cout << "here!!\n";
-    // }
     if (chunk_index != _chunks.size() - 1U) {
         const auto last_chunk = _chunks.back();
         _chunks[chunk_index] = last_chunk;
@@ -236,16 +233,11 @@ void ChunkPool::deallocateChunk(u32 chunk_id) noexcept {
         .cpu_region = chunk.cpu_region
     });
     _chunks.pop_back();
-    // if (!validate()) {
-    //     std::cout << "here!!\n";
-    // }
 }
 void ChunkPool::deallocateChunkDrawCommands(ChunkId chunk_id) {
     const auto& chunk = _chunks[_chunk_id_to_index[chunk_id]];
     for (u32 i{ 0U }; i < 6; ++i) {
         const auto draw_cmd_index = chunk.draw_cmd_indices[i];
-        // std::cout << "deallocating draw command of index: " << draw_cmd_index << ", which starts drawing from vertex "
-        //           << _draw_cmds[draw_cmd_index].first << std::endl;
         if (draw_cmd_index != _draw_cmds.size() - 1U) {
             auto& last_draw_cmd = _draw_cmds.back();
             const auto last_draw_cmd_chunk_index = _chunk_id_to_index[last_draw_cmd.chunk_id];
@@ -255,25 +247,14 @@ void ChunkPool::deallocateChunkDrawCommands(ChunkId chunk_id) {
             last_draw_cmd_chunk.draw_cmd_indices[last_draw_cmd_submesh_index] = draw_cmd_index;
 
             _draw_cmds[draw_cmd_index] = last_draw_cmd;
-            // if (_chunk_id_to_index[_draw_cmds[draw_cmd_index].chunk_id] == INVALID_CHUNK_INDEX) {
-            //     std::cout << "here!!\n";
-            // }
         }
         _draw_cmds.pop_back();
     }
     _draw_cmds_dirty = true;
+}
 
-    // if (!validate()) {
-    //     std::cout << "here!!\n";
-    // }
-    // std::cout << "Now draw commands in queue are\n";
-
-    // u32 i{ 0U };
-    // for (const auto draw_cmd : _draw_cmds) {
-    //     std::cout << "\t" << i << " - " << draw_cmd.first << ", " << "belongs to " << draw_cmd.chunk_id << std::endl;
-    //     ++i;
-    // }
-    // std::cout << std::endl;
+void ChunkPool::forceCommandsDirty() {
+    _draw_cmds_dirty = true;
 }
 
 void ChunkPool::deinit() {
@@ -284,6 +265,9 @@ void ChunkPool::deinit() {
     _vao_id = 0U;
 
     glBindBuffer(GL_DRAW_INDIRECT_BUFFER, 0);
+
+    glUnmapNamedBuffer(_dibo_id);
+    _dibo_mapped_ptr = nullptr;
 
     u32 tmp[2] = { _vbo_id, _dibo_id };
     glDeleteBuffers(2, tmp);

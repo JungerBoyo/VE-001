@@ -83,6 +83,7 @@ struct ChunkPool {
     /// which stores draw commands for all submeshes (reflects 
     /// submeshes stored in vbo)
     vmath::u32 _dibo_id{ 0U };
+    void* _dibo_mapped_ptr{ nullptr };
 
     ///////////////////////////
 
@@ -184,6 +185,8 @@ struct ChunkPool {
     /// if deallocated chunk is complete
     /// @param chunk_id chunk's id from which to deallocate draw commands
     void deallocateChunkDrawCommands(ChunkId chunk_id);
+    /// @brief flag draw commands array as dirty to force memory reupload
+    void forceCommandsDirty();
     /// @brief updates the state. Update draw command buffer binds vbo as vertex buffer, binds vao
     /// @param use_partition commands will be supplied based on last paritioning call (paritionDrawCmds)
     void update(bool use_partition);
@@ -196,14 +199,6 @@ struct ChunkPool {
     /// @brief deinitializes chunk pool
     void deinit();
 
-    // bool validate() {
-    //     for (const auto draw_cmd : _draw_cmds) {
-    //         if (_chunk_id_to_index[draw_cmd.chunk_id] == INVALID_CHUNK_INDEX) {
-    //             return false;
-    //         }
-    //     }
-    //     return true;
-    // }
     
     /// @brief function paritions the _draw_cmds based on <unary_op> setting the <_draw_cmds_parition_size> member
     /// @tparam ...Args types of aux arguments to pass to unary_op function
@@ -211,7 +206,7 @@ struct ChunkPool {
     /// @param use_last_partition If true then the previous parition will be paritioned again
     /// @param args Aux arguments to pass to unary_op function
     template<typename ...Args> 
-    void partitionDrawCmds(bool(*unary_op)(Face orientation, vmath::Vec3f32 position, Args... args), bool use_last_partition, Args... args) {
+    void partitionDrawCommands(bool(*unary_op)(Face orientation, vmath::Vec3f32 position, Args... args), bool use_last_partition, Args... args) {
         std::size_t begin{ 0UL };
         std::size_t end{ use_last_partition ? _draw_cmds_parition_size - 1UL : _draw_cmds.size() - 1UL };
 

@@ -58,6 +58,12 @@ add_library(ve001_engine STATIC
 
     noise_terrain_generator.h
     noise_terrain_generator.cpp
+
+    simple_terrain_generator.h
+    simple_terrain_generator.cpp
+
+    from_ve0_fmt_generator.h
+    from_ve0_fmt_generator.cpp
 )
 target_link_libraries(ve001_engine PRIVATE 
     glad::glad

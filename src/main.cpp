@@ -205,28 +205,28 @@ constexpr std::array<Vec3f32, 6> FACE_NORMAL_LOOKUP_TABLE {{
     { 0.F, 0.F, 1.F},
     { 0.F, 0.F,-1.F}
 }};
-u32 getCameraMask() {
+u32 getCameraMask(const Camera& cam) {
     u32 mask{ 0U };    
 
-    if (camera.looking_dir[0] > 0.F) {
+    if (cam.looking_dir[0] > 0.F) {
         mask |= (1U << Face::X_NEG);
-    } else if (camera.looking_dir[0] < 0.F) {
+    } else if (cam.looking_dir[0] < 0.F) {
         mask |= (1U << Face::X_POS);
     } else {
         mask |= (3U << Face::X_NEG);
     }
     
-    if (camera.looking_dir[1] > 0.F) {
+    if (cam.looking_dir[1] > 0.F) {
         mask |= (1U << Face::Y_NEG);
-    } else if (camera.looking_dir[1] < 0.F) {
+    } else if (cam.looking_dir[1] < 0.F) {
         mask |= (1U << Face::Y_POS);
     } else {
         mask |= (3U << Face::Y_NEG);
     }
     
-    if (camera.looking_dir[2] > 0.F) {
+    if (cam.looking_dir[2] > 0.F) {
         mask |= (1U << Face::Z_NEG);
-    } else if (camera.looking_dir[2] < 0.F) {
+    } else if (cam.looking_dir[2] < 0.F) {
         mask |= (1U << Face::Z_POS);
     } else {
         mask |= (3U << Face::Z_NEG);
@@ -304,12 +304,12 @@ std::array<Plane, 6> computeFrustumPlanes(Mat4f32 view_proj_matrix) {
     return result;
 }
 
-bool frustumCullingUnaryOp(Face orientation, vmath::Vec3f32 position, const std::array<Plane, 6>& planes) {
+bool frustumCullingUnaryOp(Face orientation, vmath::Vec3f32 position, std::array<Plane, 6> planes) {
     const auto diff = Vec3f32::diff<f32>(camera.position, position);
 
-    // if (diff[0] < EXTENT_F32[0]/2.F || diff[1] < EXTENT_F32[1]/2.F || diff[2] <= EXTENT_F32[2]/2.F) {
-    //     return true;
-    // }
+    if (diff[0] <= EXTENT_F32[0] && diff[1] <= EXTENT_F32[1] && diff[2] <= EXTENT_F32[2]) {
+        return true;
+    }
 
     for (const auto plane : planes) {
         bool all_corners_outside{ true };
@@ -370,25 +370,33 @@ int main()
     glEnable(GL_DEPTH_TEST);
     glEnable(GL_CULL_FACE);
 
-    Engine engine({300.F, 256.F, 300.F}, {0.F, 0.F, 0.F}, EXTENT);
-    // Engine engine({64.F, 64.F, 64.F}, {0.F, 0.F, 0.F}, EXTENT);
+    Engine engine({300.F, 210.F, 300.F}, {0.F, 0.F, 0.F}, EXTENT);
+    //Engine engine({64.F, 64.F, 64.F}, {0.F, 0.F, 0.F}, EXTENT);
     engine.init();
 
-    MaterialAllocator material_allocator(1U, 1U, 6U, 96U, 96U);
+    MaterialAllocator material_allocator(2U, 5U, 12U, 96U, 96U);
 
     material_allocator.init();
 
     material_allocator.addMaterialParams(MaterialParams{
-        .specular = Vec4f32(1.F, 1.F, 1.F, 32.F),
+        .specular = Vec4f32(1.F, 1.F, 1.F, 128.F),
         .diffuse = Vec3f32(1.F),
         .alpha = 1.F});
 
     createCubeMapTextureArray(
         material_allocator,
-        "/home/regu/codium_repos/VE-001/assets/textures/mcgrasstexture_small.png");
+        "/home/regu/codium_repos/VE-001/assets/textures/mcgrasstexture_small.png"
+    );
+    createCubeMapTextureArray(
+        material_allocator,
+        "/home/regu/codium_repos/VE-001/assets/textures/mcstonetexture_small.png"
+    );
 
     material_allocator.addMaterial(MaterialDescriptor{
         .material_texture_index = {0U, 1U, 2U, 3U, 4U, 5U},
+        .material_params_index = {0U, 0U, 0U, 0U, 0U, 0U}});
+    material_allocator.addMaterial(MaterialDescriptor{
+        .material_texture_index = {6U, 7U, 8U, 9U, 10U, 11U},
         .material_params_index = {0U, 0U, 0U, 0U, 0U, 0U}});
 
     material_allocator._texture_rgba8_array.bind(VE001_SH_CONFIG_TEX_BINDING_MATERIAL_TEXTURES);
@@ -472,7 +480,7 @@ int main()
     camera.move({0.F, 0.F, 0.F});
 
     const auto render_scene = [&chunk_pool = engine._world_grid._chunk_pool]()
-    { chunk_pool.drawAll(!light_as_camera); };
+    { chunk_pool.drawAll(true); };
 
     f32 prev_frame_time{0.F};
     while (!window.shouldClose())
@@ -487,7 +495,7 @@ int main()
         {
             if (key.pressed)
             {
-                key.action(light_as_camera ? light : camera, 10.F);
+                key.action(light_as_camera ? light : camera, 20.F);
                 camera_moved = true;
             }
         }
@@ -532,25 +540,38 @@ int main()
         //     }
         // }
 
-
         engine._world_grid.update(camera.position);
         
-        // if (!engine._world_grid._chunk_pool.validate()) {
-        //     logger->warn("here!!\n");
-        // }
+        // engine._world_grid._chunk_pool.poll();
 
         if (engine._world_grid._chunk_pool.poll()) {
+        //     light.position = lighting.getLightPosition(light_bobo.id);
+        //     light.looking_dir_angles = lighting.getLightRotation(light_bobo.id);
+        //     engine._world_grid._chunk_pool.partitionDrawCommands(backFaceCullingUnaryOp, false, getCameraMask(light));
+        //     engine._world_grid._chunk_pool.partitionDrawCommands<const std::array<Plane, 6>&>(frustumCullingUnaryOp, true, computeFrustumPlanes(Mat4f32::mul(light_proj_mat, light.lookAt())));
+        //     engine._world_grid._chunk_pool.update(true);//!light_as_camera);
+            // lighting.moveLight(dir_light_id, camera.position);
             lighting.rotateLight(dir_light_id, light.looking_dir);
+            // light.position = camera.position;
+        //     engine._world_grid._chunk_pool.forceCommandsDirty();
         }
 
         if ((camera_moved || camera_rotated) && !light_as_camera) {
-            engine._world_grid._chunk_pool.partitionDrawCmds(backFaceCullingUnaryOp, false, getCameraMask());
-            engine._world_grid._chunk_pool.partitionDrawCmds<const std::array<Plane, 6>&>(frustumCullingUnaryOp, true, computeFrustumPlanes(mvp));
+            // lighting.moveLight(dir_light_id, camera.position);
+            // lighting.rotateLight(dir_light_id, light.looking_dir);
+            // light.position = camera.position;
+            // engine._world_grid._chunk_pool.partitionDrawCommands(backFaceCullingUnaryOp, false, getCameraMask(camera));
+            engine._world_grid._chunk_pool.partitionDrawCommands(frustumCullingUnaryOp, false, computeFrustumPlanes(
+                Mat4f32::mul(misc<f32>::symmetricPerspectiveProjection(
+                    .6F * std::numbers::pi_v<f32>, .1F, 1000.F,
+                    static_cast<f32>(window_width), static_cast<f32>(window_height))
+                , camera.lookAt())
+            ));
             camera_moved = false;
             camera_rotated = false;
         }
 
-        engine._world_grid._chunk_pool.update(!light_as_camera);
+        engine._world_grid._chunk_pool.update(true);//!light_as_camera);
 
         if (camera_rotated && light_as_camera)
         {
@@ -574,17 +595,18 @@ int main()
         glViewport(0, 0, window_width, window_height);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         engine._engine_context.shader_repo[ShaderType::MULTI_LIGHTS_SHADER].bind();
-        engine._world_grid._chunk_pool.drawAll(!light_as_camera);
+        render_scene();
+        // engine._world_grid._chunk_pool.drawAll(false);
 
-        if (static int i = 0; !light_as_camera && i == 80) {
-            logger->info("Num of draw commands: {}", engine._world_grid._chunk_pool._draw_cmds_parition_size);
-            i = 0;
-        } else if (i == 80) {
-            logger->info("Num of draw commands: {}", engine._world_grid._chunk_pool._draw_cmds.size());
-            i = 0;
-        } else {
-            ++i;
-        }
+        // if (static int i = 0; !light_as_camera && i == 80) {
+        //     logger->info("Num of draw commands: {}", engine._world_grid._chunk_pool._draw_cmds_parition_size);
+        //     i = 0;
+        // } else if (i == 80) {
+        //     logger->info("Num of draw commands: {}", engine._world_grid._chunk_pool._draw_cmds.size());
+        //     i = 0;
+        // } else {
+        //     ++i;
+        // }
 
 
         window.swapBuffers();

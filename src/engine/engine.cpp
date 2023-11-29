@@ -1,9 +1,12 @@
 #include "engine.h"
 
 #include "noise_terrain_generator.h"
+#include "simple_terrain_generator.h"
 
 using namespace vmath;
 using namespace ve001;
+
+// #define SIMPLE_GENERATOR
 
 Engine::Engine(Vec3f32 world_size, Vec3f32 initial_position, Vec3i32 chunk_size) : _engine_context(EngineContext{
     .shader_repo = {},
@@ -15,12 +18,18 @@ Engine::Engine(Vec3f32 world_size, Vec3f32 initial_position, Vec3i32 chunk_size)
     .chunk_max_submesh_size = ((static_cast<u64>(chunk_size[0]) * static_cast<u64>(chunk_size[1]) * static_cast<u64>(chunk_size[2]) * sizeof(Vertex) * static_cast<u64>((36/2))/32)/6),
     .meshing_axis_progress_step = 64
 }),
-  _world_grid(_engine_context, world_size, initial_position, std::unique_ptr<ChunkGenerator>(new NoiseTerrainGenerator({
+  _world_grid(_engine_context, world_size, initial_position, 
+#ifdef SIMPLE_GENERATOR
+  std::unique_ptr<ChunkGenerator>(new SimpleTerrainGenerator(chunk_size))
+#else
+  std::unique_ptr<ChunkGenerator>(new NoiseTerrainGenerator({
         .terrain_size = chunk_size,
-        .noise_frequency = .01F,
-        .quantize_values = 1U,
+        .noise_frequency = .008F,
+        .quantize_values = 2U,
         .seed = 0xC0000B99
-  })))
+  }))
+#endif 
+  )
 {}
 
 void Engine::init() {

@@ -298,7 +298,12 @@ u32 Lighting::addSpotLight(SpotLight spot_light) {
 
 void Lighting::moveLight(u32 light_id, Vec3f32 move_vec) {
     switch (light_id & LightMask::ALL) {
-    case LightMask::DIRECTIONAL: /* directional light can't move */ break;
+    case LightMask::DIRECTIONAL: {
+        const auto id = (light_id & ~LightMask::DIRECTIONAL);
+        auto& light = _directional.get(id);
+        light.camera.position = move_vec;
+        break;
+    }
     case LightMask::POINT: {
         const auto id = (light_id & ~LightMask::POINT);
         auto& light = _point.get(id);
