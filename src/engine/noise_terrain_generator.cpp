@@ -34,7 +34,7 @@ void NoiseTerrainGenerator::threadInit() {
     // fn_add->SetRHS(fn_position_output);
 
     _smart_node = FastNoise::NewFromEncodedNodeTree(
-        "IQAZABAAexQOQA0AAwAAAAAAAEAIAAAAAAA/AAAAAAABAwCPwnU9AQQAmpkZPzMz87+uR+G+9ig8QOxRWEBxPYo/AAAAAAAAAAD//wEAAClcjz4="
+        "IQAZABAAexQoQA0AAwAAAAAAAEAIAAAAAAA/AAAAAAABAwCPwnU9AQQAAAAAAArXo78AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD//wEAAClcjz4="
     );//fn_add;
 }
 std::optional<std::span<const vmath::u16>> NoiseTerrainGenerator::gen(vmath::Vec3i32 chunk_position) {

@@ -90,9 +90,9 @@ struct MeshingEngine {
 
     const EngineContext& _engine_context;
 
-    MeshingEngine(const EngineContext& engine_context) 
+    MeshingEngine(const EngineContext& engine_context, vmath::u32 max_chunks) 
         : _engine_context(engine_context), 
-          _commands(512, Command{}) {}
+          _commands(max_chunks, Command{}) {}
 
     void init(vmath::u32 vbo_id);
 

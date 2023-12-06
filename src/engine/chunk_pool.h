@@ -127,7 +127,7 @@ struct ChunkPool {
     ////////////////////////////////////
 
     /// @brief count of all chunks in a pool
-    vmath::i32 _chunks_count;
+    vmath::u32 _chunks_count;
     /// @brief helper array translating chunk_id to its
     /// index in <_chunks>
     std::vector<vmath::u32> _chunk_id_to_index;
@@ -158,12 +158,13 @@ struct ChunkPool {
 
     /// @brief meshing engine of the chunk pool. It schedules meshing
     /// tasks on the GPU
-    MeshingEngine _meshing_engine{ _engine_context };
+    MeshingEngine _meshing_engine{ _engine_context, _chunks_count };
 
-    ChunkPool(EngineContext& engine_context) : _engine_context(engine_context) {}
+    ChunkPool(EngineContext& engine_context, vmath::u32 max_chunks) : 
+        _chunks_count(max_chunks), _engine_context(engine_context) {}
     /// @brief initializes chunk pool
     /// @param max_chunks number of chunks in a pool
-    void init(vmath::i32 max_chunks) noexcept;
+    void init() noexcept;
     /// @brief allocates chunk from _free_chunks
     /// @param voxel_write_data function writing voxel data to voxel data region (CPU)
     /// @param position position of the chunk

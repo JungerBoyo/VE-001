@@ -8,9 +8,6 @@ using namespace ve001;
 
 // #define SIMPLE_GENERATOR
 // #define MAX_DIV_FACTOR 1
-
-static constexpr u64 MAX_DIV_FACTOR{ 32UL };
-
 // #define NO_RESIZE
 
 Engine::Engine(Vec3f32 world_size, Vec3f32 initial_position, Vec3i32 chunk_size) : _engine_context(EngineContext{
@@ -30,6 +27,7 @@ Engine::Engine(Vec3f32 world_size, Vec3f32 initial_position, Vec3i32 chunk_size)
     .chunk_max_current_mesh_size = sizeof(Vertex) * static_cast<u64>(24),
     .chunk_max_current_submesh_size = sizeof(Vertex) * static_cast<u64>(24/6),
 #endif
+    .chunk_pool_growth_coefficient = 1.5F,
     .meshing_axis_progress_step = 64
 }),
   _world_grid(_engine_context, world_size, initial_position, 

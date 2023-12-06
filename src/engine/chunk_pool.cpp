@@ -34,9 +34,7 @@ static void setVertexLayout(u32 vao, u32 vbo) {
     glVertexArrayVertexBuffer(vao, vertex_attrib_binding, vbo, 0, sizeof(Vertex));
 }
 
-void ChunkPool::init(i32 max_chunks) noexcept {
-    _chunks_count = max_chunks;
-
+void ChunkPool::init() noexcept {
     u32 tmp[3] = { 0U, 0U, 0U };
 
     glCreateBuffers(3, tmp);
@@ -51,21 +49,21 @@ void ChunkPool::init(i32 max_chunks) noexcept {
 
     glNamedBufferStorage(
         _dibo_id,
-        6 * max_chunks * sizeof(DrawElementsIndirectCmd),
+        6 * _chunks_count * sizeof(DrawElementsIndirectCmd),
         nullptr,
         GL_MAP_WRITE_BIT|GL_MAP_PERSISTENT_BIT|GL_MAP_COHERENT_BIT
     );
 
     _dibo_mapped_ptr = glMapNamedBufferRange(
         _dibo_id, 
-        0, 6 * max_chunks * sizeof(DrawElementsIndirectCmd),
+        0, 6 * _chunks_count * sizeof(DrawElementsIndirectCmd),
         GL_MAP_WRITE_BIT|GL_MAP_PERSISTENT_BIT|GL_MAP_COHERENT_BIT
     );
 
     try {
-        _chunks.reserve(max_chunks);
-        _chunk_id_to_index.resize(max_chunks, INVALID_CHUNK_INDEX);
-        _voxel_data.resize(static_cast<u64>(max_chunks) * _engine_context.chunk_size_1D);
+        _chunks.reserve(_chunks_count);
+        _chunk_id_to_index.resize(_chunks_count, INVALID_CHUNK_INDEX);
+        _voxel_data.resize(static_cast<u64>(_chunks_count) * _engine_context.chunk_size_1D);
         _free_chunks = RingBuffer<FreeChunk>(_chunks_count, {});
         _draw_cmds.reserve(_chunks_count * 6);
         for (std::size_t i{ 0U }; i < _chunks_count; ++i) {
@@ -209,7 +207,9 @@ void ChunkPool::recreatePool(MeshingEngine::Result overflow_result) {
     const auto max_written_indices_z_axis = std::max(overflow_result.written_indices[Z_POS], overflow_result.written_indices[Z_NEG]);
     const auto max_written_indices = std::max(std::max(max_written_indices_x_axis, max_written_indices_y_axis), max_written_indices_z_axis);
 
-    auto new_max_vertices_in_submesh = static_cast<u64>(((1.5F * static_cast<f32>(max_written_indices)) / 6.F) * 4.F);
+    auto new_max_vertices_in_submesh = static_cast<u64>(
+        ((_engine_context.chunk_pool_growth_coefficient * static_cast<f32>(max_written_indices)) / 6.F) * 4.F
+    );
     new_max_vertices_in_submesh = new_max_vertices_in_submesh + (4 - new_max_vertices_in_submesh % 4);
 
     _engine_context.chunk_max_current_submesh_size = new_max_vertices_in_submesh * sizeof(Vertex);

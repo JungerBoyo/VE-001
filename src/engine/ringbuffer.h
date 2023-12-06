@@ -19,6 +19,10 @@ struct RingBuffer {
     RingBuffer(std::size_t size, T fill_value)
         : _buffer(size, fill_value) {}
 
+    void resize(std::size_t new_size) {
+        _buffer.resize(new_size);
+    }
+
     bool write(T value) noexcept {
         if (_writer_index == _reader_index && !_empty) {
             return false;

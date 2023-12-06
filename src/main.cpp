@@ -370,7 +370,8 @@ int main()
     glEnable(GL_DEPTH_TEST);
     glEnable(GL_CULL_FACE);
 
-    Engine engine({300.F, 210.F, 300.F}, {0.F, 0.F, 0.F}, EXTENT);
+    Engine engine({500.F, 200.F, 500.F}, {0.F, 0.F, 0.F}, EXTENT);
+    // Engine engine({300.F, 210.F, 300.F}, {0.F, 0.F, 0.F}, EXTENT);
     // Engine engine({100.F, 80.F, 100.F}, {0.F, 0.F, 0.F}, EXTENT);
     //Engine engine({64.F, 64.F, 64.F}, {0.F, 0.F, 0.F}, EXTENT);
     engine.init();

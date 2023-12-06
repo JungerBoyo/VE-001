@@ -25,12 +25,14 @@ struct EngineContext {
     vmath::u64 chunk_max_possible_mesh_size;
     /// @brief maximum possible mesh size of a single chunk's side after greedy meshing
     vmath::u64 chunk_max_possible_submesh_size;
-    /// @brief maximum current mesh size of a single chunk's side's indices after greedy meshing
-    // vmath::u64 chunk_max_current_submesh_indices_size;
     /// @brief maximum current mesh size of a single chunk after greedy meshing
     vmath::u64 chunk_max_current_mesh_size;
     /// @brief maximum current mesh size of a single chunk's side after greedy meshing
     vmath::u64 chunk_max_current_submesh_size;
+    /// @brief chunk pool memory growth coefficient
+    vmath::f32 chunk_pool_growth_coefficient;
+    /// @brief max possiblenumber of visible chunks
+    // vmath::u32 max_visible_chunks;
     /// @brief it maps to local_size_x attribute in greedy meshing compute shader
     vmath::i32 meshing_axis_progress_step;
 };

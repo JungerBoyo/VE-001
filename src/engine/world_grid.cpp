@@ -12,12 +12,6 @@ static bool isInElipsoid(Vec3f32 ellipsoid_center, Vec3f32 semi_axes, Vec3f32 po
         (diff[0]*diff[0])/(semi_axes[0]*semi_axes[0]) +
         (diff[1]*diff[1])/(semi_axes[1]*semi_axes[1]) +
         (diff[2]*diff[2])/(semi_axes[2]*semi_axes[2])) <= 1.F;
-    // return semi_axes[0]*semi_axes[0] > 
-    //         (point[0] - ellipsoid_center[0]) * (point[0] - ellipsoid_center[0]) + 
-    //         (point[1] - ellipsoid_center[1]) * (point[1] - ellipsoid_center[1]) + 
-    //         (point[2] - ellipsoid_center[2]) * (point[2] - ellipsoid_center[2]);
-
-    // return true;
 }
 
 static bool isInBoundingBox(Vec3i32 p0, Vec3i32 p1, Vec3i32 point) {
@@ -30,14 +24,22 @@ static bool isInBoundingBox(Vec3i32 p0, Vec3i32 p1, Vec3i32 point) {
          point[2] <= p1[2]);
 }
 
+static u32 computeMaxVisibleChunks(Vec3i32 chunk_size, Vec3f32 ellipsoid_semi_axes) {
+    const auto chunk_size_f32 = Vec3f32::cast(chunk_size);
+    const auto max_chunks_along_x = static_cast<i32>(std::floor((2.F * ellipsoid_semi_axes[0])/chunk_size_f32[0]));
+    const auto max_chunks_along_y = static_cast<i32>(std::floor((2.F * ellipsoid_semi_axes[1])/chunk_size_f32[1]));
+    const auto max_chunks_along_z = static_cast<i32>(std::floor((2.F * ellipsoid_semi_axes[2])/chunk_size_f32[2]));
 
+    return max_chunks_along_x * max_chunks_along_y * max_chunks_along_z;
+}
 
-
-WorldGrid::WorldGrid(EngineContext& engine_context, vmath::Vec3f32 world_size, vmath::Vec3f32 initial_position, std::unique_ptr<ChunkGenerator> chunk_generator) : _engine_context(engine_context), 
-    _current_position(initial_position), _semi_axes(world_size), _chunk_pool(engine_context), 
+WorldGrid::WorldGrid(EngineContext& engine_context, vmath::Vec3f32 world_size, vmath::Vec3f32 initial_position, std::unique_ptr<ChunkGenerator> chunk_generator) :
+    _engine_context(engine_context),
+    _max_visible_chunks(computeMaxVisibleChunks(_engine_context.chunk_size, world_size)),
+    _current_position(initial_position), _semi_axes(world_size), _chunk_pool(engine_context, _max_visible_chunks), 
     _grid_size(Vec3i32::add(Vec3i32::mulScalar(Vec3i32::cast(Vec3f32::div(world_size, Vec3f32::cast(engine_context.chunk_size))), 2), 1)),
-    _chunk_data_streamer(std::move(chunk_generator), 512),
-    _to_allocate_chunks(512) 
+    _chunk_data_streamer(std::move(chunk_generator), _max_visible_chunks),
+    _to_allocate_chunks(_max_visible_chunks) 
     {
 }
 
@@ -46,26 +48,6 @@ constexpr std::array<Vec3i32, 6> NEIGHBOURS_OFFSETS{{
     {0, 1, 0}, { 0,-1, 0},
     {0, 0, 1}, { 0, 0,-1},
 }};
-
-// #define DEBUG_WORLD_GRID
-
-struct Timer {
-    f64& duration;
-
-    Timer(f64& duration) :
-        duration(duration), begin_timer(std::chrono::high_resolution_clock::now()) {}
-
-    ~Timer() {
-        const auto end_timer{std::chrono::high_resolution_clock::now()};
-
-        const auto begin_ms{std::chrono::time_point_cast<std::chrono::microseconds>(begin_timer).time_since_epoch().count()};
-        const auto end_ms{std::chrono::time_point_cast<std::chrono::microseconds>(end_timer).time_since_epoch().count()};
-
-        duration = static_cast<f64>(end_ms - begin_ms)/1000.;
-    }
-
-    const std::chrono::time_point<std::chrono::high_resolution_clock> begin_timer;
-};
 
 void WorldGrid::init() {
     const auto chunk_size_f32 = Vec3f32::cast(_engine_context.chunk_size);
@@ -77,7 +59,7 @@ void WorldGrid::init() {
     _tmp_indices.resize(_grid_size[0] * _grid_size[1] * _grid_size[2], VisibleChunk::INVALID_NEIGHBOUR_INDEX);
 
     _visible_chunks.reserve(max_chunks);
-    _chunk_pool.init(max_chunks);
+    _chunk_pool.init();
     _free_visible_chunk_ids.resize(max_chunks);
     u32 i{ 0U };
     for (auto& visible_chunk_id : _free_visible_chunk_ids) {
@@ -143,44 +125,44 @@ static u32 oppositeNeighbour(u32 neighbour) {
     return neighbour - (neighbour & 0x1U) + (~neighbour & 0x1U);
 }
 
-bool WorldGrid::validate() {
-    const auto position_in_chunk_space = Vec3i32::cast(vmath::vroundf(Vec3f32::div(_current_position, Vec3f32::cast(_engine_context.chunk_size))));
-    const auto half_grid_size = Vec3i32::divScalar(_grid_size, 2);//1;
-    const auto world_p0_in_chunk_space = Vec3i32::sub(position_in_chunk_space, half_grid_size);
-    const auto world_p1_in_chunk_space = Vec3i32::add(position_in_chunk_space, half_grid_size/*Vec3i32::sub(half_grid_size, {1})*/);
+// bool WorldGrid::validate() {
+//     const auto position_in_chunk_space = Vec3i32::cast(vmath::vroundf(Vec3f32::div(_current_position, Vec3f32::cast(_engine_context.chunk_size))));
+//     const auto half_grid_size = Vec3i32::divScalar(_grid_size, 2);//1;
+//     const auto world_p0_in_chunk_space = Vec3i32::sub(position_in_chunk_space, half_grid_size);
+//     const auto world_p1_in_chunk_space = Vec3i32::add(position_in_chunk_space, half_grid_size/*Vec3i32::sub(half_grid_size, {1})*/);
 
-    for (const auto& visible_chunk : _visible_chunks) {
-        if (isInBoundingBox(world_p0_in_chunk_space, world_p1_in_chunk_space, visible_chunk.position_in_chunks)) {
-            u32 nonempty_neighbours{ 0U };
-            for (u32 neighbour{ 0U }; neighbour < 6U; ++neighbour) {
-                if (visible_chunk.neighbours_indices[neighbour] != VisibleChunk::INVALID_NEIGHBOUR_INDEX) {
-                    const auto offset = NEIGHBOURS_OFFSETS[neighbour];
-                    const auto& visible_chunk_neighbour = _visible_chunks[visible_chunk.neighbours_indices[neighbour]];
+//     for (const auto& visible_chunk : _visible_chunks) {
+//         if (isInBoundingBox(world_p0_in_chunk_space, world_p1_in_chunk_space, visible_chunk.position_in_chunks)) {
+//             u32 nonempty_neighbours{ 0U };
+//             for (u32 neighbour{ 0U }; neighbour < 6U; ++neighbour) {
+//                 if (visible_chunk.neighbours_indices[neighbour] != VisibleChunk::INVALID_NEIGHBOUR_INDEX) {
+//                     const auto offset = NEIGHBOURS_OFFSETS[neighbour];
+//                     const auto& visible_chunk_neighbour = _visible_chunks[visible_chunk.neighbours_indices[neighbour]];
 
-                    const auto comp_offset = Vec3i32::sub(visible_chunk_neighbour.position_in_chunks, visible_chunk.position_in_chunks);
-                    ++nonempty_neighbours;
-                    if (comp_offset[0] != offset[0] || 
-                        comp_offset[1] != offset[1] ||
-                        comp_offset[2] != offset[2]) {
+//                     const auto comp_offset = Vec3i32::sub(visible_chunk_neighbour.position_in_chunks, visible_chunk.position_in_chunks);
+//                     ++nonempty_neighbours;
+//                     if (comp_offset[0] != offset[0] || 
+//                         comp_offset[1] != offset[1] ||
+//                         comp_offset[2] != offset[2]) {
                     
-                        return false;                        
-                    }
-                }
-            }
-            if (visible_chunk.neighbours_count != nonempty_neighbours) {
-                return false;
-            }
-        } else {
-            return false;
-        }
-    }
+//                         return false;                        
+//                     }
+//                 }
+//             }
+//             if (visible_chunk.neighbours_count != nonempty_neighbours) {
+//                 return false;
+//             }
+//         } else {
+//             return false;
+//         }
+//     }
 
-    return true;
-}
+//     return true;
+// }
 
 
 void WorldGrid::update(Vec3f32 new_position) {
-    static constexpr f32 epsilon{ .01F };
+    static constexpr f32 epsilon{ .1F };
     const auto move_vec = Vec3f32::sub(new_position, _current_position);
     if (std::abs(move_vec[0]) <= epsilon &&
         std::abs(move_vec[1]) <= epsilon &&
@@ -191,7 +173,7 @@ void WorldGrid::update(Vec3f32 new_position) {
     _current_position = new_position;
 
     const auto position_in_chunk_space = Vec3i32::cast(vmath::vroundf(Vec3f32::div(_current_position, Vec3f32::cast(_engine_context.chunk_size))));
-    const auto half_grid_size = Vec3i32::divScalar(_grid_size, 2);//1;
+    const auto half_grid_size = Vec3i32::divScalar(_grid_size, 2);
     const auto world_p0_in_chunk_space = Vec3i32::sub(position_in_chunk_space, half_grid_size);
     const auto world_p1_in_chunk_space = Vec3i32::add(position_in_chunk_space, half_grid_size);
 
