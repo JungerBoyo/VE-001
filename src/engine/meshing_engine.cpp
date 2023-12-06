@@ -47,14 +47,15 @@ void MeshingEngine::init(u32 vbo_id) {
 
     Descriptor meshing_descriptor = {
         .vbo_offsets = {  // passed in floats
-            {static_cast<u32>(_engine_context.chunk_max_submesh_size/sizeof(f32) * 0UL), 0U, 0U, 0U }, // +x
-            {static_cast<u32>(_engine_context.chunk_max_submesh_size/sizeof(f32) * 1UL), 0U, 0U, 0U }, // -x
-            {static_cast<u32>(_engine_context.chunk_max_submesh_size/sizeof(f32) * 2UL), 0U, 0U, 0U }, // +y
-            {static_cast<u32>(_engine_context.chunk_max_submesh_size/sizeof(f32) * 3UL), 0U, 0U, 0U }, // -y
-            {static_cast<u32>(_engine_context.chunk_max_submesh_size/sizeof(f32) * 4UL), 0U, 0U, 0U }, // +z
-            {static_cast<u32>(_engine_context.chunk_max_submesh_size/sizeof(f32) * 5UL), 0U, 0U, 0U }  // -z
+            {static_cast<u32>(_engine_context.chunk_max_current_submesh_size/sizeof(f32) * 0UL), 0U, 0U, 0U }, // +x
+            {static_cast<u32>(_engine_context.chunk_max_current_submesh_size/sizeof(f32) * 1UL), 0U, 0U, 0U }, // -x
+            {static_cast<u32>(_engine_context.chunk_max_current_submesh_size/sizeof(f32) * 2UL), 0U, 0U, 0U }, // +y
+            {static_cast<u32>(_engine_context.chunk_max_current_submesh_size/sizeof(f32) * 3UL), 0U, 0U, 0U }, // -y
+            {static_cast<u32>(_engine_context.chunk_max_current_submesh_size/sizeof(f32) * 4UL), 0U, 0U, 0U }, // +z
+            {static_cast<u32>(_engine_context.chunk_max_current_submesh_size/sizeof(f32) * 5UL), 0U, 0U, 0U }  // -z
         },
-        .chunk_position = {0, 0, 0},
+        .max_submesh_size_in_quads = static_cast<u32>(_engine_context.chunk_max_current_submesh_size/(sizeof(Vertex) * 4UL)),
+        .chunk_position = {0.F, 0.F, 0.F},
         .chunk_size = _engine_context.chunk_size
     };
     _ubo_meshing_descriptor.write(static_cast<const void*>(&meshing_descriptor));
@@ -63,12 +64,11 @@ void MeshingEngine::init(u32 vbo_id) {
     _ssbo_meshing_temp.write(static_cast<const void*>(&meshing_temp));
 }
 
-void MeshingEngine::issueMeshingCommand(u32 chunk_id, Vec3i32 chunk_position, std::span<const u16> voxel_data, u64 vbo_offset) {
+void MeshingEngine::issueMeshingCommand(u32 chunk_id, Vec3f32 chunk_position, std::span<const u16> voxel_data) {
     Command cmd = {
         .chunk_id       = chunk_id,
         .chunk_position = chunk_position,
         .voxel_data     = voxel_data,
-        .vbo_offset     = vbo_offset,
         .fence          = nullptr,
         .axis_progress  = 0
     };
@@ -111,6 +111,9 @@ bool MeshingEngine::pollMeshingCommand(Result& result) {
     
     result.chunk_id = _active_command.chunk_id;
 
+    Descriptor desc{};
+    _ubo_meshing_descriptor.read(static_cast<void*>(&desc), 0, sizeof(Descriptor));
+
     Temp temp{};
     _ssbo_meshing_temp.read(static_cast<void*>(&temp), 0, sizeof(Temp));
     result.written_indices[X_POS] = temp.written_quads[X_POS] * 6U;
@@ -120,15 +123,60 @@ bool MeshingEngine::pollMeshingCommand(Result& result) {
     result.written_indices[Z_POS] = temp.written_quads[Z_POS] * 6U;
     result.written_indices[Z_NEG] = temp.written_quads[Z_NEG] * 6U;
 
+    result.overflow_flag = static_cast<bool>(temp.overflow_flag);
+
     glBindBufferBase(GL_SHADER_STORAGE_BUFFER, VE001_SH_CONFIG_SSBO_BINDING_MESH_DATA, 0);
 
-    if (!_commands.read(_active_command)) {
-        _active_command.fence = nullptr;
-    } else {
-        firstCommandExec(_active_command);
+    if (!result.overflow_flag) {
+        if (_commands.read(_active_command)) {
+            firstCommandExec(_active_command);
+        }
     }
-
     return true;
+}
+
+void MeshingEngine::flushAndBusyWaitLastMeshingCommand() {
+    _commands.clear();
+    
+    if (_active_command.fence != nullptr) {
+        auto wait_result = glClientWaitSync(static_cast<GLsync>(_active_command.fence), 0, 0);
+        while (wait_result == GL_TIMEOUT_EXPIRED) {
+            wait_result = glClientWaitSync(static_cast<GLsync>(_active_command.fence), 0, 10);
+        }
+
+        if (wait_result == GL_WAIT_FAILED) {
+            return; //TODO: error
+        }
+
+        glDeleteSync(static_cast<GLsync>(_active_command.fence));
+        _active_command.fence = nullptr;
+
+        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, VE001_SH_CONFIG_SSBO_BINDING_MESH_DATA, 0);
+    }
+}
+
+void MeshingEngine::updateMetadata(vmath::u32 new_vbo_id) {
+    _vbo_id = new_vbo_id;
+
+    Descriptor meshing_descriptor = {
+        .vbo_offsets = {  // passed in floats
+            {static_cast<u32>(_engine_context.chunk_max_current_submesh_size/sizeof(f32) * 0UL), 0U, 0U, 0U }, // +x
+            {static_cast<u32>(_engine_context.chunk_max_current_submesh_size/sizeof(f32) * 1UL), 0U, 0U, 0U }, // -x
+            {static_cast<u32>(_engine_context.chunk_max_current_submesh_size/sizeof(f32) * 2UL), 0U, 0U, 0U }, // +y
+            {static_cast<u32>(_engine_context.chunk_max_current_submesh_size/sizeof(f32) * 3UL), 0U, 0U, 0U }, // -y
+            {static_cast<u32>(_engine_context.chunk_max_current_submesh_size/sizeof(f32) * 4UL), 0U, 0U, 0U }, // +z
+            {static_cast<u32>(_engine_context.chunk_max_current_submesh_size/sizeof(f32) * 5UL), 0U, 0U, 0U }  // -z
+        },
+        .max_submesh_size_in_quads = static_cast<u32>(_engine_context.chunk_max_current_submesh_size/(sizeof(Vertex) * 4UL)),
+        .chunk_position = {0.F, 0.F, 0.F},
+        .chunk_size = _engine_context.chunk_size
+    };
+    _ubo_meshing_descriptor.write(static_cast<const void*>(&meshing_descriptor));
+
+    Temp meshing_temp{};
+    _ssbo_meshing_temp.write(static_cast<const void*>(&meshing_temp));
+
+    // glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT|GL_UNIFORM_BARRIER_BIT);
 }
 
 void MeshingEngine::firstCommandExec(Command& command) {
@@ -146,7 +194,8 @@ void MeshingEngine::firstCommandExec(Command& command) {
     glBindBufferRange(
         GL_SHADER_STORAGE_BUFFER, 
         VE001_SH_CONFIG_SSBO_BINDING_MESH_DATA, _vbo_id,
-        static_cast<GLintptr>(command.vbo_offset), static_cast<GLintptr>(_engine_context.chunk_max_mesh_size)
+        static_cast<GLintptr>(static_cast<u64>(command.chunk_id) * _engine_context.chunk_max_current_mesh_size), 
+        static_cast<GLintptr>(_engine_context.chunk_max_current_mesh_size)
     );
 
     command.axis_progress += _engine_context.meshing_axis_progress_step;

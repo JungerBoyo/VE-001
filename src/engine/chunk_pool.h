@@ -48,8 +48,6 @@ struct ChunkPool {
     struct FreeChunk {
         /// @brief free chunk id
         ChunkId chunk_id{ 0U };
-        /// @brief free gpu region to allocate offset into vbo_id 
-        vmath::u64 gpu_region_offset{ 0U };
         /// @brief free cpu region to allocate (derived from <_voxel_data>)
         std::span<vmath::u16> cpu_region;
     };
@@ -60,8 +58,6 @@ struct ChunkPool {
         vmath::Vec3f32 position;
         /// @brief indicies of draw commands belonging to that chunk
         vmath::u32 draw_cmd_indices[6];
-        /// @brief allocated gpu region offset into vbo_id 
-        vmath::u64 gpu_region_offset{ 0U };
         /// @brief pointer to allocated cpu region for this chunk 
         std::span<vmath::u16> cpu_region;
         /// @brief unique id of this chunk
@@ -158,13 +154,13 @@ struct ChunkPool {
     ////////////////////////////////////////
 
     /// @brief context holds common data to all engine components
-    const EngineContext& _engine_context;
+    EngineContext& _engine_context;
 
     /// @brief meshing engine of the chunk pool. It schedules meshing
     /// tasks on the GPU
     MeshingEngine _meshing_engine{ _engine_context };
 
-    ChunkPool(const EngineContext& engine_context) : _engine_context(engine_context) {}
+    ChunkPool(EngineContext& engine_context) : _engine_context(engine_context) {}
     /// @brief initializes chunk pool
     /// @param max_chunks number of chunks in a pool
     void init(vmath::i32 max_chunks) noexcept;
@@ -197,6 +193,10 @@ struct ChunkPool {
     /// @brief draws all chunks
     /// @param use_partition number of draw commands will be based on last paritioning call (paritionDrawCmds) 
     void drawAll(bool use_partition);
+    /// @brief recreates chunk pool based on the meshing result which caused overflow
+    /// @param overflow_result meshing result which contains info about overflow
+    void recreatePool(MeshingEngine::Result overflow_result);
+
     /// @brief polls for chunks that are meshed and are ready to be completed (one at a time)
     /// @return true if chunk was completed false otherwise
     bool poll();

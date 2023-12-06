@@ -61,7 +61,7 @@ struct WorldGrid {
 
     ChunkPool _chunk_pool;
 
-    WorldGrid(const EngineContext& engine_context, vmath::Vec3f32 world_size, vmath::Vec3f32 initial_position, std::unique_ptr<ChunkGenerator> chunk_generator);
+    WorldGrid(EngineContext& engine_context, vmath::Vec3f32 world_size, vmath::Vec3f32 initial_position, std::unique_ptr<ChunkGenerator> chunk_generator);
     void init();
     void update(vmath::Vec3f32 new_position);
     bool pollToAllocateChunks();

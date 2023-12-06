@@ -73,7 +73,6 @@ struct RingBuffer {
     }
 
     void clear() {
-        _buffer.clear();
         _writer_index = 0U;
         _reader_index = 0U;
         _empty = true;

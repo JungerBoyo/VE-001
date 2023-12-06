@@ -19,12 +19,18 @@ struct EngineContext {
     vmath::u64 chunk_size_1D;
     /// @brief chunk size in voxel context (single voxel chunk)
     vmath::u64 chunk_voxel_data_size;
-    /// @brief maximum possible mesh size of a single chunk after greedy meshing
-    vmath::u64 chunk_max_mesh_size;
-    /// @brief maximum possible mesh size of a single chunk's side after greedy meshing
-    vmath::u64 chunk_max_submesh_size;
     /// @brief maximum possible mesh size of a single chunk's side's indices after greedy meshing
-    vmath::u64 chunk_max_submesh_indices_size;
+    vmath::u64 chunk_max_possible_submesh_indices_size;
+    /// @brief maximum possible mesh size of a single chunk after greedy meshing
+    vmath::u64 chunk_max_possible_mesh_size;
+    /// @brief maximum possible mesh size of a single chunk's side after greedy meshing
+    vmath::u64 chunk_max_possible_submesh_size;
+    /// @brief maximum current mesh size of a single chunk's side's indices after greedy meshing
+    // vmath::u64 chunk_max_current_submesh_indices_size;
+    /// @brief maximum current mesh size of a single chunk after greedy meshing
+    vmath::u64 chunk_max_current_mesh_size;
+    /// @brief maximum current mesh size of a single chunk's side after greedy meshing
+    vmath::u64 chunk_max_current_submesh_size;
     /// @brief it maps to local_size_x attribute in greedy meshing compute shader
     vmath::i32 meshing_axis_progress_step;
 };

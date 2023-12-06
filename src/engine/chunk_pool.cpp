@@ -11,6 +11,12 @@ using namespace vmath;
 #define VE001_SH_CONFIG_ATTRIB_INDEX_POSITION 0
 #define VE001_SH_CONFIG_ATTRIB_INDEX_TEXCOORD 1
 
+static void rebindVaoToVbo(u32 vao, u32 vbo) {
+    constexpr u32 vertex_attrib_binding = 0U;
+
+    glVertexArrayVertexBuffer(vao, vertex_attrib_binding, vbo, 0, sizeof(Vertex));
+}
+
 static void setVertexLayout(u32 vao, u32 vbo) {
     constexpr u32 vertex_attrib_binding = 0U;
 
@@ -38,7 +44,7 @@ void ChunkPool::init(i32 max_chunks) noexcept {
     _ibo_id = tmp[1];
     _dibo_id = tmp[2];
 
-    glNamedBufferStorage(_vbo_id, static_cast<i64>(_chunks_count) * static_cast<i64>(_engine_context.chunk_max_mesh_size), nullptr, 0);
+    glNamedBufferStorage(_vbo_id, static_cast<i64>(_chunks_count) * static_cast<i64>(_engine_context.chunk_max_current_mesh_size), nullptr, 0);
 
     glCreateVertexArrays(1, &_vao_id);
     setVertexLayout(_vao_id, _vbo_id);
@@ -65,13 +71,12 @@ void ChunkPool::init(i32 max_chunks) noexcept {
         for (std::size_t i{ 0U }; i < _chunks_count; ++i) {
             _free_chunks.write({
                 .chunk_id = static_cast<u32>(i),
-                .gpu_region_offset = i * _engine_context.chunk_max_mesh_size,
                 .cpu_region = std::span<u16>(_voxel_data.data() + i * _engine_context.chunk_size_1D, _engine_context.chunk_size_1D)
             });
         }
 
         static constexpr u32 INDICES_PATTERN[6] = { 0, 1, 2, 0, 2, 3 };
-        std::vector<u32> indices(_engine_context.chunk_max_submesh_indices_size/sizeof(u32));
+        std::vector<u32> indices(_engine_context.chunk_max_possible_submesh_indices_size/sizeof(u32));
         for (std::size_t i{ 0UL }, q{ 0UL }; i < indices.size(); i += 6, q += 4) {
             indices[i + 0] = INDICES_PATTERN[0] + static_cast<u32>(q);
             indices[i + 1] = INDICES_PATTERN[1] + static_cast<u32>(q);
@@ -80,7 +85,7 @@ void ChunkPool::init(i32 max_chunks) noexcept {
             indices[i + 4] = INDICES_PATTERN[4] + static_cast<u32>(q);
             indices[i + 5] = INDICES_PATTERN[5] + static_cast<u32>(q);
         }
-        glNamedBufferStorage(_ibo_id, static_cast<i64>(_engine_context.chunk_max_submesh_indices_size), static_cast<const void*>(indices.data()), 0);
+        glNamedBufferStorage(_ibo_id, static_cast<i64>(_engine_context.chunk_max_possible_submesh_indices_size), static_cast<const void*>(indices.data()), 0);
 
     } catch ([[maybe_unsused]] const std::exception& e) {
         glDeleteBuffers(3, tmp);
@@ -104,7 +109,6 @@ u32 ChunkPool::allocateChunk(const std::function<void(void*)>& voxel_write_data,
     auto& chunk = _chunks.emplace_back(Chunk{
         Vec3f32::cast(Vec3i32::sub(Vec3i32::mul(position, _engine_context.chunk_size), _engine_context.half_chunk_size)), 
         {0U, 0U, 0U, 0U, 0U, 0U}, // bcs chunk isn't complete yet
-        free_chunk.gpu_region_offset,
         free_chunk.cpu_region,
         free_chunk.chunk_id,
         false
@@ -112,11 +116,7 @@ u32 ChunkPool::allocateChunk(const std::function<void(void*)>& voxel_write_data,
 
     _chunk_id_to_index[chunk.chunk_id] = _chunks.size() - 1;
 
-    _meshing_engine.issueMeshingCommand(
-        chunk.chunk_id, position,
-        chunk.cpu_region, 
-        chunk.gpu_region_offset
-    );
+    _meshing_engine.issueMeshingCommand(chunk.chunk_id, chunk.position, chunk.cpu_region);
 
     return chunk.chunk_id;
 }
@@ -136,7 +136,6 @@ vmath::u32 ChunkPool::allocateChunk(std::span<const vmath::u16> src, Vec3i32 pos
     auto& chunk = _chunks.emplace_back(Chunk{
         Vec3f32::cast(Vec3i32::sub(Vec3i32::mul(position, _engine_context.chunk_size), _engine_context.half_chunk_size)), 
         {0U, 0U, 0U, 0U, 0U, 0U}, // bcs chunk isn't complete yet
-        free_chunk.gpu_region_offset,
         free_chunk.cpu_region,
         free_chunk.chunk_id,
         false
@@ -144,11 +143,7 @@ vmath::u32 ChunkPool::allocateChunk(std::span<const vmath::u16> src, Vec3i32 pos
 
     _chunk_id_to_index[chunk.chunk_id] = _chunks.size() - 1;
 
-    _meshing_engine.issueMeshingCommand(
-        free_chunk.chunk_id, position,
-        free_chunk.cpu_region, 
-        free_chunk.gpu_region_offset
-    );
+    _meshing_engine.issueMeshingCommand(chunk.chunk_id, chunk.position, chunk.cpu_region);
 
     return chunk.chunk_id;
 }
@@ -158,6 +153,12 @@ void ChunkPool::completeChunk(MeshingEngine::Result result) {
     if (chunk_index == INVALID_CHUNK_INDEX) {
         return;
     }
+
+    if (result.overflow_flag) {
+        recreatePool(result);
+        return;
+    }
+
     auto& chunk = _chunks[chunk_index];
     chunk.complete = true;
     const auto base_cmd_index = static_cast<u32>(_draw_cmds.size());
@@ -173,12 +174,12 @@ void ChunkPool::completeChunk(MeshingEngine::Result result) {
             .count = result.written_indices[i],
             .instance_count = 1U,
             .first_index = 0U,
-            .base_vertex =  static_cast<i32>((((static_cast<u64>(result.chunk_id) * 6UL) + i) * _engine_context.chunk_max_submesh_size)/sizeof(Vertex)),
+            .base_vertex =  static_cast<i32>((((static_cast<u64>(result.chunk_id) * 6UL) + i) * _engine_context.chunk_max_current_submesh_size)/sizeof(Vertex)),
             .base_instance = 0U,
             .orientation = static_cast<Face>(i),
             .chunk_id = result.chunk_id
         });
-        gpu_memory_usage += static_cast<u64>(result.written_indices[i]/6) * sizeof(Vertex) * 4;
+        gpu_memory_usage += static_cast<u64>(draw_cmd.count/6) * sizeof(Vertex) * 4;
     }
     _draw_cmds_dirty = true;
 }
@@ -199,6 +200,49 @@ void ChunkPool::update(bool use_partition) {
         glBindBuffer(GL_ARRAY_BUFFER, _vbo_id);
     }
 }
+
+void ChunkPool::recreatePool(MeshingEngine::Result overflow_result) {
+    // _meshing_engine.flushAndBusyWaitLastMeshingCommand();
+
+    const auto max_written_indices_x_axis = std::max(overflow_result.written_indices[X_POS], overflow_result.written_indices[X_NEG]);
+    const auto max_written_indices_y_axis = std::max(overflow_result.written_indices[Y_POS], overflow_result.written_indices[Y_NEG]);
+    const auto max_written_indices_z_axis = std::max(overflow_result.written_indices[Z_POS], overflow_result.written_indices[Z_NEG]);
+    const auto max_written_indices = std::max(std::max(max_written_indices_x_axis, max_written_indices_y_axis), max_written_indices_z_axis);
+
+    auto new_max_vertices_in_submesh = static_cast<u64>(((1.5F * static_cast<f32>(max_written_indices)) / 6.F) * 4.F);
+    new_max_vertices_in_submesh = new_max_vertices_in_submesh + (4 - new_max_vertices_in_submesh % 4);
+
+    _engine_context.chunk_max_current_submesh_size = new_max_vertices_in_submesh * sizeof(Vertex);
+    if (_engine_context.chunk_max_current_submesh_size > _engine_context.chunk_max_possible_submesh_size) {
+        _engine_context.chunk_max_current_submesh_size = _engine_context.chunk_max_possible_submesh_size;
+    }
+    _engine_context.chunk_max_current_mesh_size = _engine_context.chunk_max_current_submesh_size * 6U;
+
+    glDeleteBuffers(1, &_vbo_id);
+    glCreateBuffers(1, &_vbo_id);
+
+    glNamedBufferStorage(_vbo_id, static_cast<u64>(_chunks_count) * _engine_context.chunk_max_current_mesh_size, nullptr, 0);
+
+    rebindVaoToVbo(_vao_id, _vbo_id);
+
+    _meshing_engine.updateMetadata(_vbo_id);
+
+    for (auto& chunk : _chunks) {
+        if (chunk.complete) {
+            deallocateChunkDrawCommands(chunk.chunk_id);
+            chunk.complete = false;
+            _meshing_engine.issueMeshingCommand(chunk.chunk_id, chunk.position, chunk.cpu_region);
+        }
+    }
+
+    const auto chunk_index = _chunk_id_to_index[overflow_result.chunk_id];
+    if (chunk_index == INVALID_CHUNK_INDEX) {
+        return;
+    }
+    auto& chunk = _chunks[chunk_index];
+    _meshing_engine.issueMeshingCommand(chunk.chunk_id, chunk.position, chunk.cpu_region);
+}
+
 void ChunkPool::drawAll(bool use_partition) {
     if (_draw_cmds.size() > 0U) {
         if (use_partition && _draw_cmds_parition_size == 0U) {
@@ -247,7 +291,6 @@ void ChunkPool::deallocateChunk(u32 chunk_id) noexcept {
     _chunk_id_to_index[chunk_id] = INVALID_CHUNK_INDEX;
     _free_chunks.write({
         .chunk_id = chunk_id,
-        .gpu_region_offset = chunk.gpu_region_offset,
         .cpu_region = chunk.cpu_region
     });
     _chunks.pop_back();

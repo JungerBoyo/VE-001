@@ -33,7 +33,7 @@ static bool isInBoundingBox(Vec3i32 p0, Vec3i32 p1, Vec3i32 point) {
 
 
 
-WorldGrid::WorldGrid(const EngineContext& engine_context, vmath::Vec3f32 world_size, vmath::Vec3f32 initial_position, std::unique_ptr<ChunkGenerator> chunk_generator) : _engine_context(engine_context), 
+WorldGrid::WorldGrid(EngineContext& engine_context, vmath::Vec3f32 world_size, vmath::Vec3f32 initial_position, std::unique_ptr<ChunkGenerator> chunk_generator) : _engine_context(engine_context), 
     _current_position(initial_position), _semi_axes(world_size), _chunk_pool(engine_context), 
     _grid_size(Vec3i32::add(Vec3i32::mulScalar(Vec3i32::cast(Vec3f32::div(world_size, Vec3f32::cast(engine_context.chunk_size))), 2), 1)),
     _chunk_data_streamer(std::move(chunk_generator), 512),

@@ -20,19 +20,16 @@ struct MeshingEngine {
     struct Descriptor {
         /// @brief offsets of submeshes (constant)
         alignas(16) vmath::u32 vbo_offsets[6][4];
+        /// @brief max submesh size in quads 
+        alignas(16) vmath::u32 max_submesh_size_in_quads;
         /// @brief position changes per meshing command (mutable)
-        alignas(16) vmath::Vec3i32 chunk_position;
+        alignas(16) vmath::Vec3f32 chunk_position;
         /// @brief size of a chunk (constant)
         alignas(16) vmath::Vec3i32 chunk_size;
     };
 
     /// @brief holds temporary data of current meshing command execution
     struct Temp {
-        /// @brief written vertex counts by the current meshing command execution
-        /// (depending on <_chunk_size> there could be a need to invoke meshing
-        /// few times per chunk). It is written and read in the shader.
-        // vmath::u32 written_vertices_in_dwords[6] = {0};
-
         /// @brief written quads' counts by the current meshing command execution
         /// (depending on <_chunk_size> there could be a need to invoke meshing
         /// few times per chunk). It is written and read in the shader.
@@ -41,6 +38,9 @@ struct MeshingEngine {
         /// (depending on <_chunk_size> there could be a need to invoke meshing
         /// few times per chunk). It is written and read in the shader.
         vmath::u32 axes_steps[6] = {0};
+        /// @brief set to 1 if any of vbo submesh regions overflowed in the last 
+        /// execution
+        vmath::u32 overflow_flag{ 0U };
     };
 
     /// @brief command descripting meshing execution of a single chunk
@@ -48,11 +48,9 @@ struct MeshingEngine {
         /// @brief id of chunk meshed by command
         ChunkId chunk_id; 
         /// @brief position of the chunk
-        vmath::Vec3i32 chunk_position;
+        vmath::Vec3f32 chunk_position;
         /// @brief pointer to voxel data to be issued before meshing starts
         std::span<const vmath::u16> voxel_data;
-        /// @brief offset into vbo containing a mesh (maps to vbo in ChunkPool)
-        vmath::u64 vbo_offset;
         /// @brief gl fence for which to wait in case the command is active one
         /// also indicates !!!IF COMMAND IS INITIALIZED (nullptr here if not)!!!
         void* fence{ nullptr };
@@ -68,6 +66,9 @@ struct MeshingEngine {
         /// @brief written indices count *per face* indexed with ve001::Face enum.
         /// determines how many indices to render
         std::array<vmath::u32, 6> written_indices;
+        /// @brief if true then number of potentially written vertices is
+        /// bigger than current chunk region size and pool needs to be extended
+        bool overflow_flag{ false };
     };
 
     /// @brief id of buffer holding voxel data for subsequent meshing command execution
@@ -99,20 +100,21 @@ struct MeshingEngine {
     /// @param chunk_id id of processed chunk. Maps to chunk ids in ChunkPool
     /// @param chunk_position chunk position
     /// @param voxel_data pointer to voxel_data based on which the meshing will take place
-    /// @param vbo_offset offset into VBO from ChunkPool (needed for range binding VBO)
-    /// @param vbo_size size of VBO from <vbo_offset> from ChunkPool (needed for range binding VBO)
-    void issueMeshingCommand(
-        ChunkId chunk_id,
-        vmath::Vec3i32 chunk_position,
-        std::span<const vmath::u16> voxel_data,
-        vmath::u64 vbo_offset
-    );
+    void issueMeshingCommand(ChunkId chunk_id, vmath::Vec3f32 chunk_position, std::span<const vmath::u16> voxel_data);
 
     /// @brief Function polls for the result from next command. It isn't waiting (the call
     // is non blocking), only checks once.
     /// @param result variable to which the function write result into
     /// @return true if valid value was written into the <future> param false if not
     bool pollMeshingCommand(Result& result);
+
+    /// @brief function flushes pending command buffer and busy waits for the last
+    /// issued meshing command to complete
+    void flushAndBusyWaitLastMeshingCommand();
+
+    /// @brief updates metadata based on engine context and new vbo id
+    /// @param new_vbo_id new vbo id to which to write meshes
+    void updateMetadata(vmath::u32 new_vbo_id);
 
     /// @brief executes command meaning dispatches meshing based on parameters 
     /// in the <command>. It is first execution so the data is passed to the gpu here
