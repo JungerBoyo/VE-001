@@ -200,8 +200,6 @@ void ChunkPool::update(bool use_partition) {
 }
 
 void ChunkPool::recreatePool(MeshingEngine::Result overflow_result) {
-    // _meshing_engine.flushAndBusyWaitLastMeshingCommand();
-
     const auto max_written_indices_x_axis = std::max(overflow_result.written_indices[X_POS], overflow_result.written_indices[X_NEG]);
     const auto max_written_indices_y_axis = std::max(overflow_result.written_indices[Y_POS], overflow_result.written_indices[Y_NEG]);
     const auto max_written_indices_z_axis = std::max(overflow_result.written_indices[Z_POS], overflow_result.written_indices[Z_NEG]);

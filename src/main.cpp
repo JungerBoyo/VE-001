@@ -19,7 +19,7 @@
 #include <engine/texture_array.h>
 #include <engine/material_allocator.h>
 #include <engine/camera.h>
-// #include <sandbox_utils/face_gen.h>
+#include <engine/noise_terrain_generator.h>
 #include <engine/shader.h>
 #include <engine/framebuffer.h>
 #include <engine/lighting.h>
@@ -251,110 +251,6 @@ bool backFaceCullingUnaryOp(Face orientation, vmath::Vec3f32 position, u32 camer
     return false;
 }
 
-struct Plane { 
-    f32 A, B, C, D; 
-};
-
-std::array<Plane, 6> computeFrustumPlanes(Mat4f32 view_proj_matrix) {
-    std::array<Plane, 6> result; 
-
-    // Left plane
-    result[Face::X_POS].A = view_proj_matrix[0][3] + view_proj_matrix[0][0];
-    result[Face::X_POS].B = view_proj_matrix[1][3] + view_proj_matrix[1][0];
-    result[Face::X_POS].C = view_proj_matrix[2][3] + view_proj_matrix[2][0];
-    result[Face::X_POS].D = view_proj_matrix[3][3] + view_proj_matrix[3][0];
-
-    // Right plane
-    result[Face::X_NEG].A = view_proj_matrix[0][3] - view_proj_matrix[0][0];
-    result[Face::X_NEG].B = view_proj_matrix[1][3] - view_proj_matrix[1][0];
-    result[Face::X_NEG].C = view_proj_matrix[2][3] - view_proj_matrix[2][0];
-    result[Face::X_NEG].D = view_proj_matrix[3][3] - view_proj_matrix[3][0];
-
-    // Top plane
-    result[Face::Y_POS].A = view_proj_matrix[0][3] - view_proj_matrix[0][1];
-    result[Face::Y_POS].B = view_proj_matrix[1][3] - view_proj_matrix[1][1];
-    result[Face::Y_POS].C = view_proj_matrix[2][3] - view_proj_matrix[2][1];
-    result[Face::Y_POS].D = view_proj_matrix[3][3] - view_proj_matrix[3][1];
-
-    // Bottom plane
-    result[Face::Y_NEG].A = view_proj_matrix[0][3] + view_proj_matrix[0][1];
-    result[Face::Y_NEG].B = view_proj_matrix[1][3] + view_proj_matrix[1][1];
-    result[Face::Y_NEG].C = view_proj_matrix[2][3] + view_proj_matrix[2][1];
-    result[Face::Y_NEG].D = view_proj_matrix[3][3] + view_proj_matrix[3][1];
-
-    // Near plane
-    result[Face::Z_POS].A = view_proj_matrix[0][3] + view_proj_matrix[0][2];
-    result[Face::Z_POS].B = view_proj_matrix[1][3] + view_proj_matrix[1][2];
-    result[Face::Z_POS].C = view_proj_matrix[2][3] + view_proj_matrix[2][2];
-    result[Face::Z_POS].D = view_proj_matrix[3][3] + view_proj_matrix[3][2];
-
-    // Far plane
-    result[Face::Z_NEG].A = view_proj_matrix[0][3] - view_proj_matrix[0][2];
-    result[Face::Z_NEG].B = view_proj_matrix[1][3] - view_proj_matrix[1][2];
-    result[Face::Z_NEG].C = view_proj_matrix[2][3] - view_proj_matrix[2][2];
-    result[Face::Z_NEG].D = view_proj_matrix[3][3] - view_proj_matrix[3][2];
-
-    for (auto& plane : result) {
-        const auto length = Vec3f32({plane.A, plane.B, plane.C}).len();
-        plane.A /= length;
-        plane.B /= length;
-        plane.C /= length;
-        plane.D /= length;
-    }
-    return result;
-}
-
-bool frustumCullingUnaryOp(Face orientation, vmath::Vec3f32 position, std::array<Plane, 6> planes) {
-    const auto diff = Vec3f32::diff<f32>(camera.position, position);
-
-    if (diff[0] <= EXTENT_F32[0] && diff[1] <= EXTENT_F32[1] && diff[2] <= EXTENT_F32[2]) {
-        return true;
-    }
-
-    for (const auto plane : planes) {
-        bool all_corners_outside{ true };
-        for (const auto corner : CORNERS) {
-            const auto point = Vec3f32::add(corner, position);
-            const auto dist = Vec3f32::dot(point, {plane.A, plane.B, plane.C}) + plane.D;
-
-            if (dist >= 0.F) {
-                all_corners_outside = false;
-                break;
-            }
-        }
-        if (all_corners_outside) {
-            return false;
-        }
-    }
-    return true;
-}
-
-// static constexpr f32 CULLING_BIAS{ .8F };
-// bool frustumAndBackFaceCullingUnaryOp(Face orientation, vmath::Vec3f32 position, u32 camera_mask, vmath::Mat4f32 view_proj_matrix) {
-//     const auto normal = Vec3f32::normalize(Vec3f32::sub(position, camera.position));
-//     for (const auto corner : CORNERS) {
-//         const auto point = Vec3f32::add(position, corner);
-//         const auto normal = Vec3f32::normalize(Vec3f32::sub(point, camera.position));
-//         if (Vec3f32::dot(normal, FACE_NORMAL_LOOKUP_TABLE[orientation]) <= .2F) {
-//             const auto point_in_view_space = Mat4f32::mulVec(view_proj_matrix, Vec4f32(point[0], point[1], point[2], 1.F));
-
-//             const auto w = point_in_view_space[3] + CULLING_BIAS * point_in_view_space[3];
-
-//             if (point_in_view_space[2] < -w || point_in_view_space[2] > w) {
-//                 continue;
-//             }
-
-//             if (point_in_view_space[0] < -w || point_in_view_space[0] > w ||
-//                 point_in_view_space[1] < -w || point_in_view_space[1] > w) {
-//                 continue;
-//             }   
-
-//             return true;
-//         }
-//     }
-//     return false;
-// }
-
 int main()
 {
     if (!ve001::window.init("demo", 640, 480, nullptr))
@@ -363,17 +259,24 @@ int main()
     }
 
     ve001::glInit();
-    // ve001::setGLDebugCallback([](u32, u32, u32 id, u32, int, const char *message, const void *) {
-    // 	fmt::print("[GLAD]{}:{}", id, message);
-    // });
 
     glEnable(GL_DEPTH_TEST);
     glEnable(GL_CULL_FACE);
 
-    Engine engine({500.F, 200.F, 500.F}, {0.F, 0.F, 0.F}, EXTENT);
-    // Engine engine({300.F, 210.F, 300.F}, {0.F, 0.F, 0.F}, EXTENT);
-    // Engine engine({100.F, 80.F, 100.F}, {0.F, 0.F, 0.F}, EXTENT);
-    //Engine engine({64.F, 64.F, 64.F}, {0.F, 0.F, 0.F}, EXTENT);
+
+    Engine engine(Engine::Config{
+        .world_size = {400.F, 200.F, 400.F},
+        .initial_position = {0.F, 0.F, 0.F},
+        .chunk_size = EXTENT,
+        .chunk_data_generator = std::make_unique<NoiseTerrainGenerator>(NoiseTerrainGenerator::Config{
+            .terrain_size = EXTENT,
+            .noise_frequency = .008F,
+            .quantize_values = 2U,
+            .seed = 0xC0000B99
+        }),
+        .chunk_pool_growth_coefficient = 1.8F,
+        .meshing_shader_local_group_size = 64
+    });
     engine.init();
 
     MaterialAllocator material_allocator(2U, 5U, 12U, 96U, 96U);
@@ -481,8 +384,9 @@ int main()
     // light.move({-20.F, 40.F, 20.F});
     camera.move({0.F, 0.F, 0.F});
 
-    const auto render_scene = [&chunk_pool = engine._world_grid._chunk_pool]()
-    { chunk_pool.drawAll(true); };
+    engine.partitioning = true;
+
+    const auto render_scene = [&engine = engine]() { engine.draw(); };
 
     f32 prev_frame_time{0.F};
     while (!window.shouldClose())
@@ -512,7 +416,7 @@ int main()
         }
 
         const auto proj_mat = misc<f32>::symmetricPerspectiveProjection(
-            .4F * std::numbers::pi_v<f32>, .1F, 1000.F,
+            .5F * std::numbers::pi_v<f32>, .1F, 300.F,
             static_cast<f32>(window_width), static_cast<f32>(window_height));
 
         const auto mvp = Mat4f32::mul(proj_mat, camera.lookAt());
@@ -542,11 +446,11 @@ int main()
         //     }
         // }
 
-        engine._world_grid.update(camera.position);
+        engine.updateCameraPosition(camera.position);
         
         // engine._world_grid._chunk_pool.poll();
 
-        if (engine._world_grid._chunk_pool.poll()) {
+        if (engine.pollChunksUpdates()) {
         //     light.position = lighting.getLightPosition(light_bobo.id);
         //     light.looking_dir_angles = lighting.getLightRotation(light_bobo.id);
         //     engine._world_grid._chunk_pool.partitionDrawCommands(backFaceCullingUnaryOp, false, getCameraMask(light));
@@ -563,17 +467,23 @@ int main()
             // lighting.rotateLight(dir_light_id, light.looking_dir);
             // light.position = camera.position;
             // engine._world_grid._chunk_pool.partitionDrawCommands(backFaceCullingUnaryOp, false, getCameraMask(camera));
-            engine._world_grid._chunk_pool.partitionDrawCommands(frustumCullingUnaryOp, false, computeFrustumPlanes(
-                Mat4f32::mul(misc<f32>::symmetricPerspectiveProjection(
-                    .6F * std::numbers::pi_v<f32>, .1F, 1000.F,
-                    static_cast<f32>(window_width), static_cast<f32>(window_height))
-                , camera.lookAt())
-            ));
+
+            const auto tan_fov = std::tan((.5F * std::numbers::pi_v<f32>/2.F));
+            const auto aspect_ratio = (static_cast<f32>(window_width)/static_cast<f32>(window_height));
+
+            engine.applyFrustumCullingPartition(
+                false,
+                -0.1F,
+                -300.F,
+                aspect_ratio * .1F * tan_fov,
+                .1F * tan_fov,
+                camera.lookAt()
+            );
             camera_moved = false;
             camera_rotated = false;
         }
 
-        engine._world_grid._chunk_pool.update(true);//!light_as_camera);
+        engine.updateDrawState();
 
         if (camera_rotated && light_as_camera)
         {

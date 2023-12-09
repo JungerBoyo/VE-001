@@ -6,46 +6,39 @@
 using namespace vmath;
 using namespace ve001;
 
-// #define SIMPLE_GENERATOR
-// #define MAX_DIV_FACTOR 1
-// #define NO_RESIZE
+static bool frustumCullingUnaryOp(
+	Face orientation, 
+	Vec3f32 position,
+	Vec3f32 chunk_size,
+	f32 z_near, 
+	f32 z_far, 
+	f32 x_near,
+	f32 y_near,
+	Mat4f32 view_matrix
+);
 
-Engine::Engine(Vec3f32 world_size, Vec3f32 initial_position, Vec3i32 chunk_size) : _engine_context(EngineContext{
-    .shader_repo = {},
-    .chunk_size = chunk_size,
-    .half_chunk_size = Vec3i32::divScalar(chunk_size, 2),
-    .chunk_size_1D = static_cast<u64>(chunk_size[0]) * static_cast<u64>(chunk_size[1]) * static_cast<u64>(chunk_size[2]),
-    .chunk_voxel_data_size  = static_cast<u64>(chunk_size[0]) * static_cast<u64>(chunk_size[1]) * static_cast<u64>(chunk_size[2]) * sizeof(u16),
-    .chunk_max_possible_submesh_indices_size = static_cast<u64>(chunk_size[0]) * static_cast<u64>(chunk_size[1]) * static_cast<u64>(chunk_size[2]) * sizeof(u32) * static_cast<u64>(36/6/2),
-    .chunk_max_possible_mesh_size    =  (static_cast<u64>(chunk_size[0]) * static_cast<u64>(chunk_size[1]) * static_cast<u64>(chunk_size[2]) * sizeof(Vertex) * static_cast<u64>(24/2)),
-    .chunk_max_possible_submesh_size = ((static_cast<u64>(chunk_size[0]) * static_cast<u64>(chunk_size[1]) * static_cast<u64>(chunk_size[2]) * sizeof(Vertex) * static_cast<u64>(24/2))/6),
-    // .chunk_max_current_submesh_indices_size = sizeof(u32) * static_cast<u64>(24/6),
-#ifdef NO_RESIZE
-    .chunk_max_current_mesh_size    =  (static_cast<u64>(chunk_size[0]) * static_cast<u64>(chunk_size[1]) * static_cast<u64>(chunk_size[2]) * sizeof(Vertex) * static_cast<u64>(24/2)),
-    .chunk_max_current_submesh_size = ((static_cast<u64>(chunk_size[0]) * static_cast<u64>(chunk_size[1]) * static_cast<u64>(chunk_size[2]) * sizeof(Vertex) * static_cast<u64>(24/2))/6),
-#else
-    .chunk_max_current_mesh_size = sizeof(Vertex) * static_cast<u64>(24),
-    .chunk_max_current_submesh_size = sizeof(Vertex) * static_cast<u64>(24/6),
-#endif
-    .chunk_pool_growth_coefficient = 1.5F,
-    .meshing_axis_progress_step = 64
-}),
-  _world_grid(_engine_context, world_size, initial_position, 
-#ifdef SIMPLE_GENERATOR
-  std::unique_ptr<ChunkGenerator>(new SimpleTerrainGenerator(chunk_size))
-#else
-  std::unique_ptr<ChunkGenerator>(new NoiseTerrainGenerator({
-        .terrain_size = chunk_size,
-        .noise_frequency = .008F,
-        .quantize_values = 2U,
-        .seed = 0xC0000B99
-  }))
-#endif 
+
+Engine::Engine(Config config) : _engine_context(EngineContext{
+		.shader_repo = {},
+		.chunk_size = config.chunk_size,
+		.half_chunk_size = Vec3i32::divScalar(config.chunk_size, 2),
+		.chunk_size_1D = static_cast<u64>(config.chunk_size[0]) * static_cast<u64>(config.chunk_size[1]) * static_cast<u64>(config.chunk_size[2]),
+		.chunk_voxel_data_size  = static_cast<u64>(config.chunk_size[0]) * static_cast<u64>(config.chunk_size[1]) * static_cast<u64>(config.chunk_size[2]) * sizeof(u16),
+		.chunk_max_possible_submesh_indices_size = static_cast<u64>(config.chunk_size[0]) * static_cast<u64>(config.chunk_size[1]) * static_cast<u64>(config.chunk_size[2]) * sizeof(u32) * static_cast<u64>(36/6/2),
+		.chunk_max_possible_mesh_size    =  (static_cast<u64>(config.chunk_size[0]) * static_cast<u64>(config.chunk_size[1]) * static_cast<u64>(config.chunk_size[2]) * sizeof(Vertex) * static_cast<u64>(24/2)),
+		.chunk_max_possible_submesh_size = ((static_cast<u64>(config.chunk_size[0]) * static_cast<u64>(config.chunk_size[1]) * static_cast<u64>(config.chunk_size[2]) * sizeof(Vertex) * static_cast<u64>(24/2))/6),
+		.chunk_max_current_mesh_size    = config.chunk_pool_growth_coefficient == 0.F ? 
+			(static_cast<u64>(config.chunk_size[0]) * static_cast<u64>(config.chunk_size[1]) * static_cast<u64>(config.chunk_size[2]) * sizeof(Vertex) * static_cast<u64>(24/2)) :
+			sizeof(Vertex) * static_cast<u64>(24),
+		.chunk_max_current_submesh_size = config.chunk_pool_growth_coefficient == 0.F ? 
+			((static_cast<u64>(config.chunk_size[0]) * static_cast<u64>(config.chunk_size[1]) * static_cast<u64>(config.chunk_size[2]) * sizeof(Vertex) * static_cast<u64>(24/2))/6) :
+			sizeof(Vertex) * static_cast<u64>(24/6),
+		.chunk_pool_growth_coefficient = config.chunk_pool_growth_coefficient,
+		.meshing_axis_progress_step = config.meshing_shader_local_group_size
+  	}),
+  	_world_grid(_engine_context, config.world_size, config.initial_position, std::move(config.chunk_data_generator)
   )
-{
-
-
-}
+{}
 
 void Engine::init() {
     _engine_context.shader_repo.init();
@@ -54,4 +47,247 @@ void Engine::init() {
 void Engine::deinit() {
     _world_grid.deinit();
     _engine_context.shader_repo.deinit();
+}
+
+void Engine::applyFrustumCullingPartition(
+	bool use_last_partition, 
+	f32 z_near, 
+	f32 z_far, 
+	f32 x_near,
+	f32 y_near,
+	Mat4f32 view_matrix) {
+		
+	_world_grid._chunk_pool.partitionDrawCommands(
+		frustumCullingUnaryOp,
+		use_last_partition,
+		Vec3f32::cast(_engine_context.chunk_size),
+		z_near, 
+		z_far, 
+		x_near,
+		y_near,
+		view_matrix
+	);
+}
+
+void Engine::updateCameraPosition(Vec3f32 position) {
+	_world_grid.update(position);
+}
+bool Engine::pollChunksUpdates() {
+	return _world_grid._chunk_pool.poll();
+}
+void Engine::updateDrawState() {
+	_world_grid._chunk_pool.update(partitioning);
+}
+void Engine::draw() {
+	_world_grid._chunk_pool.drawAll(partitioning);
+}
+
+bool frustumCullingUnaryOp(
+	Face orientation, 
+	Vec3f32 position,
+	Vec3f32 chunk_size,	
+	f32 z_near, 
+	f32 z_far, 
+	f32 x_near,
+	f32 y_near,
+	Mat4f32 view_matrix
+) {
+	// center position in view space
+	const auto position_in_view_space = Mat4f32::mulVec(view_matrix, {position[0], position[1], position[2], 1.F});
+
+	const Vec4f32 axes[] = {
+		Mat4f32::mulVec(view_matrix, {1.F, 0.F, 0.F, 0.F}),
+		Mat4f32::mulVec(view_matrix, {0.F, 1.F, 0.F, 0.F}),
+		Mat4f32::mulVec(view_matrix, {0.F, 0.F, 1.F, 0.F})		
+	};
+
+	// determine if chunk is behind z_near plane or beyond z_far plane
+	{
+	//const Vec3f32 projection_line{ 0.F, 0.F, 1.F }; implicit
+
+	const auto projected_center = position_in_view_space[2];
+
+	const auto radius =
+		fabsf(axes[0][2]) * (chunk_size[0]/2.F) +
+		fabsf(axes[1][2]) * (chunk_size[1]/2.F) +
+		fabsf(axes[2][2]) * (chunk_size[2]/2.F);
+
+	const auto min = projected_center - radius;
+	const auto max = projected_center + radius;
+
+	if (max > z_near || min < z_far) {
+		return false;
+	}
+	}	
+
+	// determine if chunk is beyond the rest of the frustum planes
+	{
+	const Vec3f32 projection_lines[4] {
+		{-z_near, 0.F, x_near}, // left plane
+		{ z_near, 0.F, x_near}, // right plane
+		{ 0.F,-z_near, y_near}, // top plane
+		{ 0.F, z_near, y_near}  // bottom plane
+	};
+	for (std::size_t i{ 0U }; i < 4U; ++i) {
+		const auto projected_center = Vec3f32::dot(projection_lines[i], { position_in_view_space[0], position_in_view_space[1], position_in_view_space[2] });
+		const auto radius = 
+			fabsf(Vec3f32::dot(projection_lines[i], {axes[0][0], axes[0][1], axes[0][2]})) * (chunk_size[0]/2.F) +
+			fabsf(Vec3f32::dot(projection_lines[i], {axes[1][0], axes[1][1], axes[1][2]})) * (chunk_size[1]/2.F) +
+			fabsf(Vec3f32::dot(projection_lines[i], {axes[2][0], axes[2][1], axes[2][2]})) * (chunk_size[2]/2.F);
+
+		const auto min = projected_center - radius;
+		const auto max = projected_center + radius;
+
+		const auto p = x_near * fabsf(projection_lines[i][0]) + y_near * fabsf(projection_lines[i][1]);
+
+		auto tau_0 = z_near * projection_lines[i][2] - p;
+		auto tau_1 = z_near * projection_lines[i][2] + p;
+
+		if (tau_0 < 0.F) {
+			tau_0 *= (z_far/z_near);
+		}
+		if (tau_1 > 0.F) {
+			tau_1 *= (z_far/z_near);
+		}
+
+		if (min > tau_1 || max < tau_0) {
+			return false;
+		}
+	}
+	}
+	// determine if frustum is inside of the chunk
+	for (std::size_t i{ 0U }; i < 3U; ++i) {
+		const auto projected_center = Vec4f32::dot(axes[i], position_in_view_space);
+		const auto radius = chunk_size[i]/2.F;
+
+		const auto min = projected_center - radius;
+		const auto max = projected_center + radius;
+
+		const auto p = x_near * fabsf(axes[i][0]) + y_near * fabsf(axes[i][1]);
+
+		auto tau_0 = z_near * axes[i][2] - p;
+		auto tau_1 = z_near * axes[i][2] + p;
+
+		if (tau_0 < 0.F) {
+			tau_0 *= (z_far/z_near);
+		}
+		if (tau_1 > 0.F) {
+			tau_1 *= (z_far/z_near);
+		}
+
+		if (min > tau_1 || max < tau_0) {
+			return false;
+		}
+	}
+	// check the cross products of the edges
+
+	// cross({1,0,0}, axes[0,1,2])
+	for (std::size_t i{ 0U }; i < 3U; ++i) {
+		// cross product always the same implicit computation
+		const Vec3f32 projection_line{ 0.F, -axes[i][2], axes[i][1] };
+
+		const auto projected_center = 
+			projection_line[1] * position_in_view_space[1] +
+			projection_line[2] * position_in_view_space[2];
+
+		const auto radius = 
+			fabsf(Vec3f32::dot(projection_line, {axes[0][0], axes[0][1], axes[0][2]})) * (chunk_size[0]/2.F) + 
+			fabsf(Vec3f32::dot(projection_line, {axes[1][0], axes[1][1], axes[1][2]})) * (chunk_size[1]/2.F) + 
+			fabsf(Vec3f32::dot(projection_line, {axes[2][0], axes[2][1], axes[2][2]})) * (chunk_size[0]/2.F);
+
+		const auto min = projected_center - radius;
+		const auto max = projected_center + radius;
+
+		const auto p = y_near * fabsf(projection_line[1]);
+		auto tau_0 = z_near * projection_line[2] - p;
+		auto tau_1 = z_near * projection_line[2] + p;
+		if (tau_0 < 0.F) {
+			tau_0 *= (z_far/z_near);
+		}
+		if (tau_1 > 0.F) {
+			tau_1 *= (z_far/z_near);
+		}
+
+		if (min > tau_1 || max < tau_0) {
+			return false;
+		}
+	}
+
+	// cross({0,1,0}, axes[0,1,2])
+	for (std::size_t i{ 0U }; i < 3U; ++i) {
+		// cross product always the same implicit computation
+		const Vec3f32 projection_line{ axes[i][2], 0.F, -axes[i][0] };
+
+		const auto projected_center = 
+			projection_line[0] * position_in_view_space[0] +
+			projection_line[2] * position_in_view_space[2];
+
+		const auto radius = 
+			fabsf(Vec3f32::dot(projection_line, {axes[0][0], axes[0][1], axes[0][2]})) * (chunk_size[0]/2.F) + 
+			fabsf(Vec3f32::dot(projection_line, {axes[1][0], axes[1][1], axes[1][2]})) * (chunk_size[1]/2.F) + 
+			fabsf(Vec3f32::dot(projection_line, {axes[2][0], axes[2][1], axes[2][2]})) * (chunk_size[0]/2.F);
+
+		const auto min = projected_center - radius;
+		const auto max = projected_center + radius;
+
+		const auto p = x_near * fabsf(projection_line[0]);
+		auto tau_0 = z_near * projection_line[2] - p;
+		auto tau_1 = z_near * projection_line[2] + p;
+		if (tau_0 < 0.F) {
+			tau_0 *= (z_far/z_near);
+		}
+		if (tau_1 > 0.F) {
+			tau_1 *= (z_far/z_near);
+		}
+
+		if (min > tau_1 || max < tau_0) {
+			return false;
+		}
+	}
+
+	// cross(frustum edges, axes[0,1,2])
+	for (std::size_t i{ 0U }; i < 3; ++i) {
+		const auto axis = Vec3f32{axes[i][0], axes[i][1], axes[i][2]};
+		const Vec3f32 projection_lines[4] = {
+			vmath::cross({-x_near, 0.F, z_near }, axis), // Left Plane
+            vmath::cross({ x_near, 0.F, z_near }, axis), // Right plane
+            vmath::cross({ 0.F, y_near, z_near }, axis), // Top plane
+            vmath::cross({ 0.F,-y_near, z_near }, axis) // Bottom plane
+		};
+
+		for (std::size_t j{ 0U }; j < 4; ++j) {
+			const auto MoX = fabsf(projection_lines[j][0]);
+			const auto MoY = fabsf(projection_lines[j][1]);
+			const auto MoZ = projection_lines[j][2];
+
+			constexpr f32 epsilon = 1e-4;
+			if (MoX < epsilon && MoY < epsilon && fabsf(MoZ) < epsilon) continue;
+
+			const auto projected_center = Vec3f32::dot(projection_lines[j], {position_in_view_space[0], position_in_view_space[1], position_in_view_space[2]});
+
+			const auto radius =
+				fabsf(Vec3f32::dot(projection_lines[j], { axes[0][0], axes[0][1], axes[0][2] })) * (chunk_size[0]/2.F) + 
+				fabsf(Vec3f32::dot(projection_lines[j], { axes[1][0], axes[1][1], axes[1][2] })) * (chunk_size[1]/2.F) + 
+				fabsf(Vec3f32::dot(projection_lines[j], { axes[2][0], axes[2][1], axes[2][2] })) * (chunk_size[2]/2.F);
+
+			const auto min = projected_center - radius;
+			const auto max = projected_center + radius;
+
+			// Frustum projection
+			const auto p = x_near * MoX + y_near * MoY;
+			auto tau_0 = z_near * MoZ - p;
+			auto tau_1 = z_near * MoZ + p;
+			if (tau_0 < 0.F) {
+				tau_0 *= (z_far/z_near);
+			}
+			if (tau_1 > 0.F) {
+				tau_1 *= (z_far/z_near);
+			}
+
+			if (min > tau_1 || max < tau_0) {
+				return false;
+			}
+		}
+	}
+	return true;
 }
