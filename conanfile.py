@@ -1,10 +1,15 @@
 from conan import ConanFile
+from conan.tools.cmake import CMakeToolchain
 
 class VE001Recipe(ConanFile):
     build_policy = "missing"
 
     settings = "os", "compiler", "build_type", "arch"
-    generators = "CMakeToolchain", "CMakeDeps"
+    generators = "CMakeDeps"
+
+    def generate(self):
+        tc = CMakeToolchain(self, generator="Ninja")
+        tc.generate()
 
     def config_options(self):
         self.options["glad"].spec = "gl"
