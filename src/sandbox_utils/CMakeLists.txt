@@ -12,3 +12,8 @@ target_link_libraries(sandbox_utils PRIVATE
     FastNoise2::FastNoise
     vmath
 )
+
+# dirty trick to appease windows as always...
+if ("${CMAKE_HOST_SYSTEM_NAME}" STREQUAL "Windows")
+    target_link_options(sandbox_utils PRIVATE "LINKER:-lFastNoise")
+endif()

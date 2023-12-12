@@ -33,6 +33,7 @@ target_link_libraries(ve001-benchmark PRIVATE
     logger
     CLI11::CLI11
 )
+
 target_precompile_headers(ve001-benchmark PRIVATE "<CLI/CLI.hpp>")
 
 add_dependencies(ve001-benchmark compile_and_copy_shaders_dirs)
