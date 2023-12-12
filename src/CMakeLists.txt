@@ -1,57 +1,38 @@
-find_package(fmt REQUIRED)
 find_package(glad REQUIRED)
-find_package(stb REQUIRED)
 find_package(spdlog REQUIRED)
-# find_package(glm REQUIRED)
 find_package(FastNoise2 REQUIRED)
+find_package(CLI11 REQUIRED)
 
 link_libraries(FastNoise2::FastNoise)
-# link_libraries(glm::glm)
 
-if (USE_SDL2)
-    add_compile_definitions(${PROJECT_NAME}_USE_SDL2=1)
-    find_package(SDL2 REQUIRED)
-elseif (USE_GLFW3)
-    add_compile_definitions(${PROJECT_NAME}_USE_GLFW3=1)
-    find_package(glfw3 REQUIRED)
-endif()
+find_package(glfw3 REQUIRED)
 
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 
 add_subdirectory(window)
+add_subdirectory(engine)
 add_subdirectory(sandbox_utils)
 add_subdirectory(logger)
-add_subdirectory(voxel_terrain_generator)
-add_subdirectory(engine)
 
 add_library(gl_context STATIC gl_context.h gl_context.cpp)
 target_link_libraries(gl_context PUBLIC glad::glad)
-if (USE_SDL2)
-    target_link_libraries(gl_context PRIVATE SDL2::SDL2)
-elseif (USE_GLFW3)
-    target_link_libraries(gl_context PRIVATE glfw)
-endif()
+target_link_libraries(gl_context PRIVATE glfw)
 
-# if (DEBUG)
-    target_link_libraries(gl_context PRIVATE logger)
-# endif()
+target_link_libraries(gl_context PRIVATE logger)
 
-add_executable(${PROJECT_NAME} main.cpp)
+add_executable(ve001-benchmark ve001_benchmark.cpp testing_context.h)
 
-target_link_libraries(${PROJECT_NAME} PRIVATE 
+target_link_libraries(ve001-benchmark PRIVATE 
     window 
     gl_context 
     vmath
     sandbox_utils 
-    ve001_engine
+    ve001
     glfw
     sh_config
     logger
+    CLI11::CLI11
 )
-add_dependencies(${PROJECT_NAME} compile_and_copy_shaders_dirs)
+target_precompile_headers(ve001-benchmark PRIVATE "<CLI/CLI.hpp>")
 
-add_subdirectory(tools)
-
-
-
-
+add_dependencies(ve001-benchmark compile_and_copy_shaders_dirs)

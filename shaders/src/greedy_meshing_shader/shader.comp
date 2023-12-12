@@ -64,7 +64,6 @@ void main() {
 
     ///         START          ///
     if (gl_LocalInvocationIndex == 0) {
-        // local_mesh_vertex_count = written_vertex_counts[face_id];
         local_mesh_quads_count = written_quads[face_id];
     }
     memoryBarrierShared();

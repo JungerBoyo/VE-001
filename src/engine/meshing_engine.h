@@ -11,6 +11,7 @@
 #include "ringbuffer.h"
 #include "engine_context.h"
 #include "chunk_id.h"
+#include "shader.h"
 
 namespace ve001 {
 
@@ -87,6 +88,9 @@ struct MeshingEngine {
     RingBuffer<Command> _commands;
     /// @brief meshing command currently in execution/waiting for poll
     Command _active_command;
+
+    /// @brief greedy meshing shader handle
+    Shader _meshing_shader;
 
     const EngineContext& _engine_context;
 

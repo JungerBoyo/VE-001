@@ -42,7 +42,12 @@ void ChunkPool::init() noexcept {
     _ibo_id = tmp[1];
     _dibo_id = tmp[2];
 
-    glNamedBufferStorage(_vbo_id, static_cast<i64>(_chunks_count) * static_cast<i64>(_engine_context.chunk_max_current_mesh_size), nullptr, 0);
+    glNamedBufferStorage(
+        _vbo_id, 
+        static_cast<i64>(_chunks_count) * static_cast<i64>(_engine_context.chunk_max_current_mesh_size), 
+        nullptr, 
+        0
+    );
 
     glCreateVertexArrays(1, &_vao_id);
     setVertexLayout(_vao_id, _vbo_id);
@@ -73,9 +78,9 @@ void ChunkPool::init() noexcept {
             });
         }
 
-        static constexpr u32 INDICES_PATTERN[6] = { 0, 1, 2, 0, 2, 3 };
+        static constexpr u32 INDICES_PATTERN[6] = { 0U, 1U, 2U, 0U, 2U, 3U };
         std::vector<u32> indices(_engine_context.chunk_max_possible_submesh_indices_size/sizeof(u32));
-        for (std::size_t i{ 0UL }, q{ 0UL }; i < indices.size(); i += 6, q += 4) {
+        for (std::size_t i{ 0UL }, q{ 0UL }; i < indices.size(); i += 6UL, q += 4UL) {
             indices[i + 0] = INDICES_PATTERN[0] + static_cast<u32>(q);
             indices[i + 1] = INDICES_PATTERN[1] + static_cast<u32>(q);
             indices[i + 2] = INDICES_PATTERN[2] + static_cast<u32>(q);
@@ -92,31 +97,6 @@ void ChunkPool::init() noexcept {
     }
 
     _meshing_engine.init(_vbo_id);
-}
-
-u32 ChunkPool::allocateChunk(const std::function<void(void*)>& voxel_write_data, Vec3i32 position) noexcept {
-    if (_free_chunks.empty()) {
-        return INVALID_CHUNK_ID; // TODO: Error
-    }
-
-    FreeChunk free_chunk{};
-    _free_chunks.read(free_chunk);
-
-    voxel_write_data(static_cast<void*>(free_chunk.cpu_region.data()));
-
-    auto& chunk = _chunks.emplace_back(Chunk{
-        Vec3f32::cast(Vec3i32::sub(Vec3i32::mul(position, _engine_context.chunk_size), _engine_context.half_chunk_size)), 
-        {0U, 0U, 0U, 0U, 0U, 0U}, // bcs chunk isn't complete yet
-        free_chunk.cpu_region,
-        free_chunk.chunk_id,
-        false
-    });
-
-    _chunk_id_to_index[chunk.chunk_id] = _chunks.size() - 1;
-
-    _meshing_engine.issueMeshingCommand(chunk.chunk_id, chunk.position, chunk.cpu_region);
-
-    return chunk.chunk_id;
 }
 
 vmath::u32 ChunkPool::allocateChunk(std::span<const vmath::u16> src, Vec3i32 position) noexcept {
@@ -142,6 +122,8 @@ vmath::u32 ChunkPool::allocateChunk(std::span<const vmath::u16> src, Vec3i32 pos
     _chunk_id_to_index[chunk.chunk_id] = _chunks.size() - 1;
 
     _meshing_engine.issueMeshingCommand(chunk.chunk_id, chunk.position, chunk.cpu_region);
+
+    ++chunks_used;
 
     return chunk.chunk_id;
 }
@@ -292,6 +274,8 @@ void ChunkPool::deallocateChunk(u32 chunk_id) noexcept {
         .cpu_region = chunk.cpu_region
     });
     _chunks.pop_back();
+
+    --chunks_used;
 }
 void ChunkPool::deallocateChunkDrawCommands(ChunkId chunk_id) {
     const auto& chunk = _chunks[_chunk_id_to_index[chunk_id]];
@@ -310,10 +294,6 @@ void ChunkPool::deallocateChunkDrawCommands(ChunkId chunk_id) {
         }
         _draw_cmds.pop_back();
     }
-    _draw_cmds_dirty = true;
-}
-
-void ChunkPool::forceCommandsDirty() {
     _draw_cmds_dirty = true;
 }
 

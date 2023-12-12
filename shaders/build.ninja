@@ -11,32 +11,11 @@ rule glsl
 rule mkdir
   command = mkdir -p $out
 
-# build $BIN_DIR/basic_shader: mkdir
+build $BIN_DIR/basic_test_shader: mkdir
 
-# build $BIN_DIR/basic_shader/vert.spv: glsl $SRC_DIR/basic_shader/shader.vert | $BIN_DIR/basic_shader
-# build $BIN_DIR/basic_shader/frag.spv: glsl $SRC_DIR/basic_shader/shader.frag | $BIN_DIR/basic_shader
-
-build $BIN_DIR/multi_lights_shader: mkdir
-
-build $BIN_DIR/multi_lights_shader/vert.spv: glsl $SRC_DIR/multi_lights_shader/shader.vert | $BIN_DIR/multi_lights_shader
-build $BIN_DIR/multi_lights_shader/frag.spv: glsl $SRC_DIR/multi_lights_shader/shader.frag | $BIN_DIR/multi_lights_shader
+build $BIN_DIR/basic_test_shader/vert.spv: glsl $SRC_DIR/basic_test_shader/shader.vert | $BIN_DIR/basic_test_shader
+build $BIN_DIR/basic_test_shader/frag.spv: glsl $SRC_DIR/basic_test_shader/shader.frag | $BIN_DIR/basic_test_shader
 
 build $BIN_DIR/greedy_meshing_shader: mkdir
 
 build $BIN_DIR/greedy_meshing_shader/comp.spv: glsl $SRC_DIR/greedy_meshing_shader/shader.comp | $BIN_DIR/greedy_meshing_shader
-
-build $BIN_DIR/shadow_map_dir_shader: mkdir
-
-build $BIN_DIR/shadow_map_dir_shader/vert.spv: glsl $SRC_DIR/shadow_map_dir_shader/shader.vert | $BIN_DIR/shadow_map_dir_shader
-build $BIN_DIR/shadow_map_dir_shader/frag.spv: glsl $SRC_DIR/shadow_map_dir_shader/shader.frag | $BIN_DIR/shadow_map_dir_shader
-
-build $BIN_DIR/shadow_map_point_shader: mkdir
-
-build $BIN_DIR/shadow_map_point_shader/vert.spv: glsl $SRC_DIR/shadow_map_point_shader/shader.vert | $BIN_DIR/shadow_map_point_shader
-build $BIN_DIR/shadow_map_point_shader/geom.spv: glsl $SRC_DIR/shadow_map_point_shader/shader.geom | $BIN_DIR/shadow_map_point_shader
-build $BIN_DIR/shadow_map_point_shader/frag.spv: glsl $SRC_DIR/shadow_map_point_shader/shader.frag | $BIN_DIR/shadow_map_point_shader
-
-build $BIN_DIR/shadow_map_spot_shader: mkdir
-
-build $BIN_DIR/shadow_map_spot_shader/vert.spv: glsl $SRC_DIR/shadow_map_spot_shader/shader.vert | $BIN_DIR/shadow_map_spot_shader
-build $BIN_DIR/shadow_map_spot_shader/frag.spv: glsl $SRC_DIR/shadow_map_spot_shader/shader.frag | $BIN_DIR/shadow_map_spot_shader

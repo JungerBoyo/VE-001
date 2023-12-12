@@ -5,6 +5,7 @@
 #include <logger/logger.h>
 
 using namespace ve001;
+using namespace vmath;
 
 Window ve001::window{};
 

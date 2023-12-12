@@ -16,6 +16,18 @@ using namespace vmath;
 #define VE001_SH_CONFIG_SSBO_BINDING_MESHING_TEMP       6
 #define VE001_SH_CONFIG_SSBO_BINDING_MESH_DATA          7
 
+static bool deviceSupportsARBSpirv() {
+	int ext_num{ 0 };
+    glGetIntegerv(GL_NUM_EXTENSIONS, &ext_num);
+    for (int i{ 0 }; i < ext_num; ++i) {
+        const auto ext_str = std::string_view(reinterpret_cast<const char*>(glGetStringi(GL_EXTENSIONS, i)));
+        if (ext_str == "GL_ARB_gl_spirv") {
+			return true;
+        }
+    }
+	return false;
+}
+
 void MeshingEngine::init(u32 vbo_id) {
     _vbo_id = vbo_id;
 
@@ -62,6 +74,13 @@ void MeshingEngine::init(u32 vbo_id) {
 
     Temp meshing_temp{};
     _ssbo_meshing_temp.write(static_cast<const void*>(&meshing_temp));
+
+    _meshing_shader.init();
+    if (_engine_context.meshing_shader_bin_path.has_value() && deviceSupportsARBSpirv()) {
+        _meshing_shader.attach(_engine_context.meshing_shader_bin_path.value(), true);
+    } else {
+        _meshing_shader.attach(_engine_context.meshing_shader_src_path, false);
+    }
 }
 
 void MeshingEngine::issueMeshingCommand(u32 chunk_id, Vec3f32 chunk_position, std::span<const u16> voxel_data) {
@@ -175,8 +194,6 @@ void MeshingEngine::updateMetadata(vmath::u32 new_vbo_id) {
 
     Temp meshing_temp{};
     _ssbo_meshing_temp.write(static_cast<const void*>(&meshing_temp));
-
-    // glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT|GL_UNIFORM_BARRIER_BIT);
 }
 
 void MeshingEngine::firstCommandExec(Command& command) {
@@ -200,7 +217,7 @@ void MeshingEngine::firstCommandExec(Command& command) {
 
     command.axis_progress += _engine_context.meshing_axis_progress_step;
 
-    _engine_context.shader_repo[ShaderType::GREEDY_MESHING_SHADER].bind();
+    _meshing_shader.bind();
     glDispatchCompute(6, 1, 1);
     command.fence = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
 }
@@ -210,12 +227,13 @@ void MeshingEngine::subsequentCommandExec(Command& command) {
 
     glDeleteSync(static_cast<GLsync>(command.fence));
 
-    _engine_context.shader_repo[ShaderType::GREEDY_MESHING_SHADER].bind();
+    _meshing_shader.bind();
     glDispatchCompute(6, 1, 1);
     command.fence = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
 }
 
 void MeshingEngine::deinit() {
+    _meshing_shader.deinit();
     if (_ssbo_voxel_data_ptr != nullptr) {
         glUnmapNamedBuffer(_ssbo_voxel_data_id);
     }

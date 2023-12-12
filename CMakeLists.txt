@@ -36,10 +36,10 @@ add_subdirectory(src)
 
 
 ### package project ###
-install(TARGETS ${PROJECT_NAME} RUNTIME DESTINATION "./")
-install(DIRECTORY ${PROJECT_SOURCE_DIR}/shaders/bin DESTINATION "shaders/")
-install(DIRECTORY ${PROJECT_SOURCE_DIR}/shaders/src DESTINATION "shaders/")
-install(DIRECTORY ${PROJECT_SOURCE_DIR}/assets/textures DESTINATION "assets/")
+# install(TARGETS ve001 RUNTIME DESTINATION "./")
+# install(DIRECTORY ${PROJECT_SOURCE_DIR}/shaders/bin DESTINATION "shaders/")
+# install(DIRECTORY ${PROJECT_SOURCE_DIR}/shaders/src DESTINATION "shaders/")
+# install(DIRECTORY ${PROJECT_SOURCE_DIR}/assets/textures DESTINATION "assets/")
 
-include(CPack)
+# include(CPack)
 ########################

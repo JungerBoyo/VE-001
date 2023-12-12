@@ -9,7 +9,7 @@
 #include <memory>
 
 #include <vmath/vmath.h>
-#include <threadsafe_ringbuffer.h>
+#include "threadsafe_ringbuffer.h"
 
 #include "chunk_generator.h"
 
@@ -27,7 +27,7 @@ struct ChunkDataStreamer {
 
     std::unique_ptr<ChunkGenerator> _chunk_generator;
 
-    ChunkDataStreamer(std::unique_ptr<ChunkGenerator> chunk_generator, std::size_t capacity);
+    ChunkDataStreamer(vmath::u32 threads_count, std::unique_ptr<ChunkGenerator> chunk_generator, std::size_t capacity);
 
     void thread();
     /**

@@ -1,7 +1,7 @@
 #ifndef VE001_SIMPLE_TERRAIN_GENERATOR_H
 #define VE001_SIMPLE_TERRAIN_GENERATOR_H
 
-#include "chunk_generator.h"
+#include "engine/chunk_generator.h"
 
 #include <vector>
 

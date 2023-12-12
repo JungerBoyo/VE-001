@@ -1,14 +1,21 @@
 #ifndef VE001_GL_CONTEXT_H
 #define VE001_GL_CONTEXT_H
 
-#include <types.h>
-
 namespace ve001 {
 
 void glInit();
 
 #ifndef DEBUG
-    void setGLDebugCallback(void (*gl_error_callback)(u32, u32, u32, u32, i32, const char *, const void *));
+    void setGLDebugCallback(
+        void (*gl_error_callback)(
+            unsigned int, 
+            unsigned int, 
+            unsigned int, 
+            unsigned int, 
+            int, 
+            const char *, 
+            const void *)
+        );
 #endif
 
 }

@@ -33,12 +33,18 @@ static u32 computeMaxVisibleChunks(Vec3i32 chunk_size, Vec3f32 ellipsoid_semi_ax
     return max_chunks_along_x * max_chunks_along_y * max_chunks_along_z;
 }
 
-WorldGrid::WorldGrid(EngineContext& engine_context, vmath::Vec3f32 world_size, vmath::Vec3f32 initial_position, std::unique_ptr<ChunkGenerator> chunk_generator) :
+WorldGrid::WorldGrid(
+    EngineContext& engine_context, 
+    Vec3f32 world_size, 
+    Vec3f32 initial_position, 
+    u32 chunk_data_streamer_threads_count,
+    std::unique_ptr<ChunkGenerator> chunk_generator) :
+
     _engine_context(engine_context),
     _max_visible_chunks(computeMaxVisibleChunks(_engine_context.chunk_size, world_size)),
     _current_position(initial_position), _semi_axes(world_size), _chunk_pool(engine_context, _max_visible_chunks), 
     _grid_size(Vec3i32::add(Vec3i32::mulScalar(Vec3i32::cast(Vec3f32::div(world_size, Vec3f32::cast(engine_context.chunk_size))), 2), 1)),
-    _chunk_data_streamer(std::move(chunk_generator), _max_visible_chunks),
+    _chunk_data_streamer(chunk_data_streamer_threads_count, std::move(chunk_generator), _max_visible_chunks),
     _to_allocate_chunks(_max_visible_chunks) 
     {
 }

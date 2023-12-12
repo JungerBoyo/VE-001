@@ -1,9 +1,11 @@
 #ifndef VE001_WORLD_GRID_H
 #define VE001_WORLD_GRID_H
 
-#include <vmath/vmath.h>
 #include <vector>
 #include <numeric>
+
+#include <vmath/vmath.h>
+
 #include "chunk_id.h"
 #include "chunk_pool.h"
 #include "engine_context.h"
@@ -46,8 +48,12 @@ struct WorldGrid {
     };
     /// @brief handle to chunk which is to be generated and than allocated
     struct ToAllocateChunk {
+        /// @brief handle to data which will be generated in the future by
+        /// chunk data streamer
         std::future<std::optional<std::span<const vmath::u16>>> data;
+        /// @brief handle to visible chunk
         VisibleChunkId visible_chunk_id;
+        /// @brief handle to generated data
         std::optional<std::span<const vmath::u16>> ready_data{ std::nullopt };
     };
 
@@ -83,8 +89,15 @@ struct WorldGrid {
     /// @param engine_context engine context
     /// @param world_size world size aka semi axes of an ellipsoid
     /// @param initial_position initial world grid continuous in space position (eg. camera initial position)
+    /// @param chunk_data_streamer_threads_count number of <_chunk_data_streamer>'s threads count
     /// @param chunk_generator chunk generator which will be used by <_chunk_data_streamer>
-    WorldGrid(EngineContext& engine_context, vmath::Vec3f32 world_size, vmath::Vec3f32 initial_position, std::unique_ptr<ChunkGenerator> chunk_generator);
+    WorldGrid(
+        EngineContext& engine_context, 
+        vmath::Vec3f32 world_size, 
+        vmath::Vec3f32 initial_position,
+        vmath::u32 chunk_data_streamer_threads_count,
+        std::unique_ptr<ChunkGenerator> chunk_generator
+    );
     /// @brief performs later stage initialization eg. perform related initialization
     void init();
     /// @brief updated the world grid based on the new position (eg. new camera position).

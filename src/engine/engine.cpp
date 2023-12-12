@@ -1,8 +1,5 @@
 #include "engine.h"
 
-#include "noise_terrain_generator.h"
-#include "simple_terrain_generator.h"
-
 using namespace vmath;
 using namespace ve001;
 
@@ -19,7 +16,6 @@ static bool frustumCullingUnaryOp(
 
 
 Engine::Engine(Config config) : _engine_context(EngineContext{
-		.shader_repo = {},
 		.chunk_size = config.chunk_size,
 		.half_chunk_size = Vec3i32::divScalar(config.chunk_size, 2),
 		.chunk_size_1D = static_cast<u64>(config.chunk_size[0]) * static_cast<u64>(config.chunk_size[1]) * static_cast<u64>(config.chunk_size[2]),
@@ -34,19 +30,18 @@ Engine::Engine(Config config) : _engine_context(EngineContext{
 			((static_cast<u64>(config.chunk_size[0]) * static_cast<u64>(config.chunk_size[1]) * static_cast<u64>(config.chunk_size[2]) * sizeof(Vertex) * static_cast<u64>(24/2))/6) :
 			sizeof(Vertex) * static_cast<u64>(24/6),
 		.chunk_pool_growth_coefficient = config.chunk_pool_growth_coefficient,
-		.meshing_axis_progress_step = config.meshing_shader_local_group_size
+		.meshing_axis_progress_step = config.meshing_shader_local_group_size,
+		.meshing_shader_src_path = config.meshing_shader_src_path,
+		.meshing_shader_bin_path = config.meshing_shader_bin_path 	
   	}),
-  	_world_grid(_engine_context, config.world_size, config.initial_position, std::move(config.chunk_data_generator)
-  )
+  	_world_grid(_engine_context, config.world_size, config.initial_position, config.chunk_data_streamer_threads_count, std::move(config.chunk_data_generator))
 {}
 
 void Engine::init() {
-    _engine_context.shader_repo.init();
     _world_grid.init();
 }
 void Engine::deinit() {
     _world_grid.deinit();
-    _engine_context.shader_repo.deinit();
 }
 
 void Engine::applyFrustumCullingPartition(

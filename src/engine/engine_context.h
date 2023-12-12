@@ -1,16 +1,15 @@
 #ifndef VE001_ENGINE_CONTEXT_H
 #define VE001_ENGINE_CONTEXT_H
 
-#include <vmath/vmath.h>
+#include <optional>
+#include <filesystem>
 
-#include "shader_repository.h"
+#include <vmath/vmath.h>
 
 namespace ve001 {
 
 /// @brief context holds common state for different engine components/modules
 struct EngineContext {
-    /// @brief repository with all shaders
-    ShaderRepository shader_repo;
     /// @brief chunk size/resolution 
     vmath::Vec3i32 chunk_size;
     /// @brief half chunk size/resolution 
@@ -31,10 +30,12 @@ struct EngineContext {
     vmath::u64 chunk_max_current_submesh_size;
     /// @brief chunk pool memory growth coefficient
     vmath::f32 chunk_pool_growth_coefficient;
-    /// @brief max possiblenumber of visible chunks
-    // vmath::u32 max_visible_chunks;
     /// @brief it maps to local_size_x attribute in greedy meshing compute shader
-    vmath::i32 meshing_axis_progress_step;
+    vmath::i32 meshing_axis_progress_step{ 64 };
+    /// @brief path to meshing shader src
+    std::filesystem::path meshing_shader_src_path{"./shaders/src/greedy_meshing_shader/shader.comp"};
+    /// @brief path to meshing shader bin in spirv (optional)        
+    std::optional<std::filesystem::path> meshing_shader_bin_path{"./shaders/src/greedy_meshing_shader/shader.comp"};
 };
 
 }

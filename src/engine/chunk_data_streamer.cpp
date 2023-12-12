@@ -3,11 +3,14 @@
 using namespace ve001;
 using namespace vmath;
 
-ChunkDataStreamer::ChunkDataStreamer(std::unique_ptr<ChunkGenerator> chunk_generator, std::size_t capacity)
+ChunkDataStreamer::ChunkDataStreamer(u32 threads_count, std::unique_ptr<ChunkGenerator> chunk_generator, std::size_t capacity)
     : _chunk_generator(std::move(chunk_generator)), _gen_promises(capacity) {
     try {
-        const auto threads_count = std::thread::hardware_concurrency() == 0 ? 1 : std::thread::hardware_concurrency() - 2;
-        for (std::uint32_t i{ 0U }; i < threads_count; ++i) {
+        auto final_threads_count = threads_count;
+        if (final_threads_count == 0U) {
+            final_threads_count = std::thread::hardware_concurrency() == 0 ? 1 : std::thread::hardware_concurrency();
+        }
+        for (std::uint32_t i{ 0U }; i < final_threads_count; ++i) {
             _threads.push_back(std::jthread(&ChunkDataStreamer::thread, this));
         }
     } catch([[maybe_unused]] const std::exception&) {

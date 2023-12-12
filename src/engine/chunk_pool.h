@@ -149,7 +149,9 @@ struct ChunkPool {
     /// @brief gpu memory usage in bytes (mesh)
     vmath::u64 gpu_memory_usage{ 0UL };
     /// @brief cpu memory usage in bytes (voxel values)
-    vmath::u64 cpu_memory_usage{ 0UL };    
+    vmath::u64 cpu_memory_usage{ 0UL };
+    /// @brief gpu region usage
+    vmath::u64 chunks_used{ 0UL };
     
     ////////////////////////////////////////
 
@@ -166,11 +168,6 @@ struct ChunkPool {
     /// @param max_chunks number of chunks in a pool
     void init() noexcept;
     /// @brief allocates chunk from _free_chunks
-    /// @param voxel_write_data function writing voxel data to voxel data region (CPU)
-    /// @param position position of the chunk
-    /// @return allocated chunk id or UINT32_MAX if allocatation failed
-    ChunkId allocateChunk(const std::function<void(void*)>& voxel_write_data, vmath::Vec3i32 position) noexcept;
-    /// @brief allocates chunk from _free_chunks
     /// @param src voxel data
     /// @param position position of the chunk
     /// @return allocated chunk id or UINT32_MAX if allocatation failed
@@ -186,8 +183,6 @@ struct ChunkPool {
     /// if deallocated chunk is complete
     /// @param chunk_id chunk's id from which to deallocate draw commands
     void deallocateChunkDrawCommands(ChunkId chunk_id);
-    /// @brief flag draw commands array as dirty to force memory reupload
-    void forceCommandsDirty();
     /// @brief updates the state. Update draw command buffer binds vbo as vertex buffer, binds vao
     /// @param use_partition commands will be supplied based on last paritioning call (paritionDrawCmds)
     void update(bool use_partition);

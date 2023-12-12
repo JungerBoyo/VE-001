@@ -3,7 +3,7 @@
 
 #include <tuple>
 #include <string_view>
-#include "types.h"
+#include <vmath/vmath_types.h>
 
 namespace ve001 {
 
@@ -14,15 +14,15 @@ private:
 	WinNativeData* _win_native_data{ nullptr };
 
 public:
-	static bool init(std::string_view title, i32 w, i32 h, void (*win_error_callback)(i32, const char *));
+	static bool init(std::string_view title, vmath::i32 w, vmath::i32 h, void (*win_error_callback)(vmath::i32, const char *));
 
 	Window() = default;
 
 	[[nodiscard]] void* native();
-	[[nodiscard]] std::pair<i32, i32> size() const;
-	[[nodiscard]] f32 time() const;
+	[[nodiscard]] std::pair<vmath::i32, vmath::i32> size() const;
+	[[nodiscard]] vmath::f32 time() const;
 
-	void setViewport(i32 w, i32 h) const;
+	void setViewport(vmath::i32 w, vmath::i32 h) const;
 	void setWinUserDataPointer(void* ptr);
 
 	template<typename R, typename ...Args>
