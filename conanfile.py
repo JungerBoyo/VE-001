@@ -5,11 +5,7 @@ class VE001Recipe(ConanFile):
     build_policy = "missing"
 
     settings = "os", "compiler", "build_type", "arch"
-    generators = "CMakeDeps"
-
-    def generate(self):
-        tc = CMakeToolchain(self, generator="Ninja")
-        tc.generate()
+    generators = "CMakeDeps, CMakeToolchain"
 
     def config_options(self):
         self.options["glad"].spec = "gl"

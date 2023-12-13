@@ -109,7 +109,9 @@ vmath::u32 ChunkPool::allocateChunk(std::span<const vmath::u16> src, Vec3i32 pos
 
     std::memcpy(static_cast<void*>(free_chunk.cpu_region.data()), static_cast<const void*>(src.data()), src.size() * sizeof(u16));
 
+#ifdef ENGINE_TEST
     cpu_memory_usage += src.size() * sizeof(u16);
+#endif
 
     auto& chunk = _chunks.emplace_back(Chunk{
         Vec3f32::cast(Vec3i32::sub(Vec3i32::mul(position, _engine_context.chunk_size), _engine_context.half_chunk_size)), 
@@ -123,7 +125,9 @@ vmath::u32 ChunkPool::allocateChunk(std::span<const vmath::u16> src, Vec3i32 pos
 
     _meshing_engine.issueMeshingCommand(chunk.chunk_id, chunk.position, chunk.cpu_region);
 
+#ifdef ENGINE_TEST
     ++chunks_used;
+#endif
 
     return chunk.chunk_id;
 }
@@ -159,7 +163,9 @@ void ChunkPool::completeChunk(MeshingEngine::Result result) {
             .orientation = static_cast<Face>(i),
             .chunk_id = result.chunk_id
         });
+#ifdef ENGINE_TEST
         gpu_memory_usage += static_cast<u64>(draw_cmd.count/6) * sizeof(Vertex) * 4;
+#endif
     }
     _draw_cmds_dirty = true;
 }
@@ -274,14 +280,17 @@ void ChunkPool::deallocateChunk(u32 chunk_id) noexcept {
         .cpu_region = chunk.cpu_region
     });
     _chunks.pop_back();
-
+#ifdef ENGINE_TEST
     --chunks_used;
+#endif
 }
 void ChunkPool::deallocateChunkDrawCommands(ChunkId chunk_id) {
     const auto& chunk = _chunks[_chunk_id_to_index[chunk_id]];
     for (u32 i{ 0U }; i < 6; ++i) {
         const auto draw_cmd_index = chunk.draw_cmd_indices[i];
+#ifdef ENGINE_TEST
         gpu_memory_usage -= static_cast<u64>(_draw_cmds[draw_cmd_index].count/6) * sizeof(Vertex) * 4;
+#endif
         if (draw_cmd_index != _draw_cmds.size() - 1U) {
             auto& last_draw_cmd = _draw_cmds.back();
             const auto last_draw_cmd_chunk_index = _chunk_id_to_index[last_draw_cmd.chunk_id];

@@ -92,6 +92,13 @@ struct MeshingEngine {
     /// @brief greedy meshing shader handle
     Shader _meshing_shader;
 
+#ifdef ENGINE_TEST
+    vmath::u64 begin_meshing_time_ns{ 0UL };
+    vmath::u64 end_meshing_time_ns{ 0UL };
+    vmath::u64 result_meshing_time_ns{ 0UL };
+    vmath::u32 meshing_time_query{ 0U };
+#endif
+
     const EngineContext& _engine_context;
 
     MeshingEngine(const EngineContext& engine_context, vmath::u32 max_chunks) 

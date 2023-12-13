@@ -6,7 +6,7 @@ add_library(sandbox_utils STATIC
     simple_terrain_generator.h
     simple_terrain_generator.cpp
 )
-target_link_libraries(sandbox_utils PRIVATE 
+target_link_libraries(sandbox_utils PUBLIC
     glad::glad
     ve001
     FastNoise2::FastNoise

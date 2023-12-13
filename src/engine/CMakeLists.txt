@@ -21,6 +21,7 @@ add_library(ve001 STATIC
     world_grid.cpp
     world_grid.h
 )
+target_compile_definitions(ve001 PUBLIC ENGINE_TEST)
 target_link_libraries(ve001 PRIVATE 
     glad::glad
     vmath

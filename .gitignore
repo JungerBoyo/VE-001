@@ -8,3 +8,5 @@ conanprofile.dbg.txt
 .ninja_log
 ve001_log
 maps/
+ve001_frame_samples.csv
+ve001_meshing_samples.csv

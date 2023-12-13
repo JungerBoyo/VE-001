@@ -1,8 +1,5 @@
 #include "world_grid.h"
 
-#include <iostream>
-#include <FastNoise/FastNoise.h>
-
 using namespace vmath;
 using namespace ve001;
 

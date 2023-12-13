@@ -42,12 +42,13 @@ std::optional<std::span<const vmath::u16>> NoiseTerrainGenerator::gen(vmath::Vec
     std::size_t i{ 0UL };
     u32 not_empty{ 0UL };
     for (const auto noise_value : _tmp_noise) {
-        const auto fvalue = ((noise_value + 1.F)/2.F);
-        const u16 value = fvalue < _config.visibilty_threshold ? 0U :
-            std::clamp(
-                static_cast<u32>(((1.F - fvalue) + _config.visibilty_threshold) * static_cast<f32>(_config.quantize_values)),
-                0U, _config.quantize_values
-            );
+        auto fvalue = ((noise_value + 1.F)/2.F);
+
+        u16 value{ 0U };
+        if (fvalue >= _config.visibilty_threshold) {
+            const auto stretched_upper_fvalue = ((1.F - fvalue) + _config.visibilty_threshold);
+            value = std::clamp(static_cast<u32>(stretched_upper_fvalue * static_cast<f32>(_config.quantize_values)), 0U, _config.quantize_values);
+        }
 
         not_empty += static_cast<u32>(value > 0);
         buffer[i++] = value;

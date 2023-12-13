@@ -26,9 +26,6 @@
 */
 
 //////////////////////////////// CONSTANTS //////////////////////////////////
-// static constexpr vmath::Vec3i32 CHUNK_SIZE(64, 64, 64);
-// static constexpr vmath::Vec3f32 WORLD_SIZE(400.F, 100.F, 400.F);
-
 static constexpr std::string_view vsh_path{ "shaders/bin/basic_test_shader/vert.spv" };
 static constexpr std::string_view fsh_path{ "shaders/bin/basic_test_shader/frag.spv" };
 //////////////////////////////////////////////////////////////////////////////
@@ -37,7 +34,8 @@ static constexpr std::string_view fsh_path{ "shaders/bin/basic_test_shader/frag.
 static ve001::Camera camera{};
 static ve001::Camera sky_camera{};
 
-static bool chosen_camera{ false };
+static bool chosen_camera{ true };
+static bool move_camera{ true };
 
 static bool camera_moved{ false };
 static bool camera_rotated{ false };
@@ -73,6 +71,62 @@ static void keyCallback(GLFWwindow *win_handle, vmath::i32 key, vmath::i32, vmat
 static void mousePosCallback(GLFWwindow *win_handle, vmath::f64 x_pos, vmath::f64 y_pos);
 //////////////////////////////////////////////////////////////////////////////
 
+static vmath::u32 getBackFaceCullMask(const ve001::Camera& camera) {
+    static constexpr vmath::f32 epsilon{ .05F };
+
+    vmath::u32 result{ 0U };
+    for (vmath::u32 i{ 0UL }; i < 3UL; ++i) {
+        if (camera.looking_dir[i] > -epsilon) {
+            result |= (1U << (i * 2U + 1U));
+        }
+        if (camera.looking_dir[i] < epsilon) {
+            result |= (1U << (i * 2U + 0U));
+        }
+    }
+
+    return result;
+}
+
+static constexpr std::array<vmath::Vec3f32, 6> FACE_NORMAL_LOOKUP_TABLE {{
+    { 1.F, 0.F, 0.F}, 
+    {-1.F, 0.F, 0.F},
+    { 0.F, 1.F, 0.F},
+    { 0.F,-1.F, 0.F},
+    { 0.F, 0.F, 1.F},
+    { 0.F, 0.F,-1.F}
+}};
+
+static bool backFaceCullingUnaryOp(
+    ve001::Face orientation, 
+    vmath::Vec3f32 position,
+    vmath::Vec3f32 half_chunk_size,
+    vmath::u32 camera_mask,
+    vmath::Vec3f32 camera_position) {
+    
+    if ((camera_mask & (1U << orientation)) > 0U) {
+        return true;
+    }
+
+    static constexpr vmath::f32 POINTS_DENSITY{ .5F };
+    static constexpr vmath::f32 BIAS{ .05F };
+
+    for (vmath::f32 z{ -.5F }; z < .5F; z += POINTS_DENSITY ) {
+    for (vmath::f32 y{ -.5F }; y < .5F; y += POINTS_DENSITY ) {
+    for (vmath::f32 x{ -.5F }; x < .5F; x += POINTS_DENSITY ) {
+
+        const auto point = vmath::Vec3f32::mul({x, y, z}, half_chunk_size);
+        const auto normal = vmath::Vec3f32::normalize(vmath::Vec3f32::sub(vmath::Vec3f32::add(position, point), camera.position));
+
+        if (vmath::Vec3f32::dot(normal, FACE_NORMAL_LOOKUP_TABLE[orientation]) <= BIAS) {
+            return true;
+        }
+    }
+    }
+    }
+
+    return false;
+}
+
 struct CLIAppConfig {
     bool simple_generator{ false };
     vmath::Vec3i32 chunk_size{ 0 };
@@ -99,7 +153,7 @@ int main(int argc, const char* const* argv) {
 
     CLI11_PARSE(app, argc, argv);
     
-    if (!ve001::window.init("basic test", 640, 480, nullptr)) {
+    if (!ve001::window.init("ve001-benchmark", 640, 480, nullptr)) {
         return 1;
     }
     ve001::glInit();
@@ -123,10 +177,10 @@ int main(int argc, const char* const* argv) {
             std::unique_ptr<ve001::ChunkGenerator>(
                 new ve001::NoiseTerrainGenerator({
                     .terrain_size = cli_app_config.chunk_size,
-                    .noise_frequency = .0048F,
-                    .quantize_values = 257U,
+                    .noise_frequency = .0038F,
+                    .quantize_values = 9,
                     .seed = 0xC0000B99,
-                    .visibilty_threshold = .3F
+                    .visibilty_threshold = .3F,
                 })
             )
         ,
@@ -147,10 +201,12 @@ int main(int argc, const char* const* argv) {
     general_ubo.init();
     general_ubo.bind(GL_UNIFORM_BUFFER, 0);
 
-    engine.partitioning = false;
+    engine.partitioning = (cli_app_config.back_face_culling || cli_app_config.frustum_culling);
 
-    TestingContext testing_context;
+    TestingContext testing_context(3000);
     testing_context.init();
+
+    const auto half_chunk_size = vmath::Vec3f32::divScalar(vmath::Vec3f32::cast(cli_app_config.chunk_size), 2.F);
 
     vmath::f32 prev_frame_time{0.F};
     while (!ve001::window.shouldClose()) {
@@ -162,35 +218,71 @@ int main(int argc, const char* const* argv) {
 
         for (auto &key : keys) {
             if (key.pressed) {
-                key.action(chosen_camera ? camera : sky_camera, 20.F);
-                camera_moved = true;
+                key.action(move_camera ? camera : sky_camera, 35.F);
+                if (move_camera) {
+                    camera_moved = true;
+                }
             }
         }
 
+        static constexpr vmath::f32 CAMERA_Z_NEAR{ .1F };
+        static constexpr vmath::f32 CAMERA_Z_FAR{ 500.F };
+        static constexpr vmath::f32 CAMERA_FOV{ .5F * std::numbers::pi_v<vmath::f32> };
+        static constexpr vmath::f32 CAMERA_FOV_BIASED{ .65F * std::numbers::pi_v<vmath::f32> };
+
         const auto proj_mat = chosen_camera ? 
             vmath::misc<vmath::f32>::symmetricPerspectiveProjection(
-                .5F * std::numbers::pi_v<vmath::f32>, .1F, 500.F,
+                CAMERA_FOV, CAMERA_Z_NEAR, CAMERA_Z_FAR,
                 static_cast<vmath::f32>(window_width), static_cast<vmath::f32>(window_height)
             ) :
             vmath::misc<vmath::f32>::symmetricOrthographicProjection(
-                .1F, 1000.F,
-                static_cast<vmath::f32>(window_width), static_cast<vmath::f32>(window_height)
+                .1F, 1000.F, static_cast<vmath::f32>(window_width), static_cast<vmath::f32>(window_height)
             );
 
 
         if (start_testing) {
             testing_context.beginMeasure();
         }
-        
+
         general_data.vp = vmath::Mat4f32::mul(proj_mat, (chosen_camera ? camera : sky_camera).lookAt());
         general_data.camera_pos = camera.position;
         general_ubo.write(static_cast<const void*>(&general_data));
 
         engine.updateCameraPosition(camera.position);
         
-        engine.pollChunksUpdates();
+        for(vmath::i32 i{ 0 }; i < 3 && engine.pollChunksUpdates(); ++i) {
+            if (start_testing) {
+                testing_context.saveMeshingSample({engine._world_grid._chunk_pool._meshing_engine.result_meshing_time_ns});
+            }
+        }
 
         if (camera_moved || camera_rotated) {
+
+            if (cli_app_config.frustum_culling) {
+                static constexpr auto TAN_FOV = std::tan(CAMERA_FOV_BIASED/2.F);
+                const auto aspect_ratio = (static_cast<vmath::f32>(window_width)/static_cast<vmath::f32>(window_height));
+
+                engine.applyFrustumCullingPartition(
+                    false,
+                    -CAMERA_Z_NEAR,
+                    -CAMERA_Z_FAR,
+                    aspect_ratio * CAMERA_Z_NEAR * TAN_FOV,
+                    CAMERA_Z_NEAR * TAN_FOV,
+                    camera.lookAt()
+                );
+            }
+
+            if (cli_app_config.back_face_culling) {
+
+                engine.applyCustomPartition(
+                    backFaceCullingUnaryOp,
+                    cli_app_config.frustum_culling,
+                    half_chunk_size,
+                    getBackFaceCullMask(camera),
+                    camera.position
+                );
+            }
+
             camera_moved = false;
             camera_rotated = false;
         }
@@ -205,41 +297,20 @@ int main(int argc, const char* const* argv) {
         engine.draw();
 
         if (start_testing) {
-            testing_context.endMeasure();
+            testing_context.endMeasure(
+                engine._world_grid._chunk_pool.chunks_used,
+                engine._world_grid._chunk_pool.gpu_memory_usage,
+                engine._world_grid._chunk_pool.chunks_used * engine._engine_context.chunk_max_current_mesh_size,
+                engine._world_grid._chunk_pool.cpu_memory_usage
+            );
         }
 
         ve001::window.swapBuffers();
         ve001::window.pollEvents();
     }
 
-    ve001::logger->info(R"(
-        For number of frames rendered {}:
-            Mean CPU time elapsed was {}ms
-            Max CPU time elapsed was {}ms
-            Mean GPU time elapsed was {}ms
-            Max GPU time elapsed was {}ms
-            Mean samples passed was {}
-            Mean primitives generated was {}
-            Mean number of quads generated was {}
-            Mean chunk pool passive GPU memory usage was {}MB
-            Mean chunk pool active GPU memory usage was {}MB
-            Mean chunk pool CPU memory usage was {}MB
-            Mean number of chunks allocated was {}
-
-        )",
-        testing_context.frame_counter,
-        static_cast<vmath::f64>(testing_context.cpu_mean_frame_time_elapsed_ns) / 1'000'000.F,
-        static_cast<vmath::f64>(testing_context.cpu_max_frame_time_elapsed_ns) / 1'000'000.F,
-        static_cast<vmath::f64>(testing_context.gpu_mean_frame_time_elapsed_ns) / 1'000'000.F,
-        static_cast<vmath::f64>(testing_context.gpu_max_frame_time_elapsed_ns) / 1'000'000.F,
-        testing_context.mean_samples_passed,
-        testing_context.mean_prims_generated,
-        testing_context.mean_prims_generated/4,
-        static_cast<vmath::f32>(engine._world_grid._chunk_pool.chunks_used * engine._engine_context.chunk_max_current_mesh_size) / (1024.F*1024.F),
-        static_cast<vmath::f32>(engine._world_grid._chunk_pool.gpu_memory_usage) / (1024.F * 1024.F),
-        static_cast<vmath::f32>(engine._world_grid._chunk_pool.cpu_memory_usage) / (1024.F * 1024.F),
-        engine._world_grid._chunk_pool.chunks_used
-    );
+    testing_context.dumpFrameSamples();
+    testing_context.dumpMeshingSamples();
 
     testing_context.deinit();
 
@@ -275,6 +346,11 @@ void keyCallback(GLFWwindow *win_handle, vmath::i32 key, vmath::i32, vmath::i32 
             chosen_camera = !chosen_camera;
         }
         break;
+    case GLFW_KEY_M:
+        if ((action == GLFW_PRESS || action == GLFW_REPEAT)) {
+            move_camera = !move_camera;
+        }
+        break;
     case GLFW_KEY_P:
         if ((action == GLFW_PRESS || action == GLFW_REPEAT)) {
             start_testing = true;
@@ -300,10 +376,12 @@ void mousePosCallback(GLFWwindow *win_handle, vmath::f64 x_pos, vmath::f64 y_pos
 
     static constexpr auto step{0.020F};
 
-    auto& c = chosen_camera ? camera : sky_camera;
+    auto& c = move_camera ? camera : sky_camera;
     c.rotateXYPlane({timestep * step * x_step, timestep * step * y_step});
-    camera_rotated = true;
 
+    if (move_camera) {
+        camera_rotated = true;
+    }
     prev_mouse_pos[0] = static_cast<vmath::f32>(x_pos);
     prev_mouse_pos[1] = static_cast<vmath::f32>(y_pos);
 }

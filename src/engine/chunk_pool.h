@@ -146,13 +146,15 @@ struct ChunkPool {
     ///       METADATA (DEBUG/INFO)      ///
     ////////////////////////////////////////
 
+#ifdef ENGINE_TEST
     /// @brief gpu memory usage in bytes (mesh)
     vmath::u64 gpu_memory_usage{ 0UL };
     /// @brief cpu memory usage in bytes (voxel values)
     vmath::u64 cpu_memory_usage{ 0UL };
     /// @brief gpu region usage
     vmath::u64 chunks_used{ 0UL };
-    
+#endif
+
     ////////////////////////////////////////
 
     /// @brief context holds common data to all engine components

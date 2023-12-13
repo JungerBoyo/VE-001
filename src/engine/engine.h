@@ -75,8 +75,8 @@ struct Engine {
     /// @param use_last_partition If true then the previous parition will be paritioned again
     /// @param args Aux arguments to pass to unary_op function
     template<typename ...Args> 
-    void applyCustomPartition(bool(*unary_op)(Face orientation, vmath::Vec3f32 position, Args... args), bool use_last_partition, Args&&... args) {
-        _world_grid._chunk_pool.partitionDrawCommands(unary_op, use_last_partition, std::forward<Args>(args)...);
+    void applyCustomPartition(bool(*unary_op)(Face orientation, vmath::Vec3f32 position, Args... args), bool use_last_partition, Args... args) {
+        _world_grid._chunk_pool.partitionDrawCommands(unary_op, use_last_partition, args...);
     }
 
     /// @brief initalization of the opengl resources

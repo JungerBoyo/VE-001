@@ -55,7 +55,7 @@ void Engine::applyFrustumCullingPartition(
 	_world_grid._chunk_pool.partitionDrawCommands(
 		frustumCullingUnaryOp,
 		use_last_partition,
-		Vec3f32::cast(_engine_context.chunk_size),
+		Vec3f32::cast(_engine_context.half_chunk_size),
 		z_near, 
 		z_far, 
 		x_near,
@@ -80,7 +80,7 @@ void Engine::draw() {
 bool frustumCullingUnaryOp(
 	Face orientation, 
 	Vec3f32 position,
-	Vec3f32 chunk_size,	
+	Vec3f32 half_chunk_size,	
 	f32 z_near, 
 	f32 z_far, 
 	f32 x_near,
@@ -90,11 +90,21 @@ bool frustumCullingUnaryOp(
 	// center position in view space
 	const auto position_in_view_space = Mat4f32::mulVec(view_matrix, {position[0], position[1], position[2], 1.F});
 
-	const Vec4f32 axes[] = {
-		Mat4f32::mulVec(view_matrix, {1.F, 0.F, 0.F, 0.F}),
-		Mat4f32::mulVec(view_matrix, {0.F, 1.F, 0.F, 0.F}),
-		Mat4f32::mulVec(view_matrix, {0.F, 0.F, 1.F, 0.F})		
-	};
+	const auto chunk_min = Vec3f32::add(position, half_chunk_size);
+	const auto chunk_max = Vec3f32::sub(position, half_chunk_size);
+
+	const std::array<Vec4f32, 4> corners{{
+		Mat4f32::mulVec(view_matrix, {chunk_min[0], chunk_min[1], chunk_min[2], 1.F}),
+		Mat4f32::mulVec(view_matrix, {chunk_max[0], chunk_min[1], chunk_min[2], 1.F}),
+		Mat4f32::mulVec(view_matrix, {chunk_min[0], chunk_max[1], chunk_min[2], 1.F}),
+		Mat4f32::mulVec(view_matrix, {chunk_min[0], chunk_min[1], chunk_max[2], 1.F}),
+	}};
+
+	const std::array<Vec3f32, 3> axes{{
+		Vec3f32::normalize(Vec3f32::sub({corners[1][0], corners[1][1], corners[1][2]}, {corners[0][0], corners[0][1], corners[0][2]})),		
+		Vec3f32::normalize(Vec3f32::sub({corners[2][0], corners[2][1], corners[2][2]}, {corners[0][0], corners[0][1], corners[0][2]})),		
+		Vec3f32::normalize(Vec3f32::sub({corners[3][0], corners[3][1], corners[3][2]}, {corners[0][0], corners[0][1], corners[0][2]})),		
+	}};
 
 	// determine if chunk is behind z_near plane or beyond z_far plane
 	{
@@ -103,18 +113,17 @@ bool frustumCullingUnaryOp(
 	const auto projected_center = position_in_view_space[2];
 
 	const auto radius =
-		fabsf(axes[0][2]) * (chunk_size[0]/2.F) +
-		fabsf(axes[1][2]) * (chunk_size[1]/2.F) +
-		fabsf(axes[2][2]) * (chunk_size[2]/2.F);
+		fabsf(axes[0][2]) * (half_chunk_size[0]) +
+		fabsf(axes[1][2]) * (half_chunk_size[1]) +
+		fabsf(axes[2][2]) * (half_chunk_size[2]);
 
 	const auto min = projected_center - radius;
 	const auto max = projected_center + radius;
 
-	if (max > z_near || min < z_far) {
+	if (min > z_near || max < z_far) {
 		return false;
 	}
 	}	
-
 	// determine if chunk is beyond the rest of the frustum planes
 	{
 	const Vec3f32 projection_lines[4] {
@@ -126,9 +135,9 @@ bool frustumCullingUnaryOp(
 	for (std::size_t i{ 0U }; i < 4U; ++i) {
 		const auto projected_center = Vec3f32::dot(projection_lines[i], { position_in_view_space[0], position_in_view_space[1], position_in_view_space[2] });
 		const auto radius = 
-			fabsf(Vec3f32::dot(projection_lines[i], {axes[0][0], axes[0][1], axes[0][2]})) * (chunk_size[0]/2.F) +
-			fabsf(Vec3f32::dot(projection_lines[i], {axes[1][0], axes[1][1], axes[1][2]})) * (chunk_size[1]/2.F) +
-			fabsf(Vec3f32::dot(projection_lines[i], {axes[2][0], axes[2][1], axes[2][2]})) * (chunk_size[2]/2.F);
+			fabsf(Vec3f32::dot(projection_lines[i], axes[0])) * half_chunk_size[0] +
+			fabsf(Vec3f32::dot(projection_lines[i], axes[1])) * half_chunk_size[1] +
+			fabsf(Vec3f32::dot(projection_lines[i], axes[2])) * half_chunk_size[2];
 
 		const auto min = projected_center - radius;
 		const auto max = projected_center + radius;
@@ -152,8 +161,8 @@ bool frustumCullingUnaryOp(
 	}
 	// determine if frustum is inside of the chunk
 	for (std::size_t i{ 0U }; i < 3U; ++i) {
-		const auto projected_center = Vec4f32::dot(axes[i], position_in_view_space);
-		const auto radius = chunk_size[i]/2.F;
+		const auto projected_center = Vec3f32::dot(axes[i], { position_in_view_space[0], position_in_view_space[1], position_in_view_space[2] });
+		const auto radius = half_chunk_size[i];
 
 		const auto min = projected_center - radius;
 		const auto max = projected_center + radius;
@@ -186,9 +195,9 @@ bool frustumCullingUnaryOp(
 			projection_line[2] * position_in_view_space[2];
 
 		const auto radius = 
-			fabsf(Vec3f32::dot(projection_line, {axes[0][0], axes[0][1], axes[0][2]})) * (chunk_size[0]/2.F) + 
-			fabsf(Vec3f32::dot(projection_line, {axes[1][0], axes[1][1], axes[1][2]})) * (chunk_size[1]/2.F) + 
-			fabsf(Vec3f32::dot(projection_line, {axes[2][0], axes[2][1], axes[2][2]})) * (chunk_size[0]/2.F);
+			fabsf(Vec3f32::dot(projection_line, axes[0])) * half_chunk_size[0] + 
+			fabsf(Vec3f32::dot(projection_line, axes[1])) * half_chunk_size[1] + 
+			fabsf(Vec3f32::dot(projection_line, axes[2])) * half_chunk_size[0];
 
 		const auto min = projected_center - radius;
 		const auto max = projected_center + radius;
@@ -218,9 +227,9 @@ bool frustumCullingUnaryOp(
 			projection_line[2] * position_in_view_space[2];
 
 		const auto radius = 
-			fabsf(Vec3f32::dot(projection_line, {axes[0][0], axes[0][1], axes[0][2]})) * (chunk_size[0]/2.F) + 
-			fabsf(Vec3f32::dot(projection_line, {axes[1][0], axes[1][1], axes[1][2]})) * (chunk_size[1]/2.F) + 
-			fabsf(Vec3f32::dot(projection_line, {axes[2][0], axes[2][1], axes[2][2]})) * (chunk_size[0]/2.F);
+			fabsf(Vec3f32::dot(projection_line, axes[0])) * half_chunk_size[0] + 
+			fabsf(Vec3f32::dot(projection_line, axes[1])) * half_chunk_size[1] + 
+			fabsf(Vec3f32::dot(projection_line, axes[2])) * half_chunk_size[0];
 
 		const auto min = projected_center - radius;
 		const auto max = projected_center + radius;
@@ -242,12 +251,11 @@ bool frustumCullingUnaryOp(
 
 	// cross(frustum edges, axes[0,1,2])
 	for (std::size_t i{ 0U }; i < 3; ++i) {
-		const auto axis = Vec3f32{axes[i][0], axes[i][1], axes[i][2]};
 		const Vec3f32 projection_lines[4] = {
-			vmath::cross({-x_near, 0.F, z_near }, axis), // Left Plane
-            vmath::cross({ x_near, 0.F, z_near }, axis), // Right plane
-            vmath::cross({ 0.F, y_near, z_near }, axis), // Top plane
-            vmath::cross({ 0.F,-y_near, z_near }, axis) // Bottom plane
+			vmath::cross({-x_near, 0.F, z_near }, axes[i]), // Left Plane
+            vmath::cross({ x_near, 0.F, z_near }, axes[i]), // Right plane
+            vmath::cross({ 0.F, y_near, z_near }, axes[i]), // Top plane
+            vmath::cross({ 0.F,-y_near, z_near }, axes[i]) // Bottom plane
 		};
 
 		for (std::size_t j{ 0U }; j < 4; ++j) {
@@ -261,9 +269,9 @@ bool frustumCullingUnaryOp(
 			const auto projected_center = Vec3f32::dot(projection_lines[j], {position_in_view_space[0], position_in_view_space[1], position_in_view_space[2]});
 
 			const auto radius =
-				fabsf(Vec3f32::dot(projection_lines[j], { axes[0][0], axes[0][1], axes[0][2] })) * (chunk_size[0]/2.F) + 
-				fabsf(Vec3f32::dot(projection_lines[j], { axes[1][0], axes[1][1], axes[1][2] })) * (chunk_size[1]/2.F) + 
-				fabsf(Vec3f32::dot(projection_lines[j], { axes[2][0], axes[2][1], axes[2][2] })) * (chunk_size[2]/2.F);
+				fabsf(Vec3f32::dot(projection_lines[j], axes[0])) * half_chunk_size[0] + 
+				fabsf(Vec3f32::dot(projection_lines[j], axes[1])) * half_chunk_size[1] + 
+				fabsf(Vec3f32::dot(projection_lines[j], axes[2])) * half_chunk_size[2];
 
 			const auto min = projected_center - radius;
 			const auto max = projected_center + radius;

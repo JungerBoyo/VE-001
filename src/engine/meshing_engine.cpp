@@ -81,6 +81,9 @@ void MeshingEngine::init(u32 vbo_id) {
     } else {
         _meshing_shader.attach(_engine_context.meshing_shader_src_path, false);
     }
+#ifdef ENGINE_TEST
+    glCreateQueries(GL_TIMESTAMP, 1, &meshing_time_query);
+#endif
 }
 
 void MeshingEngine::issueMeshingCommand(u32 chunk_id, Vec3f32 chunk_position, std::span<const u16> voxel_data) {
@@ -124,6 +127,12 @@ bool MeshingEngine::pollMeshingCommand(Result& result) {
         subsequentCommandExec(_active_command);
         return false;
     }
+
+#ifdef ENGINE_TEST
+    glQueryCounter(meshing_time_query, GL_TIMESTAMP);
+    glGetQueryObjectui64v(meshing_time_query, GL_QUERY_RESULT, &end_meshing_time_ns);
+    result_meshing_time_ns = end_meshing_time_ns - begin_meshing_time_ns;
+#endif
 
     glDeleteSync(static_cast<GLsync>(_active_command.fence));
     _active_command.fence = nullptr;
@@ -197,6 +206,11 @@ void MeshingEngine::updateMetadata(vmath::u32 new_vbo_id) {
 }
 
 void MeshingEngine::firstCommandExec(Command& command) {
+#ifdef ENGINE_TEST
+    glQueryCounter(meshing_time_query, GL_TIMESTAMP);
+    glGetQueryObjectui64v(meshing_time_query, GL_QUERY_RESULT, &begin_meshing_time_ns);
+#endif
+
     std::memcpy(_ssbo_voxel_data_ptr, static_cast<const void*>(command.voxel_data.data()), _engine_context.chunk_voxel_data_size);
 
     Temp meshing_temp{};
@@ -233,6 +247,9 @@ void MeshingEngine::subsequentCommandExec(Command& command) {
 }
 
 void MeshingEngine::deinit() {
+#ifdef ENGINE_TEST
+    glDeleteQueries(1, &meshing_time_query);
+#endif
     _meshing_shader.deinit();
     if (_ssbo_voxel_data_ptr != nullptr) {
         glUnmapNamedBuffer(_ssbo_voxel_data_id);

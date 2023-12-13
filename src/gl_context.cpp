@@ -37,8 +37,3 @@ void ve001::glInit() {
    glDebugMessageCallback(glDebugCallback, nullptr);
 #endif
 }
-
-void ve001::setGLDebugCallback(void (*gl_error_callback)(unsigned int, unsigned int, unsigned int, unsigned int, int, const char *, const void *)) {
-    glEnable(GL_DEBUG_OUTPUT);
-    glDebugMessageCallback(gl_error_callback, nullptr);
-}
