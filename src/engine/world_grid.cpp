@@ -128,44 +128,8 @@ static u32 oppositeNeighbour(u32 neighbour) {
     return neighbour - (neighbour & 0x1U) + (~neighbour & 0x1U);
 }
 
-// bool WorldGrid::validate() {
-//     const auto position_in_chunk_space = Vec3i32::cast(vmath::vroundf(Vec3f32::div(_current_position, Vec3f32::cast(_engine_context.chunk_size))));
-//     const auto half_grid_size = Vec3i32::divScalar(_grid_size, 2);//1;
-//     const auto world_p0_in_chunk_space = Vec3i32::sub(position_in_chunk_space, half_grid_size);
-//     const auto world_p1_in_chunk_space = Vec3i32::add(position_in_chunk_space, half_grid_size/*Vec3i32::sub(half_grid_size, {1})*/);
-
-//     for (const auto& visible_chunk : _visible_chunks) {
-//         if (isInBoundingBox(world_p0_in_chunk_space, world_p1_in_chunk_space, visible_chunk.position_in_chunks)) {
-//             u32 nonempty_neighbours{ 0U };
-//             for (u32 neighbour{ 0U }; neighbour < 6U; ++neighbour) {
-//                 if (visible_chunk.neighbours_indices[neighbour] != VisibleChunk::INVALID_NEIGHBOUR_INDEX) {
-//                     const auto offset = NEIGHBOURS_OFFSETS[neighbour];
-//                     const auto& visible_chunk_neighbour = _visible_chunks[visible_chunk.neighbours_indices[neighbour]];
-
-//                     const auto comp_offset = Vec3i32::sub(visible_chunk_neighbour.position_in_chunks, visible_chunk.position_in_chunks);
-//                     ++nonempty_neighbours;
-//                     if (comp_offset[0] != offset[0] || 
-//                         comp_offset[1] != offset[1] ||
-//                         comp_offset[2] != offset[2]) {
-                    
-//                         return false;                        
-//                     }
-//                 }
-//             }
-//             if (visible_chunk.neighbours_count != nonempty_neighbours) {
-//                 return false;
-//             }
-//         } else {
-//             return false;
-//         }
-//     }
-
-//     return true;
-// }
-
-
 void WorldGrid::update(Vec3f32 new_position) {
-    static constexpr f32 epsilon{ .1F };
+    static constexpr f32 epsilon{ .01F };
     const auto move_vec = Vec3f32::sub(new_position, _current_position);
     if (std::abs(move_vec[0]) <= epsilon &&
         std::abs(move_vec[1]) <= epsilon &&
@@ -318,6 +282,10 @@ void WorldGrid::update(Vec3f32 new_position) {
 }
 
 bool WorldGrid::pollToAllocateChunks() {
+    if(_chunk_pool.poll()) {
+        _chunk_pool.chunk_completed_callback(_chunk_pool._meshing_engine.result_gpu_meshing_time_ns, _chunk_pool._meshing_engine.result_real_meshing_time_ns);
+    }
+
     if (ToAllocateChunk* to_allocate_chunk{ nullptr }; _to_allocate_chunks.peek(to_allocate_chunk) && to_allocate_chunk != nullptr) {
         if (to_allocate_chunk->data.valid()) {
             if (to_allocate_chunk->data.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {

@@ -16,13 +16,16 @@ struct TestingContext {
         vmath::u64 gpu_frame_time_elapsed_ns{ 0U };
         vmath::u64 cpu_frame_time_elapsed_ns{ 0U };
         vmath::u64 chunks_in_use{ 0U };
-        vmath::u64 gpu_active_memory_usage{ 0U };
+        vmath::u64 gpu_active_memory_usage_in_use{ 0U };
+        vmath::u64 gpu_active_memory_usage_real{ 0U };
         vmath::u64 gpu_passive_memory_usage{ 0U };
-        vmath::u64 cpu_memory_usage{ 0U };
+        vmath::u64 cpu_active_memory_usage{ 0U };
+        vmath::u64 cpu_passive_memory_usage{ 0U };
     };
 
     struct SampleMeshing {
         vmath::u64 gpu_meshing_time_elapsed_ns{ 0U };
+        vmath::u64 real_meshing_time_elapsed_ns{ 0U };
     };
 
     vmath::u32 _prims_generated_query{ 0U };
@@ -63,9 +66,11 @@ struct TestingContext {
     }
     void endMeasure(
         vmath::u64 chunks_in_use,
-        vmath::u64 gpu_active_memory_usage,
+        vmath::u64 gpu_active_memory_usage_in_use,
+        vmath::u64 gpu_active_memory_usage_real,
         vmath::u64 gpu_passive_memory_usage,
-        vmath::u64 cpu_memory_usage) {
+        vmath::u64 cpu_active_memory_usage,
+        vmath::u64 cpu_passive_memory_usage) {
 
         if (_frame_counter < _max_frames) {
             _cpu_timer.stop();
@@ -86,9 +91,11 @@ struct TestingContext {
                 gpu_frame_time_elapsed_ns,
                 _cpu_timer.duration,
                 chunks_in_use,
-                gpu_active_memory_usage,
+                gpu_active_memory_usage_in_use,
+                gpu_active_memory_usage_real,
                 gpu_passive_memory_usage,
-                cpu_memory_usage
+                cpu_active_memory_usage,
+                cpu_passive_memory_usage
             );
         }
 
@@ -104,9 +111,11 @@ struct TestingContext {
             std::string(",gpu_frame_time_elapsed_ns") +
             std::string(",cpu_frame_time_elapsed_ns") +
             std::string(",chunks_in_use") +
-            std::string(",gpu_active_memory_usage") + 
+            std::string(",gpu_active_memory_usage_in_use") + 
+            std::string(",gpu_active_memory_usage_real") +
             std::string(",gpu_passive_memory_usage") +
-            std::string(",cpu_memory_usage\n");
+            std::string(",cpu_active_memory_usage") +
+            std::string(",cpu_passive_memory_usage\n");
 
         stream.write(header.data(), header.size());
 
@@ -117,9 +126,11 @@ struct TestingContext {
                 std::to_string(sample.gpu_frame_time_elapsed_ns) + "," +
                 std::to_string(sample.cpu_frame_time_elapsed_ns) + "," +
                 std::to_string(sample.chunks_in_use) + "," +
-                std::to_string(sample.gpu_active_memory_usage) + "," +
+                std::to_string(sample.gpu_active_memory_usage_in_use) + "," +
+                std::to_string(sample.gpu_active_memory_usage_real) + "," +
                 std::to_string(sample.gpu_passive_memory_usage) + "," +
-                std::to_string(sample.cpu_memory_usage) + '\n';
+                std::to_string(sample.cpu_active_memory_usage) + "," +
+                std::to_string(sample.cpu_passive_memory_usage) + '\n';
 
             stream.write(line.data(), line.size());
         }
@@ -129,12 +140,15 @@ struct TestingContext {
         std::ofstream stream("./ve001_meshing_samples.csv");
 
         const std::string header = 
-            std::string("meshing_time_elapsed_ns\n");
+            std::string("gpu_meshing_time_elapsed_ns,") +
+            std::string("real_meshing_time_elapsed_ns\n");
 
         stream.write(header.data(), header.size());
 
         for (const auto& sample : _meshing_samples) {
-            const std::string line = std::to_string(sample.gpu_meshing_time_elapsed_ns) + '\n';
+            const std::string line = 
+                std::to_string(sample.gpu_meshing_time_elapsed_ns) + ',' +
+                std::to_string(sample.real_meshing_time_elapsed_ns) + '\n';
             stream.write(line.data(), line.size());
         }
     }

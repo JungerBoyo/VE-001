@@ -4,7 +4,7 @@ using namespace ve001;
 using namespace vmath;
 
 thread_local std::vector<vmath::f32> NoiseTerrainGenerator::_tmp_noise;
-thread_local std::vector<vmath::u16> NoiseTerrainGenerator::_noise_double_buffer[2];
+thread_local std::array<std::vector<vmath::u16>, NoiseTerrainGenerator::BUFFERS_COUNT> NoiseTerrainGenerator::_noise_buffers;
 thread_local vmath::u32 NoiseTerrainGenerator::_current_buffer;
 thread_local FastNoise::SmartNode<> NoiseTerrainGenerator::_smart_node;
 
@@ -16,8 +16,9 @@ NoiseTerrainGenerator::NoiseTerrainGenerator(Config config)
 void NoiseTerrainGenerator::threadInit() {
     _current_buffer = 0U;
     _tmp_noise.resize(_config.terrain_size[0] * _config.terrain_size[1] * _config.terrain_size[2], 0.F);
-    _noise_double_buffer[0].resize(_config.terrain_size[0] * _config.terrain_size[1] * _config.terrain_size[2], 0U);
-    _noise_double_buffer[1].resize(_config.terrain_size[0] * _config.terrain_size[1] * _config.terrain_size[2], 0U);
+    for (auto& buffer : _noise_buffers) {
+        buffer.resize(_config.terrain_size[0] * _config.terrain_size[1] * _config.terrain_size[2], 0U);
+    }
     // "IQAZABAAexQoQA0AAwAAAAAAAEAIAAAAAAA/AAAAAAABAwCPwnU9AQQAAAAAAArXo78AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD//wEAAClcjz4="
     // "IQAZABAAexQoQA0AAwAAAAAAAEAIAAAAAAA/AAAAAAABAwCPwnU9AQQAAAAAALgeVcEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD//wEAAB+Fqz8="
     // "EQACAAAAAAAgQBAAAAAAQBkAEwDD9Sg/DQAEAAAAAAAgQAkAAGZmJj8AAAAAPwEEAAAAAAAAAEBAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAM3MTD4AMzMzPwAAAAA/"
@@ -37,7 +38,7 @@ std::optional<std::span<const vmath::u16>> NoiseTerrainGenerator::gen(vmath::Vec
         _config.noise_frequency, _config.seed
     );
 
-    auto& buffer = _noise_double_buffer[_current_buffer];
+    auto& buffer = _noise_buffers[_current_buffer];
 
     std::size_t i{ 0UL };
     u32 not_empty{ 0UL };
@@ -54,7 +55,7 @@ std::optional<std::span<const vmath::u16>> NoiseTerrainGenerator::gen(vmath::Vec
         buffer[i++] = value;
     }
     if (not_empty) {
-        _current_buffer = _current_buffer ^ 0x1U;
+        _current_buffer = (_current_buffer + 1) % _noise_buffers.size();
     }
 
     return not_empty ? std::optional(std::span<const u16>(buffer)) : std::nullopt;

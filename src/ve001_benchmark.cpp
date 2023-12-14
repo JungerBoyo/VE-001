@@ -1,3 +1,5 @@
+#include <functional>
+
 #define GLFW_INCLUDE_NONE
 #include <GLFW/glfw3.h>
 #include <glad/glad.h>
@@ -20,9 +22,14 @@
 #include <CLI/CLI.hpp>
 
 /*
-    G - simple or noise
-    C - 32x32x32 or 64x64x64
-    P - with or without (frustum or (frustum and backface culling))
+    TESTS VARIANTS:
+        * G - {simple, noise} x {(400,200,400)} x {2} x {fb} x {64^3} (+2)
+        * W - {(200,200,200), (400,200,400), (500,250,500)} x {10} x {noise} x {fb} x {64^3} (+3)
+        * O - {none,f,fb}x{(500,200,500)}x{10}x{noise}x{64^3} (+3)
+        * S - {10,50,200,1000}x{(400,200,400)}x{noise}x{fb}x{64^3} (+4)
+        * C - {32^3,64^3}x{(400,200,400)}x{10}x{noise}x{fb} (+2)
+        ___________________________________________________________
+            (+14)
 */
 
 //////////////////////////////// CONSTANTS //////////////////////////////////
@@ -108,7 +115,7 @@ static bool backFaceCullingUnaryOp(
     }
 
     static constexpr vmath::f32 POINTS_DENSITY{ .5F };
-    static constexpr vmath::f32 BIAS{ .05F };
+    static constexpr vmath::f32 BIAS{ .1F };
 
     for (vmath::f32 z{ -.5F }; z < .5F; z += POINTS_DENSITY ) {
     for (vmath::f32 y{ -.5F }; y < .5F; y += POINTS_DENSITY ) {
@@ -133,8 +140,17 @@ struct CLIAppConfig {
     bool frustum_culling{ false };
     bool back_face_culling{ false };
     vmath::i32 number_of_streamer_threads{ 0 };
-    vmath::Vec3f32 world_size{ 100.F, 100.F, 100.F };        
+    vmath::Vec3f32 world_size{ 100.F, 100.F, 100.F };
+    vmath::i32 voxel_states_count; 
 };
+
+static TestingContext testing_context(5000);
+
+void recordMeshingTimeSample(vmath::u64 gpu_time, vmath::u64 real_time) {
+    if (start_testing) {
+        testing_context.saveMeshingSample({gpu_time, real_time});
+    }
+}
 
 int main(int argc, const char* const* argv) {
     CLI::App app("CLI app for running benchmarks on ve001 engine", "ve001-benchmark");
@@ -144,6 +160,7 @@ int main(int argc, const char* const* argv) {
     app.add_flag("-f,--frustum-culling", cli_app_config.frustum_culling, "turn on frustum culling");
     app.add_flag("-b,--backface-culling", cli_app_config.back_face_culling, "turn on backface culling");
     app.add_option("-t,--threads-count", cli_app_config.number_of_streamer_threads, "number of threads used by chunk data streamer");
+    app.add_option("-w,--voxel-states-count", cli_app_config.voxel_states_count, "number of voxel states used")->required();
     app.add_option("-x,--chunk-size-x", cli_app_config.chunk_size[0], "size of chunk in X axis")->required();
     app.add_option("-y,--chunk-size-y", cli_app_config.chunk_size[1], "size of chunk in Y axis")->required();
     app.add_option("-z,--chunk-size-z", cli_app_config.chunk_size[2], "size of chunk in Z axis")->required();
@@ -166,6 +183,8 @@ int main(int argc, const char* const* argv) {
     ve001::window.setKeyCallback(keyCallback);
     ve001::window.setMousePositionCallback(mousePosCallback);
 
+    testing_context.init();
+
     ve001::Engine engine({
         .world_size = cli_app_config.world_size,
         .initial_position = {0.F, 0.F, 0.F},
@@ -178,7 +197,7 @@ int main(int argc, const char* const* argv) {
                 new ve001::NoiseTerrainGenerator({
                     .terrain_size = cli_app_config.chunk_size,
                     .noise_frequency = .0038F,
-                    .quantize_values = 9,
+                    .quantize_values = cli_app_config.voxel_states_count,
                     .seed = 0xC0000B99,
                     .visibilty_threshold = .3F,
                 })
@@ -187,6 +206,7 @@ int main(int argc, const char* const* argv) {
         .chunk_pool_growth_coefficient = 1.5F,
         .meshing_shader_local_group_size = 64
     });
+    engine._world_grid._chunk_pool.chunk_completed_callback = recordMeshingTimeSample;
     engine.init();
 
     ve001::Shader shader;
@@ -203,9 +223,6 @@ int main(int argc, const char* const* argv) {
 
     engine.partitioning = (cli_app_config.back_face_culling || cli_app_config.frustum_culling);
 
-    TestingContext testing_context(3000);
-    testing_context.init();
-
     const auto half_chunk_size = vmath::Vec3f32::divScalar(vmath::Vec3f32::cast(cli_app_config.chunk_size), 2.F);
 
     vmath::f32 prev_frame_time{0.F};
@@ -218,7 +235,7 @@ int main(int argc, const char* const* argv) {
 
         for (auto &key : keys) {
             if (key.pressed) {
-                key.action(move_camera ? camera : sky_camera, 35.F);
+                key.action(move_camera ? camera : sky_camera, 50.F);
                 if (move_camera) {
                     camera_moved = true;
                 }
@@ -250,12 +267,6 @@ int main(int argc, const char* const* argv) {
 
         engine.updateCameraPosition(camera.position);
         
-        for(vmath::i32 i{ 0 }; i < 3 && engine.pollChunksUpdates(); ++i) {
-            if (start_testing) {
-                testing_context.saveMeshingSample({engine._world_grid._chunk_pool._meshing_engine.result_meshing_time_ns});
-            }
-        }
-
         if (camera_moved || camera_rotated) {
 
             if (cli_app_config.frustum_culling) {
@@ -287,6 +298,13 @@ int main(int argc, const char* const* argv) {
             camera_rotated = false;
         }
 
+        if (engine.pollChunksUpdates() && start_testing) {
+            testing_context.saveMeshingSample({
+                engine._world_grid._chunk_pool._meshing_engine.result_gpu_meshing_time_ns,
+                engine._world_grid._chunk_pool._meshing_engine.result_real_meshing_time_ns
+            });
+        }
+
         engine.updateDrawState();
 
         // main render
@@ -301,7 +319,9 @@ int main(int argc, const char* const* argv) {
                 engine._world_grid._chunk_pool.chunks_used,
                 engine._world_grid._chunk_pool.gpu_memory_usage,
                 engine._world_grid._chunk_pool.chunks_used * engine._engine_context.chunk_max_current_mesh_size,
-                engine._world_grid._chunk_pool.cpu_memory_usage
+                static_cast<vmath::u64>(engine._world_grid._chunk_pool._chunks_count) * engine._engine_context.chunk_max_current_mesh_size,
+                engine._world_grid._chunk_pool.cpu_active_memory_usage,
+                static_cast<vmath::u64>(engine._world_grid._chunk_pool._chunks_count) * engine._engine_context.chunk_voxel_data_size
             );
         }
 
@@ -309,8 +329,10 @@ int main(int argc, const char* const* argv) {
         ve001::window.pollEvents();
     }
 
-    testing_context.dumpFrameSamples();
-    testing_context.dumpMeshingSamples();
+    if (start_testing) {
+        testing_context.dumpFrameSamples();
+        testing_context.dumpMeshingSamples();
+    }
 
     testing_context.deinit();
 

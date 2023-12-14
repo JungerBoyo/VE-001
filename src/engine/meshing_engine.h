@@ -95,8 +95,10 @@ struct MeshingEngine {
 #ifdef ENGINE_TEST
     vmath::u64 begin_meshing_time_ns{ 0UL };
     vmath::u64 end_meshing_time_ns{ 0UL };
-    vmath::u64 result_meshing_time_ns{ 0UL };
-    vmath::u32 meshing_time_query{ 0U };
+    vmath::u64 result_gpu_meshing_time_ns{ 0UL };
+    vmath::u64 result_real_meshing_time_ns{ 0UL };
+    vmath::u32 gpu_meshing_time_query{ 0U };
+    vmath::u32 real_meshing_time_query{ 0U };
 #endif
 
     const EngineContext& _engine_context;

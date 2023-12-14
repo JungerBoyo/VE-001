@@ -19,7 +19,7 @@ void main() {
     normal[face / 2] = 1.0 + (float(face % 2) * -2.0);
     out_normal = normal;
 
-    out_color_id = int(in_texcoord.z) / 6;
+    out_color_id = (int(in_texcoord.z) / 6) % 9;
 
     out_position = in_position;
     

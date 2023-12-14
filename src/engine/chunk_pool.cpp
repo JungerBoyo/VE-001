@@ -100,6 +100,10 @@ void ChunkPool::init() noexcept {
 }
 
 vmath::u32 ChunkPool::allocateChunk(std::span<const vmath::u16> src, Vec3i32 position) noexcept {
+    if (poll()) {
+        chunk_completed_callback(_meshing_engine.result_gpu_meshing_time_ns, _meshing_engine.result_real_meshing_time_ns);
+    }
+
     if (_free_chunks.empty()) {
         return INVALID_CHUNK_ID; // TODO: Error
     }
@@ -110,7 +114,7 @@ vmath::u32 ChunkPool::allocateChunk(std::span<const vmath::u16> src, Vec3i32 pos
     std::memcpy(static_cast<void*>(free_chunk.cpu_region.data()), static_cast<const void*>(src.data()), src.size() * sizeof(u16));
 
 #ifdef ENGINE_TEST
-    cpu_memory_usage += src.size() * sizeof(u16);
+    cpu_active_memory_usage += _engine_context.chunk_voxel_data_size;
 #endif
 
     auto& chunk = _chunks.emplace_back(Chunk{
@@ -252,6 +256,10 @@ bool ChunkPool::poll() {
 }
 
 void ChunkPool::deallocateChunk(u32 chunk_id) noexcept {
+    if (poll()) {
+        chunk_completed_callback(_meshing_engine.result_gpu_meshing_time_ns, _meshing_engine.result_real_meshing_time_ns);
+    }
+    
     if (chunk_id == INVALID_CHUNK_ID) {
         return;
     }
@@ -280,6 +288,9 @@ void ChunkPool::deallocateChunk(u32 chunk_id) noexcept {
         .cpu_region = chunk.cpu_region
     });
     _chunks.pop_back();
+#ifdef ENGINE_TEST
+    cpu_active_memory_usage -= _engine_context.chunk_voxel_data_size;
+#endif
 #ifdef ENGINE_TEST
     --chunks_used;
 #endif

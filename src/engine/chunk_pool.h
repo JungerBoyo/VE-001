@@ -150,12 +150,16 @@ struct ChunkPool {
     /// @brief gpu memory usage in bytes (mesh)
     vmath::u64 gpu_memory_usage{ 0UL };
     /// @brief cpu memory usage in bytes (voxel values)
-    vmath::u64 cpu_memory_usage{ 0UL };
+    vmath::u64 cpu_active_memory_usage{ 0UL };
     /// @brief gpu region usage
     vmath::u64 chunks_used{ 0UL };
+    /// @brief called when chunk was completed 
+    /// with its meshing times 
+    void(*chunk_completed_callback)(vmath::u64, vmath::u64);
 #endif
 
     ////////////////////////////////////////
+
 
     /// @brief context holds common data to all engine components
     EngineContext& _engine_context;

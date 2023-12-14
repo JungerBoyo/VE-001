@@ -82,7 +82,10 @@ void MeshingEngine::init(u32 vbo_id) {
         _meshing_shader.attach(_engine_context.meshing_shader_src_path, false);
     }
 #ifdef ENGINE_TEST
-    glCreateQueries(GL_TIMESTAMP, 1, &meshing_time_query);
+    u32 tmp[2] = { 0U, 0U };
+    glCreateQueries(GL_TIMESTAMP, 2, tmp);
+    gpu_meshing_time_query = tmp[0];
+    real_meshing_time_query = tmp[1];
 #endif
 }
 
@@ -129,9 +132,11 @@ bool MeshingEngine::pollMeshingCommand(Result& result) {
     }
 
 #ifdef ENGINE_TEST
-    glQueryCounter(meshing_time_query, GL_TIMESTAMP);
-    glGetQueryObjectui64v(meshing_time_query, GL_QUERY_RESULT, &end_meshing_time_ns);
-    result_meshing_time_ns = end_meshing_time_ns - begin_meshing_time_ns;
+    glQueryCounter(real_meshing_time_query, GL_TIMESTAMP);
+    glGetQueryObjectui64v(gpu_meshing_time_query, GL_QUERY_RESULT, &end_meshing_time_ns);
+    result_gpu_meshing_time_ns = end_meshing_time_ns - begin_meshing_time_ns;
+    glGetQueryObjectui64v(real_meshing_time_query, GL_QUERY_RESULT, &end_meshing_time_ns);
+    result_real_meshing_time_ns = end_meshing_time_ns - begin_meshing_time_ns;
 #endif
 
     glDeleteSync(static_cast<GLsync>(_active_command.fence));
@@ -207,8 +212,8 @@ void MeshingEngine::updateMetadata(vmath::u32 new_vbo_id) {
 
 void MeshingEngine::firstCommandExec(Command& command) {
 #ifdef ENGINE_TEST
-    glQueryCounter(meshing_time_query, GL_TIMESTAMP);
-    glGetQueryObjectui64v(meshing_time_query, GL_QUERY_RESULT, &begin_meshing_time_ns);
+    glQueryCounter(gpu_meshing_time_query, GL_TIMESTAMP);
+    glGetQueryObjectui64v(gpu_meshing_time_query, GL_QUERY_RESULT, &begin_meshing_time_ns);
 #endif
 
     std::memcpy(_ssbo_voxel_data_ptr, static_cast<const void*>(command.voxel_data.data()), _engine_context.chunk_voxel_data_size);
@@ -233,6 +238,9 @@ void MeshingEngine::firstCommandExec(Command& command) {
 
     _meshing_shader.bind();
     glDispatchCompute(6, 1, 1);
+#ifdef ENGINE_TEST
+    glQueryCounter(gpu_meshing_time_query, GL_TIMESTAMP);
+#endif
     command.fence = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
 }
 
@@ -248,7 +256,8 @@ void MeshingEngine::subsequentCommandExec(Command& command) {
 
 void MeshingEngine::deinit() {
 #ifdef ENGINE_TEST
-    glDeleteQueries(1, &meshing_time_query);
+    u32 tmp[2] = {gpu_meshing_time_query, real_meshing_time_query};
+    glDeleteQueries(2, tmp);
 #endif
     _meshing_shader.deinit();
     if (_ssbo_voxel_data_ptr != nullptr) {
