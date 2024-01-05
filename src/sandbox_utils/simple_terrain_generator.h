@@ -3,8 +3,6 @@
 
 #include "engine/chunk_generator.h"
 
-#include <FastNoise/FastNoise.h>
-
 #include <vector>
 
 namespace ve001 {
