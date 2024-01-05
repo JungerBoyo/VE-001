@@ -11,6 +11,27 @@ enum Face : vmath::u32 {
     Z_POS, Z_NEG
 };
 
+enum Error : vmath::u32 {
+    NO_ERROR = 0x0U,
+    GPU_ALLOCATION_FAILED = 0x01U,
+    CPU_ALLOCATION_FAILED = 0x02U,
+    GPU_BUFFER_MAPPING_FAILED = 0x04U,
+    FENCE_WAIT_FAILED = 0x08U,
+    SHADER_ATTACH_FAILED = 0x10U,
+    MESHING_COMMAND_QUEUE_FULL = 0x20U,
+    CHUNK_DATA_STREAMER_THREAD_ALLOCATION_FAILED = 0x40U,
+};
+
+inline Error operator|(Error lhs, Error rhs) {
+    return static_cast<Error>(static_cast<vmath::u32>(lhs) | static_cast<vmath::u32>(rhs));
+}
+inline Error operator&(Error lhs, Error rhs) {
+    return static_cast<Error>(static_cast<vmath::u32>(lhs) & static_cast<vmath::u32>(rhs));
+}
+inline Error& operator|=(Error& lhs, Error rhs) {
+    return lhs = lhs | rhs;
+}
+
 }
 
 

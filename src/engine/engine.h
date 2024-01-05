@@ -39,6 +39,9 @@ struct Engine {
         std::optional<std::filesystem::path> meshing_shader_bin_path{"/home/regu/codium_repos/VE-001/shaders/bin/greedy_meshing_shader/comp.spv"};
     };
 
+    /// @brief engine's error flags 
+    Error error{ Error::NO_ERROR };
+
     /// @brief if true partitioning is used based on applied partitions
     bool partitioning{ false };
     /// @brief engine context containing common metadata for modules
@@ -80,7 +83,8 @@ struct Engine {
     }
 
     /// @brief initalization of the opengl resources
-    void init();
+    /// @return true if there were errors during engine's initialization
+    bool init();
     /// @brief updates world grid state based on camera position
     /// @param position new camera position
     void updateCameraPosition(vmath::Vec3f32 position);

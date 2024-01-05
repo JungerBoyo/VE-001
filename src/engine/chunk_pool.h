@@ -153,9 +153,6 @@ struct ChunkPool {
     vmath::u64 cpu_active_memory_usage{ 0UL };
     /// @brief gpu region usage
     vmath::u64 chunks_used{ 0UL };
-    /// @brief called when chunk was completed 
-    /// with its meshing times 
-    void(*chunk_completed_callback)(vmath::u64, vmath::u64);
 #endif
 
     ////////////////////////////////////////

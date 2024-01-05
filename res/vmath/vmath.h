@@ -1,5 +1,5 @@
-#ifndef VE001_VMATH_H
-#define VE001_VMATH_H
+#ifndef VMATH_H
+#define VMATH_H
 
 #include <numbers>
 #include <cmath>
@@ -458,7 +458,7 @@ struct misc {
 
         const auto rotated_q_point =
             Q::mul(Q::mul(
-                qy,
+                qz,
                 Q::mul(Q::mul(
                     qy,
                     Q::mul(Q::mul(

@@ -32,7 +32,7 @@ void Camera::rotateXYPlane(Vec2f32 vec) {
     looking_dir_angles[1] = vmath::misc<f32>::wrap(
         looking_dir_angles[1] + vec[0], 2.F*std::numbers::pi_v<f32>, 0.F
     );
-                        // rot around Y in XZ plane (x value)  // scale by rot around X becuase vec len changed from x/z perspective
+    // rot around Y in XZ plane (x value)  // scale by rot around X becuase vec len changed from x/z perspective
     looking_dir[0] = std::cos(looking_dir_angles[1]) * std::cos(looking_dir_angles[0]);
     looking_dir[1] = std::sin(looking_dir_angles[0]);
     looking_dir[2] = std::sin(looking_dir_angles[1]) * std::cos(looking_dir_angles[0]);

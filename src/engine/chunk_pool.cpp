@@ -49,6 +49,11 @@ void ChunkPool::init() noexcept {
         0
     );
 
+    if (glGetError() == GL_OUT_OF_MEMORY) {
+        _engine_context.error |= Error::GPU_ALLOCATION_FAILED;
+        return;
+    }
+
     glCreateVertexArrays(1, &_vao_id);
     setVertexLayout(_vao_id, _vbo_id);
 
@@ -59,11 +64,23 @@ void ChunkPool::init() noexcept {
         GL_MAP_WRITE_BIT|GL_MAP_PERSISTENT_BIT|GL_MAP_COHERENT_BIT
     );
 
+    if (glGetError() == GL_OUT_OF_MEMORY) {
+        _engine_context.error |= Error::GPU_ALLOCATION_FAILED;
+        return;
+    }
+
     _dibo_mapped_ptr = glMapNamedBufferRange(
         _dibo_id, 
         0, 6 * _chunks_count * sizeof(DrawElementsIndirectCmd),
         GL_MAP_WRITE_BIT|GL_MAP_PERSISTENT_BIT|GL_MAP_COHERENT_BIT
     );
+
+    if (_dibo_mapped_ptr == nullptr) {
+        glDeleteBuffers(3, tmp);
+        glDeleteVertexArrays(1, &_vao_id);
+        _engine_context.error |= Error::GPU_BUFFER_MAPPING_FAILED;
+        return;
+    }
 
     try {
         _chunks.reserve(_chunks_count);
@@ -93,19 +110,16 @@ void ChunkPool::init() noexcept {
     } catch ([[maybe_unsused]] const std::exception& e) {
         glDeleteBuffers(3, tmp);
         glDeleteVertexArrays(1, &_vao_id);
-        return; // TODO: Error
+        _engine_context.error |= Error::CPU_ALLOCATION_FAILED;
+        return;
     }
 
     _meshing_engine.init(_vbo_id);
 }
 
 vmath::u32 ChunkPool::allocateChunk(std::span<const vmath::u16> src, Vec3i32 position) noexcept {
-    if (poll()) {
-        chunk_completed_callback(_meshing_engine.result_gpu_meshing_time_ns, _meshing_engine.result_real_meshing_time_ns);
-    }
-
     if (_free_chunks.empty()) {
-        return INVALID_CHUNK_ID; // TODO: Error
+        return INVALID_CHUNK_ID;
     }
 
     FreeChunk free_chunk{};
@@ -213,6 +227,11 @@ void ChunkPool::recreatePool(MeshingEngine::Result overflow_result) {
 
     glNamedBufferStorage(_vbo_id, static_cast<u64>(_chunks_count) * _engine_context.chunk_max_current_mesh_size, nullptr, 0);
 
+    if (glGetError() == GL_OUT_OF_MEMORY) {
+        _engine_context.error |= Error::GPU_ALLOCATION_FAILED;
+        return;
+    }
+
     rebindVaoToVbo(_vao_id, _vbo_id);
 
     _meshing_engine.updateMetadata(_vbo_id);
@@ -256,10 +275,6 @@ bool ChunkPool::poll() {
 }
 
 void ChunkPool::deallocateChunk(u32 chunk_id) noexcept {
-    if (poll()) {
-        chunk_completed_callback(_meshing_engine.result_gpu_meshing_time_ns, _meshing_engine.result_real_meshing_time_ns);
-    }
-    
     if (chunk_id == INVALID_CHUNK_ID) {
         return;
     }

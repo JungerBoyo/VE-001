@@ -6,10 +6,14 @@
 
 #include <vmath/vmath.h>
 
+#include "enums.h"
+
 namespace ve001 {
 
 /// @brief context holds common state for different engine components/modules
 struct EngineContext {
+    /// @brief errors
+    Error& error;
     /// @brief chunk size/resolution 
     vmath::Vec3i32 chunk_size;
     /// @brief half chunk size/resolution 

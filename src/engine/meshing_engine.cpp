@@ -38,6 +38,12 @@ void MeshingEngine::init(u32 vbo_id) {
         nullptr,
         GL_MAP_WRITE_BIT|GL_MAP_PERSISTENT_BIT|GL_MAP_COHERENT_BIT
     );
+
+    if (glGetError() == GL_OUT_OF_MEMORY) {
+        _engine_context.error |= Error::GPU_ALLOCATION_FAILED;
+        return;
+    }
+
     _ssbo_voxel_data_ptr = glMapNamedBufferRange(
         _ssbo_voxel_data_id,
         0U,
@@ -47,14 +53,15 @@ void MeshingEngine::init(u32 vbo_id) {
 
     if (_ssbo_voxel_data_ptr == nullptr) {
         glDeleteBuffers(1, &_ssbo_voxel_data_id);
-        return;// TODO: Error
+        _engine_context.error |= Error::GPU_BUFFER_MAPPING_FAILED;
+        return;
     }
 
     glBindBufferBase(GL_SHADER_STORAGE_BUFFER, VE001_SH_CONFIG_SSBO_BINDING_VOXEL_DATA, _ssbo_voxel_data_id);
 
-    _ubo_meshing_descriptor.init();
+    _engine_context.error |= _ubo_meshing_descriptor.init();
     _ubo_meshing_descriptor.bind(GL_UNIFORM_BUFFER, VE001_SH_CONFIG_UBO_BINDING_MESHING_DESCRIPTOR);
-    _ssbo_meshing_temp.init();
+    _engine_context.error |= _ssbo_meshing_temp.init();
     _ssbo_meshing_temp.bind(GL_SHADER_STORAGE_BUFFER, VE001_SH_CONFIG_SSBO_BINDING_MESHING_TEMP);
 
     Descriptor meshing_descriptor = {
@@ -77,9 +84,15 @@ void MeshingEngine::init(u32 vbo_id) {
 
     _meshing_shader.init();
     if (_engine_context.meshing_shader_bin_path.has_value() && deviceSupportsARBSpirv()) {
-        _meshing_shader.attach(_engine_context.meshing_shader_bin_path.value(), true);
+        if (!_meshing_shader.attach(_engine_context.meshing_shader_bin_path.value(), true)) {
+            _engine_context.error |= Error::SHADER_ATTACH_FAILED;
+            return;
+        }
     } else {
-        _meshing_shader.attach(_engine_context.meshing_shader_src_path, false);
+        if (!_meshing_shader.attach(_engine_context.meshing_shader_src_path, false)) {
+            _engine_context.error |= Error::SHADER_ATTACH_FAILED;
+            return;
+        }
     }
 #ifdef ENGINE_TEST
     u32 tmp[2] = { 0U, 0U };
@@ -105,7 +118,7 @@ void MeshingEngine::issueMeshingCommand(u32 chunk_id, Vec3f32 chunk_position, st
     }
 
     if (!_commands.write(std::move(cmd))) {
-        return; //TODO: Error
+        _engine_context.error |= Error::MESHING_COMMAND_QUEUE_FULL;
     }
 }
 
@@ -116,7 +129,8 @@ bool MeshingEngine::pollMeshingCommand(Result& result) {
 
     const auto wait_result = glClientWaitSync(static_cast<GLsync>(_active_command.fence), 0, 0);
     if (wait_result == GL_WAIT_FAILED) {
-        return false; //TODO: error
+        _engine_context.error |= Error::FENCE_WAIT_FAILED;
+        return false;
     }
     if (wait_result == GL_TIMEOUT_EXPIRED) {
         return false;
@@ -132,9 +146,9 @@ bool MeshingEngine::pollMeshingCommand(Result& result) {
     }
 
 #ifdef ENGINE_TEST
-    glQueryCounter(real_meshing_time_query, GL_TIMESTAMP);
     glGetQueryObjectui64v(gpu_meshing_time_query, GL_QUERY_RESULT, &end_meshing_time_ns);
     result_gpu_meshing_time_ns = end_meshing_time_ns - begin_meshing_time_ns;
+    glQueryCounter(real_meshing_time_query, GL_TIMESTAMP);
     glGetQueryObjectui64v(real_meshing_time_query, GL_QUERY_RESULT, &end_meshing_time_ns);
     result_real_meshing_time_ns = end_meshing_time_ns - begin_meshing_time_ns;
 #endif
@@ -168,26 +182,6 @@ bool MeshingEngine::pollMeshingCommand(Result& result) {
     return true;
 }
 
-void MeshingEngine::flushAndBusyWaitLastMeshingCommand() {
-    _commands.clear();
-    
-    if (_active_command.fence != nullptr) {
-        auto wait_result = glClientWaitSync(static_cast<GLsync>(_active_command.fence), 0, 0);
-        while (wait_result == GL_TIMEOUT_EXPIRED) {
-            wait_result = glClientWaitSync(static_cast<GLsync>(_active_command.fence), 0, 10);
-        }
-
-        if (wait_result == GL_WAIT_FAILED) {
-            return; //TODO: error
-        }
-
-        glDeleteSync(static_cast<GLsync>(_active_command.fence));
-        _active_command.fence = nullptr;
-
-        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, VE001_SH_CONFIG_SSBO_BINDING_MESH_DATA, 0);
-    }
-}
-
 void MeshingEngine::updateMetadata(vmath::u32 new_vbo_id) {
     _vbo_id = new_vbo_id;
 
@@ -215,7 +209,6 @@ void MeshingEngine::firstCommandExec(Command& command) {
     glQueryCounter(gpu_meshing_time_query, GL_TIMESTAMP);
     glGetQueryObjectui64v(gpu_meshing_time_query, GL_QUERY_RESULT, &begin_meshing_time_ns);
 #endif
-
     std::memcpy(_ssbo_voxel_data_ptr, static_cast<const void*>(command.voxel_data.data()), _engine_context.chunk_voxel_data_size);
 
     Temp meshing_temp{};

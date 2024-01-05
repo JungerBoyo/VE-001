@@ -1,5 +1,2 @@
 add_library(logger STATIC logger.h logger.cpp)
 target_link_libraries(logger PUBLIC spdlog::spdlog)
-if ("${CMAKE_HOST_SYSTEM_NAME}" STREQUAL "Windows")
-    target_compile_definitions(logger PRIVATE WINDOWS)
-endif()

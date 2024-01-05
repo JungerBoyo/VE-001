@@ -1,5 +1,3 @@
-#include <functional>
-
 #define GLFW_INCLUDE_NONE
 #include <GLFW/glfw3.h>
 #include <glad/glad.h>
@@ -11,7 +9,10 @@
 
 #include <engine/engine.h>
 
+#ifndef WINDOWS
 #include <sandbox_utils/noise_terrain_generator.h>
+#endif
+
 #include <sandbox_utils/simple_terrain_generator.h>
 #include <sandbox_utils/camera.h>
 
@@ -135,7 +136,9 @@ static bool backFaceCullingUnaryOp(
 }
 
 struct CLIAppConfig {
+#ifndef WINDOWS
     bool simple_generator{ false };
+#endif
     vmath::Vec3i32 chunk_size{ 0 };
     bool frustum_culling{ false };
     bool back_face_culling{ false };
@@ -146,17 +149,13 @@ struct CLIAppConfig {
 
 static TestingContext testing_context(5000);
 
-void recordMeshingTimeSample(vmath::u64 gpu_time, vmath::u64 real_time) {
-    if (start_testing) {
-        testing_context.saveMeshingSample({gpu_time, real_time});
-    }
-}
-
 int main(int argc, const char* const* argv) {
     CLI::App app("CLI app for running benchmarks on ve001 engine", "ve001-benchmark");
 
     CLIAppConfig cli_app_config{};
+#ifndef WINDOWS
     app.add_flag("-s,--simple-generator", cli_app_config.simple_generator, "switch from noise to simple data generator");
+#endif
     app.add_flag("-f,--frustum-culling", cli_app_config.frustum_culling, "turn on frustum culling");
     app.add_flag("-b,--backface-culling", cli_app_config.back_face_culling, "turn on backface culling");
     app.add_option("-t,--threads-count", cli_app_config.number_of_streamer_threads, "number of threads used by chunk data streamer");
@@ -189,6 +188,7 @@ int main(int argc, const char* const* argv) {
         .world_size = cli_app_config.world_size,
         .initial_position = {0.F, 0.F, 0.F},
         .chunk_size = cli_app_config.chunk_size,
+#ifndef WINDOWS
         .chunk_data_generator = cli_app_config.simple_generator ?
             std::unique_ptr<ve001::ChunkGenerator>(
                 new ve001::SimpleTerrainGenerator(cli_app_config.chunk_size)
@@ -202,11 +202,15 @@ int main(int argc, const char* const* argv) {
                     .visibilty_threshold = .3F,
                 })
             )
+#else
+        .chunk_data_generator = std::unique_ptr<ve001::ChunkGenerator>(
+            new ve001::SimpleTerrainGenerator(cli_app_config.chunk_size)
+        )
+#endif
         ,
         .chunk_pool_growth_coefficient = 1.5F,
         .meshing_shader_local_group_size = 64
     });
-    engine._world_grid._chunk_pool.chunk_completed_callback = recordMeshingTimeSample;
     engine.init();
 
     ve001::Shader shader;
@@ -235,7 +239,7 @@ int main(int argc, const char* const* argv) {
 
         for (auto &key : keys) {
             if (key.pressed) {
-                key.action(move_camera ? camera : sky_camera, 50.F);
+                key.action(move_camera ? camera : sky_camera, 30.F);
                 if (move_camera) {
                     camera_moved = true;
                 }

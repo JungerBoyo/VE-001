@@ -3,6 +3,8 @@
 using namespace ve001;
 using namespace vmath;
 
+thread_local std::vector<u16> SimpleTerrainGenerator::_data;
+
 static void makeCorridor(std::vector<u16>& data, Vec3i32 chunk_size) {
     i32 i{ 0 };
     for(i32 z{ 0 }; z < chunk_size[2]; ++z) {
@@ -26,12 +28,12 @@ static void makeCorridor(std::vector<u16>& data, Vec3i32 chunk_size) {
     }
 }
 
-SimpleTerrainGenerator::SimpleTerrainGenerator(Vec3i32 chunk_size) {
-    _noise.resize(chunk_size[0] * chunk_size[1] * chunk_size[2], 0);
-    makeCorridor(_noise, chunk_size);
-}
+SimpleTerrainGenerator::SimpleTerrainGenerator(Vec3i32 chunk_size) : _chunk_size(chunk_size) {}
 
-void SimpleTerrainGenerator::threadInit() {}
+void SimpleTerrainGenerator::threadInit() {
+    _data.resize(_chunk_size[0] *  _chunk_size[1] *  _chunk_size[2], 0U);
+    makeCorridor(_data, _chunk_size);
+}
 std::optional<std::span<const u16>> SimpleTerrainGenerator::gen([[maybe_unused]]Vec3i32 chunk_position) {
-    return std::span<const u16>(_noise);
+    return std::span<const u16>(_data);
 }

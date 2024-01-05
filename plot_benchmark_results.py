@@ -69,18 +69,15 @@ if __name__ == '__main__':
 
     columns_count = int(app_args.columns_count)
 
-    number_of_plots = app_args.frame_timings * 2 + app_args.meshing_timings * 2 + app_args.prims_samples_ratio + app_args.data_usage_server + app_args.data_usage_client
+    number_of_plots = app_args.frame_timings * 1 + app_args.meshing_timings * 2 + app_args.prims_samples_ratio + app_args.data_usage_server + app_args.data_usage_client + app_args.chunks_count + 1
 
     figure,axes = plt.subplots(int(number_of_plots/columns_count)+int(number_of_plots%columns_count), number_of_plots if columns_count > number_of_plots else columns_count)
-
+    
     i = 0
 
     if app_args.frame_timings:
-        showPlot('Czas klatki (serwer)', 'klatka', 'czas [ms]', [], [frame_samples_data['gpu_frame_time_elapsed_ns']/1_000_000], False, getAxis(axes, i, number_of_plots))
+        showPlot('Czas klatki', 'klatka', 'czas [ms]', [], [frame_samples_data['gpu_frame_time_elapsed_ns']/1_000_000], False, getAxis(axes, i, number_of_plots))
         i += 1
-        showPlot('Czas klatki (klient)', 'klatka', 'czas [ms]', [], [frame_samples_data['cpu_frame_time_elapsed_ns']/1_000_000], False, getAxis(axes, i, number_of_plots))
-        i += 1
-
 
     if app_args.meshing_timings:
         showPlot('Czasy siatkowania kawałków (same wykonanie)', 'kawałek', 'czas [ms]', [], [meshing_samples_data['gpu_meshing_time_elapsed_ns']/1_000_000], False, getAxis(axes, i, number_of_plots))
@@ -125,7 +122,7 @@ if __name__ == '__main__':
         )
         i += 1
     if app_args.chunks_count:
-        showPlot('Ilość użytych kawałków', 'klatka', 'ilość kawałków', [], [frame_samples_data['chunks_in_use']], False, getAxis(axes, i, number_of_plots))
+        showPlot('Ilość użytych kawałków na klatkę', 'klatka', 'ilość kawałków', [], [frame_samples_data['chunks_in_use']], False, getAxis(axes, i, number_of_plots))
         i += 1
 
     if float(app_args.h_space) != 0.0:

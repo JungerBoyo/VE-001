@@ -3,12 +3,15 @@
 
 #include "engine/chunk_generator.h"
 
+#include <FastNoise/FastNoise.h>
+
 #include <vector>
 
 namespace ve001 {
 
 struct SimpleTerrainGenerator : public ChunkGenerator {
-    std::vector<vmath::u16> _noise;
+    static thread_local std::vector<vmath::u16> _data;
+    vmath::Vec3i32 _chunk_size;
 
     SimpleTerrainGenerator(vmath::Vec3i32 chunk_size);
 

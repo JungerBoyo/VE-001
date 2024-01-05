@@ -17,5 +17,6 @@ class VE001Recipe(ConanFile):
         self.requires("glad/0.1.36")
         self.requires("spdlog/1.11.0")
         self.requires("cli11/2.3.2")
-        self.requires("fastnoise2/0.10.0-alpha")
+        if (os != 'Windows'):
+            self.requires("fastnoise2/0.10.0-alpha")
         self.requires("glfw/3.3.8")

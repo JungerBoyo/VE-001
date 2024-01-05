@@ -9,7 +9,7 @@
 namespace ve001 {
 
 struct NoiseTerrainGenerator : public ChunkGenerator {
-    static constexpr std::size_t BUFFERS_COUNT{ 10UL };
+    static constexpr std::size_t BUFFERS_COUNT{ 2UL };
 
     static thread_local std::vector<vmath::f32> _tmp_noise;
     static thread_local std::array<std::vector<vmath::u16>, BUFFERS_COUNT> _noise_buffers;

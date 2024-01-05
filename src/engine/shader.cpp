@@ -139,8 +139,7 @@ std::vector<char> parseAsSpirv(const std::filesystem::path &path) {
 	return code;
 }
 
-bool 
-createShaderFromSpirv(const std::filesystem::path &path, u32 shader_id) {
+bool createShaderFromSpirv(const std::filesystem::path &path, u32 shader_id) {
     const auto sh_binary = parseAsSpirv(path);
     if (sh_binary.empty()) {
         return false; 

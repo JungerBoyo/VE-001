@@ -121,10 +121,6 @@ struct MeshingEngine {
     /// @return true if valid value was written into the <future> param false if not
     bool pollMeshingCommand(Result& result);
 
-    /// @brief function flushes pending command buffer and busy waits for the last
-    /// issued meshing command to complete
-    void flushAndBusyWaitLastMeshingCommand();
-
     /// @brief updates metadata based on engine context and new vbo id
     /// @param new_vbo_id new vbo id to which to write meshes
     void updateMetadata(vmath::u32 new_vbo_id);

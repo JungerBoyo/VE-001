@@ -3,6 +3,8 @@
 
 #include <vmath/vmath_types.h>
 
+#include "enums.h"
+
 namespace ve001 {
 
 struct GPUBuffer {
@@ -11,8 +13,7 @@ struct GPUBuffer {
 
     GPUBuffer(vmath::u32 size) : _size(size) {}
 
-    void init();
-    void init(vmath::u32 id);
+    Error init();
     void write(const void* data);
     void write(const void* data, vmath::u32 offset, vmath::u32 size);
     void read(void* data, vmath::u32 offset, vmath::u32 size);

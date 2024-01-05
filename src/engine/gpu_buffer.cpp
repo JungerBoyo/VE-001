@@ -5,13 +5,13 @@
 using namespace ve001;
 using namespace vmath;
 
-void GPUBuffer::init() {
+Error GPUBuffer::init() {
     glCreateBuffers(1, &_id);
     glNamedBufferStorage(_id, _size, nullptr, GL_DYNAMIC_STORAGE_BIT);
-}
-void GPUBuffer::init(u32 id) {
-    _id = id;
-    glNamedBufferStorage(_id, _size, nullptr, GL_DYNAMIC_STORAGE_BIT);
+    if (glGetError() == GL_OUT_OF_MEMORY) {
+        return Error::GPU_ALLOCATION_FAILED;
+    }
+    return Error::NO_ERROR;
 }
 void GPUBuffer::write(const void* data) {
     glNamedBufferSubData(_id, 0, _size, data);

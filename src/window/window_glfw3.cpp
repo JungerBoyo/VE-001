@@ -19,7 +19,6 @@ bool Window::init(std::string_view title, i32 w, i32 h, void (*win_error_callbac
 		return false;
 	}
 
-	// TODO: wykrywanie wersji
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 5);
 	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);

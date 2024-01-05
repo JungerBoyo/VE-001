@@ -42,8 +42,11 @@ WorldGrid::WorldGrid(
     _current_position(initial_position), _semi_axes(world_size), _chunk_pool(engine_context, _max_visible_chunks), 
     _grid_size(Vec3i32::add(Vec3i32::mulScalar(Vec3i32::cast(Vec3f32::div(world_size, Vec3f32::cast(engine_context.chunk_size))), 2), 1)),
     _chunk_data_streamer(chunk_data_streamer_threads_count, std::move(chunk_generator), _max_visible_chunks),
-    _to_allocate_chunks(_max_visible_chunks) 
-    {
+    _to_allocate_chunks(_max_visible_chunks) {
+
+    if (_chunk_data_streamer._done) {
+        _engine_context.error |= Error::CHUNK_DATA_STREAMER_THREAD_ALLOCATION_FAILED;
+    }
 }
 
 constexpr std::array<Vec3i32, 6> NEIGHBOURS_OFFSETS{{
@@ -53,22 +56,32 @@ constexpr std::array<Vec3i32, 6> NEIGHBOURS_OFFSETS{{
 }};
 
 void WorldGrid::init() {
+    if (_engine_context.error != Error::NO_ERROR) {
+        return;
+    }
+
     const auto chunk_size_f32 = Vec3f32::cast(_engine_context.chunk_size);
     const auto max_chunks_along_x = static_cast<i32>(std::floor((2.F * _semi_axes[0])/chunk_size_f32[0]));
     const auto max_chunks_along_y = static_cast<i32>(std::floor((2.F * _semi_axes[1])/chunk_size_f32[1]));
     const auto max_chunks_along_z = static_cast<i32>(std::floor((2.F * _semi_axes[2])/chunk_size_f32[2]));
     const auto max_chunks = max_chunks_along_x*max_chunks_along_y*max_chunks_along_z;
    
-    _tmp_indices.resize(_grid_size[0] * _grid_size[1] * _grid_size[2], VisibleChunk::INVALID_NEIGHBOUR_INDEX);
-
-    _visible_chunks.reserve(max_chunks);
     _chunk_pool.init();
-    _free_visible_chunk_ids.resize(max_chunks);
+
+    try {
+        _tmp_indices.resize(_grid_size[0] * _grid_size[1] * _grid_size[2], VisibleChunk::INVALID_NEIGHBOUR_INDEX);
+        _visible_chunks.reserve(max_chunks);
+        _free_visible_chunk_ids.resize(max_chunks);
+        _visible_chunk_id_to_index.resize(max_chunks, INVALID_VISIBLE_CHUNK_INDEX);
+    } catch ([[maybe_unused]] const std::exception&) {
+        _engine_context.error |= Error::CPU_ALLOCATION_FAILED;
+        return;
+    }
+
     u32 i{ 0U };
     for (auto& visible_chunk_id : _free_visible_chunk_ids) {
         visible_chunk_id = i++;
     }
-    _visible_chunk_id_to_index.resize(max_chunks, INVALID_VISIBLE_CHUNK_INDEX);
 
     const auto position_in_chunk_space = Vec3i32::cast(vmath::vroundf(Vec3f32::div(_current_position, Vec3f32::cast(_engine_context.chunk_size))));
     const auto half_grid_size = Vec3i32::divScalar(_grid_size, 2);//1;
@@ -282,10 +295,6 @@ void WorldGrid::update(Vec3f32 new_position) {
 }
 
 bool WorldGrid::pollToAllocateChunks() {
-    if(_chunk_pool.poll()) {
-        _chunk_pool.chunk_completed_callback(_chunk_pool._meshing_engine.result_gpu_meshing_time_ns, _chunk_pool._meshing_engine.result_real_meshing_time_ns);
-    }
-
     if (ToAllocateChunk* to_allocate_chunk{ nullptr }; _to_allocate_chunks.peek(to_allocate_chunk) && to_allocate_chunk != nullptr) {
         if (to_allocate_chunk->data.valid()) {
             if (to_allocate_chunk->data.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {

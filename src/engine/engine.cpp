@@ -16,6 +16,7 @@ static bool frustumCullingUnaryOp(
 
 
 Engine::Engine(Config config) : _engine_context(EngineContext{
+		.error = this->error,
 		.chunk_size = config.chunk_size,
 		.half_chunk_size = Vec3i32::divScalar(config.chunk_size, 2),
 		.chunk_size_1D = static_cast<u64>(config.chunk_size[0]) * static_cast<u64>(config.chunk_size[1]) * static_cast<u64>(config.chunk_size[2]),
@@ -37,8 +38,9 @@ Engine::Engine(Config config) : _engine_context(EngineContext{
   	_world_grid(_engine_context, config.world_size, config.initial_position, config.chunk_data_streamer_threads_count, std::move(config.chunk_data_generator))
 {}
 
-void Engine::init() {
+bool Engine::init() {
     _world_grid.init();
+	return (error != Error::NO_ERROR);
 }
 void Engine::deinit() {
     _world_grid.deinit();
