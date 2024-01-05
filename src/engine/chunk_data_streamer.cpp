@@ -13,7 +13,7 @@ ChunkDataStreamer::ChunkDataStreamer(u32 threads_count, std::unique_ptr<ChunkGen
         for (std::uint32_t i{ 0U }; i < final_threads_count; ++i) {
             _threads.push_back(std::jthread(&ChunkDataStreamer::thread, this));
         }
-    } catch([[maybe_unused]] const std::exception&) {
+    } catch(const std::exception&) {
         _done = true;
     }
 }

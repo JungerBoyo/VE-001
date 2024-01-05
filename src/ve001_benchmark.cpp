@@ -274,7 +274,7 @@ int main(int argc, const char* const* argv) {
         if (camera_moved || camera_rotated) {
 
             if (cli_app_config.frustum_culling) {
-                static constexpr auto TAN_FOV = std::tan(CAMERA_FOV_BIASED/2.F);
+                static const auto TAN_FOV = std::tan(CAMERA_FOV_BIASED/2.F);
                 const auto aspect_ratio = (static_cast<vmath::f32>(window_width)/static_cast<vmath::f32>(window_height));
 
                 engine.applyFrustumCullingPartition(

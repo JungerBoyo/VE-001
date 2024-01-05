@@ -34,6 +34,6 @@ void SimpleTerrainGenerator::threadInit() {
     _data.resize(_chunk_size[0] *  _chunk_size[1] *  _chunk_size[2], 0U);
     makeCorridor(_data, _chunk_size);
 }
-std::optional<std::span<const u16>> SimpleTerrainGenerator::gen([[maybe_unused]]Vec3i32 chunk_position) {
+std::optional<std::span<const u16>> SimpleTerrainGenerator::gen(Vec3i32 chunk_position) {
     return std::span<const u16>(_data);
 }

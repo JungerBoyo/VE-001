@@ -73,7 +73,7 @@ void WorldGrid::init() {
         _visible_chunks.reserve(max_chunks);
         _free_visible_chunk_ids.resize(max_chunks);
         _visible_chunk_id_to_index.resize(max_chunks, INVALID_VISIBLE_CHUNK_INDEX);
-    } catch ([[maybe_unused]] const std::exception&) {
+    } catch (const std::exception&) {
         _engine_context.error |= Error::CPU_ALLOCATION_FAILED;
         return;
     }
