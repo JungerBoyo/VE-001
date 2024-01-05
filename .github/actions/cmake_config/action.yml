@@ -19,4 +19,4 @@ runs:
     - name: Install conan packages (Linux + GLFW3)
       shell: bash 
       if: ${{ inputs.os == 'ubuntu-22.04' && inputs.windowing-system == 'glfw3' }}
-      run: cmake -S . -B build-rel -DCMAKE_TOOLCHAIN_FILE=conan_toolchain.cmake -DCMAKE_BUILD_TYPE=Release -DREMOTE_BUILD=ON
+      run: cmake -S . -B build-rel -DCMAKE_TOOLCHAIN_FILE="conan_toolchain.cmake" -DCMAKE_BUILD_TYPE=Release -DREMOTE_BUILD=ON

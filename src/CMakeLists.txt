@@ -32,6 +32,10 @@ target_link_libraries(gl_context PRIVATE logger)
 
 add_executable(ve001-benchmark ve001_benchmark.cpp testing_context.h)
 
+if ("${CMAKE_HOST_SYSTEM_NAME}" STREQUAL "Windows")
+    target_compile_definitions(ve001-benchmark PRIVATE WINDOWS)
+endif()
+
 target_link_libraries(ve001-benchmark PRIVATE 
     window 
     gl_context 
