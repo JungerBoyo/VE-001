@@ -16,8 +16,14 @@ struct ThreadSafeRingBuffer {
     std::size_t _reader_index{ 0U };
     bool _empty{ true };
 
+    ThreadSafeRingBuffer() noexcept = default;
+
     ThreadSafeRingBuffer(std::size_t size)
         : _buffer(size) {}
+
+    void resize(std::size_t new_size) {
+        _buffer.resize(new_size);
+    }
 
     bool write(T value) noexcept {
         std::lock_guard<std::mutex> lock(_mutex);

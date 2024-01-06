@@ -11,12 +11,17 @@
 using namespace ve001;
 using namespace vmath;
 
-#define VE001_SH_CONFIG_UBO_BINDING_MESHING_DESCRIPTOR  2
-#define VE001_SH_CONFIG_SSBO_BINDING_VOXEL_DATA         5
-#define VE001_SH_CONFIG_SSBO_BINDING_MESHING_TEMP       6
-#define VE001_SH_CONFIG_SSBO_BINDING_MESH_DATA          7
+MeshingEngine::MeshingEngine(const EngineContext& engine_context, vmath::u32 max_chunks) noexcept 
+    : _engine_context(engine_context) {
+    try {
+        _commands.resize(max_chunks);
+    } catch(const std::exception&) {
+        _engine_context.error |= Error::CPU_ALLOCATION_FAILED;
+    }
+}
 
-static bool deviceSupportsARBSpirv() {
+
+static bool deviceSupportsARBSpirv() noexcept {
 	int ext_num{ 0 };
     glGetIntegerv(GL_NUM_EXTENSIONS, &ext_num);
     for (int i{ 0 }; i < ext_num; ++i) {
@@ -28,7 +33,7 @@ static bool deviceSupportsARBSpirv() {
 	return false;
 }
 
-void MeshingEngine::init(u32 vbo_id) {
+void MeshingEngine::init(u32 vbo_id) noexcept {
     _vbo_id = vbo_id;
 
     glCreateBuffers(1, &_ssbo_voxel_data_id);
@@ -102,7 +107,7 @@ void MeshingEngine::init(u32 vbo_id) {
 #endif
 }
 
-void MeshingEngine::issueMeshingCommand(u32 chunk_id, Vec3f32 chunk_position, std::span<const u16> voxel_data) {
+void MeshingEngine::issueMeshingCommand(u32 chunk_id, Vec3f32 chunk_position, std::span<const u16> voxel_data) noexcept {
     Command cmd = {
         .chunk_id       = chunk_id,
         .chunk_position = chunk_position,
@@ -117,12 +122,11 @@ void MeshingEngine::issueMeshingCommand(u32 chunk_id, Vec3f32 chunk_position, st
         return;
     }
 
-    if (!_commands.write(std::move(cmd))) {
-        _engine_context.error |= Error::MESHING_COMMAND_QUEUE_FULL;
-    }
+    /// will never return false since size == max chunks count
+    _commands.write(std::move(cmd));
 }
 
-bool MeshingEngine::pollMeshingCommand(Result& result) {
+bool MeshingEngine::pollMeshingCommand(Result& result) noexcept {
     if (_active_command.fence == nullptr) {
         return false;
     }
@@ -182,7 +186,7 @@ bool MeshingEngine::pollMeshingCommand(Result& result) {
     return true;
 }
 
-void MeshingEngine::updateMetadata(vmath::u32 new_vbo_id) {
+void MeshingEngine::updateMetadata(vmath::u32 new_vbo_id) noexcept {
     _vbo_id = new_vbo_id;
 
     Descriptor meshing_descriptor = {
@@ -204,7 +208,7 @@ void MeshingEngine::updateMetadata(vmath::u32 new_vbo_id) {
     _ssbo_meshing_temp.write(static_cast<const void*>(&meshing_temp));
 }
 
-void MeshingEngine::firstCommandExec(Command& command) {
+void MeshingEngine::firstCommandExec(Command& command) noexcept {
 #ifdef ENGINE_TEST
     glQueryCounter(gpu_meshing_time_query, GL_TIMESTAMP);
     glGetQueryObjectui64v(gpu_meshing_time_query, GL_QUERY_RESULT, &begin_meshing_time_ns);
@@ -237,7 +241,7 @@ void MeshingEngine::firstCommandExec(Command& command) {
     command.fence = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
 }
 
-void MeshingEngine::subsequentCommandExec(Command& command) {
+void MeshingEngine::subsequentCommandExec(Command& command) noexcept {
     command.axis_progress += _engine_context.meshing_axis_progress_step;
 
     glDeleteSync(static_cast<GLsync>(command.fence));
@@ -247,7 +251,7 @@ void MeshingEngine::subsequentCommandExec(Command& command) {
     command.fence = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
 }
 
-void MeshingEngine::deinit() {
+void MeshingEngine::deinit() noexcept {
 #ifdef ENGINE_TEST
     u32 tmp[2] = {gpu_meshing_time_query, real_meshing_time_query};
     glDeleteQueries(2, tmp);

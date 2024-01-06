@@ -22,7 +22,19 @@ add_library(ve001 STATIC
     world_grid.h
 )
 
-target_compile_definitions(ve001 PUBLIC ENGINE_TEST)
+if (DEFINED ENGINE_TEST)
+    target_compile_definitions(ve001 PUBLIC ENGINE_TEST)
+endif()
+
+target_compile_definitions(ve001 PRIVATE
+    VE001_SH_CONFIG_ATTRIB_INDEX_POSITION=0
+    VE001_SH_CONFIG_ATTRIB_INDEX_TEXCOORD=1
+    VE001_SH_CONFIG_UBO_BINDING_MESHING_DESCRIPTOR=2
+    VE001_SH_CONFIG_SSBO_BINDING_VOXEL_DATA=5
+    VE001_SH_CONFIG_SSBO_BINDING_MESHING_TEMP=6
+    VE001_SH_CONFIG_SSBO_BINDING_MESH_DATA=7
+)
+
 target_link_libraries(ve001 PRIVATE 
     glad::glad
     vmath

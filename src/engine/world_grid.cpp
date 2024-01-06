@@ -3,7 +3,7 @@
 using namespace vmath;
 using namespace ve001;
 
-static bool isInElipsoid(Vec3f32 ellipsoid_center, Vec3f32 semi_axes, Vec3f32 point) {
+static bool isInElipsoid(Vec3f32 ellipsoid_center, Vec3f32 semi_axes, Vec3f32 point) noexcept {
     const auto diff = Vec3f32::sub(point, ellipsoid_center);
     return (
         (diff[0]*diff[0])/(semi_axes[0]*semi_axes[0]) +
@@ -11,7 +11,7 @@ static bool isInElipsoid(Vec3f32 ellipsoid_center, Vec3f32 semi_axes, Vec3f32 po
         (diff[2]*diff[2])/(semi_axes[2]*semi_axes[2])) <= 1.F;
 }
 
-static bool isInBoundingBox(Vec3i32 p0, Vec3i32 p1, Vec3i32 point) {
+static bool isInBoundingBox(Vec3i32 p0, Vec3i32 p1, Vec3i32 point) noexcept {
     return 
         (point[0] >= p0[0] && 
          point[1] >= p0[1] &&
@@ -21,7 +21,7 @@ static bool isInBoundingBox(Vec3i32 p0, Vec3i32 p1, Vec3i32 point) {
          point[2] <= p1[2]);
 }
 
-static u32 computeMaxVisibleChunks(Vec3i32 chunk_size, Vec3f32 ellipsoid_semi_axes) {
+static u32 computeMaxVisibleChunks(Vec3i32 chunk_size, Vec3f32 ellipsoid_semi_axes) noexcept {
     const auto chunk_size_f32 = Vec3f32::cast(chunk_size);
     const auto max_chunks_along_x = static_cast<i32>(std::floor((2.F * ellipsoid_semi_axes[0])/chunk_size_f32[0]));
     const auto max_chunks_along_y = static_cast<i32>(std::floor((2.F * ellipsoid_semi_axes[1])/chunk_size_f32[1]));
@@ -35,17 +35,20 @@ WorldGrid::WorldGrid(
     Vec3f32 world_size, 
     Vec3f32 initial_position, 
     u32 chunk_data_streamer_threads_count,
-    std::unique_ptr<ChunkGenerator> chunk_generator) :
+    std::unique_ptr<ChunkGenerator> chunk_generator) noexcept :
 
     _engine_context(engine_context),
     _max_visible_chunks(computeMaxVisibleChunks(_engine_context.chunk_size, world_size)),
     _current_position(initial_position), _semi_axes(world_size), _chunk_pool(engine_context, _max_visible_chunks), 
     _grid_size(Vec3i32::add(Vec3i32::mulScalar(Vec3i32::cast(Vec3f32::div(world_size, Vec3f32::cast(engine_context.chunk_size))), 2), 1)),
-    _chunk_data_streamer(chunk_data_streamer_threads_count, std::move(chunk_generator), _max_visible_chunks),
-    _to_allocate_chunks(_max_visible_chunks) {
+    _chunk_data_streamer(engine_context, chunk_data_streamer_threads_count, std::move(chunk_generator), _max_visible_chunks) {
 
-    if (_chunk_data_streamer._done) {
-        _engine_context.error |= Error::CHUNK_DATA_STREAMER_THREAD_ALLOCATION_FAILED;
+    if (_engine_context.error == Error::NO_ERROR) {
+        try {
+            _to_allocate_chunks.resize(_max_visible_chunks);
+        } catch(const std::exception&) {
+            _engine_context.error |= Error::CPU_ALLOCATION_FAILED;
+        }
     }
 }
 
@@ -55,7 +58,9 @@ constexpr std::array<Vec3i32, 6> NEIGHBOURS_OFFSETS{{
     {0, 0, 1}, { 0, 0,-1},
 }};
 
-void WorldGrid::init() {
+void WorldGrid::init() noexcept {
+    while(!_chunk_data_streamer.ready()){}
+
     if (_engine_context.error != Error::NO_ERROR) {
         return;
     }
@@ -68,6 +73,10 @@ void WorldGrid::init() {
    
     _chunk_pool.init();
 
+    if (_engine_context.error != Error::NO_ERROR) {
+        return;
+    }
+    
     try {
         _tmp_indices.resize(_grid_size[0] * _grid_size[1] * _grid_size[2], VisibleChunk::INVALID_NEIGHBOUR_INDEX);
         _visible_chunks.reserve(max_chunks);
@@ -137,11 +146,11 @@ void WorldGrid::init() {
     std::fill(_tmp_indices.begin(), _tmp_indices.end(), VisibleChunk::INVALID_NEIGHBOUR_INDEX);
 }
 
-static u32 oppositeNeighbour(u32 neighbour) {
+static u32 oppositeNeighbour(u32 neighbour) noexcept {
     return neighbour - (neighbour & 0x1U) + (~neighbour & 0x1U);
 }
 
-void WorldGrid::update(Vec3f32 new_position) {
+void WorldGrid::update(Vec3f32 new_position) noexcept {
     static constexpr f32 epsilon{ .01F };
     const auto move_vec = Vec3f32::sub(new_position, _current_position);
     if (std::abs(move_vec[0]) <= epsilon &&
@@ -294,7 +303,7 @@ void WorldGrid::update(Vec3f32 new_position) {
     std::fill(_tmp_indices.begin(), _tmp_indices.end(), VisibleChunk::INVALID_NEIGHBOUR_INDEX);
 }
 
-bool WorldGrid::pollToAllocateChunks() {
+bool WorldGrid::pollToAllocateChunks() noexcept {
     if (ToAllocateChunk* to_allocate_chunk{ nullptr }; _to_allocate_chunks.peek(to_allocate_chunk) && to_allocate_chunk != nullptr) {
         if (to_allocate_chunk->data.valid()) {
             if (to_allocate_chunk->data.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
@@ -333,6 +342,6 @@ bool WorldGrid::pollToAllocateChunks() {
     return false;
 }
 
-void WorldGrid::deinit() {
+void WorldGrid::deinit() noexcept {
     _chunk_pool.deinit();
 }

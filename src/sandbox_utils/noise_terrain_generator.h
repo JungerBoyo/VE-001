@@ -32,10 +32,10 @@ struct NoiseTerrainGenerator : public ChunkGenerator {
     };
     Config _config;
 
-    NoiseTerrainGenerator(Config config);
+    NoiseTerrainGenerator(Config config) noexcept;
 
-    void threadInit() override;
-    std::optional<std::span<const vmath::u16>> gen(vmath::Vec3i32 chunk_position) override;
+    bool threadInit() noexcept override;
+    std::optional<std::span<const vmath::u16>> gen(vmath::Vec3i32 chunk_position) noexcept override;
 };
 
 }

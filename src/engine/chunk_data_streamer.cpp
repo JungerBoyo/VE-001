@@ -3,8 +3,16 @@
 using namespace ve001;
 using namespace vmath;
 
-ChunkDataStreamer::ChunkDataStreamer(u32 threads_count, std::unique_ptr<ChunkGenerator> chunk_generator, std::size_t capacity)
-    : _chunk_generator(std::move(chunk_generator)), _gen_promises(capacity) {
+ChunkDataStreamer::ChunkDataStreamer(EngineContext& engine_context, u32 threads_count, std::unique_ptr<ChunkGenerator> chunk_generator, std::size_t capacity) noexcept
+    : _engine_context(engine_context), _chunk_generator(std::move(chunk_generator)) {
+
+    try {
+        _gen_promises.resize(capacity);
+    } catch(const std::exception&) {
+        _engine_context.error |= Error::CPU_ALLOCATION_FAILED;
+        return;
+    }
+
     try {
         auto final_threads_count = threads_count;
         if (final_threads_count == 0U) {
@@ -14,15 +22,31 @@ ChunkDataStreamer::ChunkDataStreamer(u32 threads_count, std::unique_ptr<ChunkGen
             _threads.push_back(std::jthread(&ChunkDataStreamer::thread, this));
         }
     } catch(const std::exception&) {
+        _engine_context.error |= Error::CHUNK_DATA_STREAMER_THREAD_ALLOCATION_FAILED;
         _done = true;
     }
 }
 
-void ChunkDataStreamer::thread() {
-    _chunk_generator->threadInit();
+static std::mutex _m;
+
+void ChunkDataStreamer::thread() noexcept {
+    if (_done) {
+        return;
+    }
+    if (_chunk_generator->threadInit()) {
+        _done = true;
+
+        std::lock_guard<std::mutex> lock(_m);
+        _engine_context.error |= Error::CHUNK_DATA_STREAMER_THREAD_INITIALIZATION_FAILED;
+        return;
+    }
+
+    ++_ready_counter;
+
     while (!_done) {
         Promise promise;
         if (_gen_promises.read(promise)) {
+            // can throw but will never happen in practice
             promise.value.set_value(_chunk_generator->gen(promise.position));
         } else {
             std::this_thread::yield();
@@ -30,10 +54,12 @@ void ChunkDataStreamer::thread() {
     }
 }
 
-std::future<std::optional<std::span<const vmath::u16>>> ChunkDataStreamer::gen(Vec3i32 chunk_position) {
+std::future<std::optional<std::span<const vmath::u16>>> ChunkDataStreamer::gen(Vec3i32 chunk_position) noexcept {
+    // can throw but will never happen in practice
     std::promise<std::optional<std::span<const vmath::u16>>> promise;
     std::future<std::optional<std::span<const vmath::u16>>> result(promise.get_future());
-
+    
+    /// will never return false since size == max chunks count
     _gen_promises.write({std::move(promise), chunk_position});
 
     return result;

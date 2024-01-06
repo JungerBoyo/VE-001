@@ -8,22 +8,27 @@ thread_local std::array<std::vector<vmath::u16>, NoiseTerrainGenerator::BUFFERS_
 thread_local vmath::u32 NoiseTerrainGenerator::_current_buffer;
 thread_local FastNoise::SmartNode<> NoiseTerrainGenerator::_smart_node;
 
-NoiseTerrainGenerator::NoiseTerrainGenerator(Config config) 
+NoiseTerrainGenerator::NoiseTerrainGenerator(Config config) noexcept
     : _config(config) {
     _config.visibilty_threshold = std::clamp(_config.visibilty_threshold, 0.F, 1.F);        
 }
 
-void NoiseTerrainGenerator::threadInit() {
+bool NoiseTerrainGenerator::threadInit() noexcept {
     _current_buffer = 0U;
-    _tmp_noise.resize(_config.terrain_size[0] * _config.terrain_size[1] * _config.terrain_size[2], 0.F);
-    for (auto& buffer : _noise_buffers) {
-        buffer.resize(_config.terrain_size[0] * _config.terrain_size[1] * _config.terrain_size[2], 0U);
+    try {
+        _tmp_noise.resize(_config.terrain_size[0] * _config.terrain_size[1] * _config.terrain_size[2], 0.F);
+        for (auto& buffer : _noise_buffers) {
+            buffer.resize(_config.terrain_size[0] * _config.terrain_size[1] * _config.terrain_size[2], 0U);
+        }
+        _smart_node = FastNoise::NewFromEncodedNodeTree(
+            "IQAZABAAexQoQA0AAwAAAAAAAEAIAAAAAAA/AAAAAAABAwCPwnU9AQQAAAAAANejCMEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD//wEAAClcjz4="
+        ); 
+    } catch(const std::exception&) {
+        return true;
     }
-    _smart_node = FastNoise::NewFromEncodedNodeTree(
-        "IQAZABAAexQoQA0AAwAAAAAAAEAIAAAAAAA/AAAAAAABAwCPwnU9AQQAAAAAANejCMEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD//wEAAClcjz4="
-    );
+    return false;
 }
-std::optional<std::span<const vmath::u16>> NoiseTerrainGenerator::gen(vmath::Vec3i32 chunk_position) {
+std::optional<std::span<const vmath::u16>> NoiseTerrainGenerator::gen(vmath::Vec3i32 chunk_position) noexcept {
     const auto p0 = Vec3i32::mul(chunk_position, _config.terrain_size);
     const auto p1 = _config.terrain_size;
 

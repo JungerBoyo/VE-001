@@ -12,10 +12,10 @@ static bool frustumCullingUnaryOp(
 	f32 x_near,
 	f32 y_near,
 	Mat4f32 view_matrix
-);
+) noexcept ;
 
 
-Engine::Engine(Config config) : _engine_context(EngineContext{
+Engine::Engine(Config config) noexcept : _engine_context(EngineContext{
 		.error = this->error,
 		.chunk_size = config.chunk_size,
 		.half_chunk_size = Vec3i32::divScalar(config.chunk_size, 2),
@@ -38,11 +38,11 @@ Engine::Engine(Config config) : _engine_context(EngineContext{
   	_world_grid(_engine_context, config.world_size, config.initial_position, config.chunk_data_streamer_threads_count, std::move(config.chunk_data_generator))
 {}
 
-bool Engine::init() {
+bool Engine::init() noexcept {
     _world_grid.init();
 	return (error != Error::NO_ERROR);
 }
-void Engine::deinit() {
+void Engine::deinit() noexcept {
     _world_grid.deinit();
 }
 
@@ -52,7 +52,7 @@ void Engine::applyFrustumCullingPartition(
 	f32 z_far, 
 	f32 x_near,
 	f32 y_near,
-	Mat4f32 view_matrix) {
+	Mat4f32 view_matrix) noexcept {
 		
 	_world_grid._chunk_pool.partitionDrawCommands(
 		frustumCullingUnaryOp,
@@ -66,16 +66,16 @@ void Engine::applyFrustumCullingPartition(
 	);
 }
 
-void Engine::updateCameraPosition(Vec3f32 position) {
+void Engine::updateCameraPosition(Vec3f32 position) noexcept {
 	_world_grid.update(position);
 }
-bool Engine::pollChunksUpdates() {
+bool Engine::pollChunksUpdates() noexcept {
 	return _world_grid._chunk_pool.poll();
 }
-void Engine::updateDrawState() {
+void Engine::updateDrawState() noexcept {
 	_world_grid._chunk_pool.update(partitioning);
 }
-void Engine::draw() {
+void Engine::draw() noexcept {
 	_world_grid._chunk_pool.drawAll(partitioning);
 }
 
@@ -88,7 +88,7 @@ bool frustumCullingUnaryOp(
 	f32 x_near,
 	f32 y_near,
 	Mat4f32 view_matrix
-) {
+) noexcept {
 	// center position in view space
 	const auto position_in_view_space = Mat4f32::mulVec(view_matrix, {position[0], position[1], position[2], 1.F});
 

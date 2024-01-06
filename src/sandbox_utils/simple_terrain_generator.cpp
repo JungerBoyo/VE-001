@@ -5,7 +5,7 @@ using namespace vmath;
 
 thread_local std::vector<u16> SimpleTerrainGenerator::_data;
 
-static void makeCorridor(std::vector<u16>& data, Vec3i32 chunk_size) {
+static void makeCorridor(std::vector<u16>& data, Vec3i32 chunk_size) noexcept {
     i32 i{ 0 };
     for(i32 z{ 0 }; z < chunk_size[2]; ++z) {
         for(i32 y{ 0 }; y < chunk_size[1]; ++y) {
@@ -28,12 +28,18 @@ static void makeCorridor(std::vector<u16>& data, Vec3i32 chunk_size) {
     }
 }
 
-SimpleTerrainGenerator::SimpleTerrainGenerator(Vec3i32 chunk_size) : _chunk_size(chunk_size) {}
+SimpleTerrainGenerator::SimpleTerrainGenerator(Vec3i32 chunk_size) noexcept : _chunk_size(chunk_size) {}
 
-void SimpleTerrainGenerator::threadInit() {
-    _data.resize(_chunk_size[0] *  _chunk_size[1] *  _chunk_size[2], 0U);
+bool SimpleTerrainGenerator::threadInit() noexcept {
+    try {
+        _data.resize(_chunk_size[0] *  _chunk_size[1] *  _chunk_size[2], 0U);
+    } catch(const std::exception&) {
+        return true;
+    }
     makeCorridor(_data, _chunk_size);
+
+    return false;
 }
-std::optional<std::span<const u16>> SimpleTerrainGenerator::gen(Vec3i32 chunk_position) {
+std::optional<std::span<const u16>> SimpleTerrainGenerator::gen(Vec3i32 chunk_position) noexcept {
     return std::span<const u16>(_data);
 }

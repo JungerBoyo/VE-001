@@ -12,7 +12,7 @@ struct RingBuffer {
     std::size_t _reader_index{ 0U };
     bool _empty{ true };
 
-    RingBuffer() = default;
+    RingBuffer() noexcept = default;
 
     RingBuffer(std::size_t size)
         : _buffer(size) {}
@@ -76,7 +76,7 @@ struct RingBuffer {
         return _empty;
     }
 
-    void clear() {
+    void clear() noexcept {
         _writer_index = 0U;
         _reader_index = 0U;
         _empty = true;

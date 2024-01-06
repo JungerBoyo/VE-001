@@ -157,7 +157,6 @@ struct ChunkPool {
 
     ////////////////////////////////////////
 
-
     /// @brief context holds common data to all engine components
     EngineContext& _engine_context;
 
@@ -165,7 +164,7 @@ struct ChunkPool {
     /// tasks on the GPU
     MeshingEngine _meshing_engine{ _engine_context, _chunks_count };
 
-    ChunkPool(EngineContext& engine_context, vmath::u32 max_chunks) : 
+    ChunkPool(EngineContext& engine_context, vmath::u32 max_chunks) noexcept : 
         _chunks_count(max_chunks), _engine_context(engine_context) {}
     /// @brief initializes chunk pool
     /// @param max_chunks number of chunks in a pool
@@ -178,29 +177,29 @@ struct ChunkPool {
     /// @brief completes chunk eg. chunk starts to be drawn by the drawAll command 
     /// called by poll() function if chunk's mesh is finished
     /// @param result holds data from meshing_engine with which to update the chunk
-    void completeChunk(MeshingEngine::Result result);
+    void completeChunk(MeshingEngine::Result result) noexcept;
     /// @brief deallocates chunk
     /// @param chunk_id chunk's id to deallocate
     void deallocateChunk(ChunkId chunk_id) noexcept;
     /// @brief deallocates draw commands of the chunk. Called by deallocateChunk only
     /// if deallocated chunk is complete
     /// @param chunk_id chunk's id from which to deallocate draw commands
-    void deallocateChunkDrawCommands(ChunkId chunk_id);
+    void deallocateChunkDrawCommands(ChunkId chunk_id) noexcept;
     /// @brief updates the state. Update draw command buffer binds vbo as vertex buffer, binds vao
     /// @param use_partition commands will be supplied based on last paritioning call (paritionDrawCmds)
-    void update(bool use_partition);
+    void update(bool use_partition) noexcept;
     /// @brief draws all chunks
     /// @param use_partition number of draw commands will be based on last paritioning call (paritionDrawCmds) 
-    void drawAll(bool use_partition);
+    void drawAll(bool use_partition) noexcept;
     /// @brief recreates chunk pool based on the meshing result which caused overflow
     /// @param overflow_result meshing result which contains info about overflow
-    void recreatePool(MeshingEngine::Result overflow_result);
+    void recreatePool(MeshingEngine::Result overflow_result) noexcept;
 
     /// @brief polls for chunks that are meshed and are ready to be completed (one at a time)
     /// @return true if chunk was completed false otherwise
-    bool poll();
+    bool poll() noexcept;
     /// @brief deinitializes chunk pool
-    void deinit();
+    void deinit() noexcept;
 
     
     /// @brief function paritions the _draw_cmds based on <unary_op> setting the <_draw_cmds_parition_size> member
@@ -209,7 +208,7 @@ struct ChunkPool {
     /// @param use_last_partition If true then the previous parition will be paritioned again
     /// @param args Aux arguments to pass to unary_op function
     template<typename ...Args> 
-    void partitionDrawCommands(bool(*unary_op)(Face orientation, vmath::Vec3f32 position, Args... args), bool use_last_partition, Args... args) {
+    void partitionDrawCommands(bool(*unary_op)(Face orientation, vmath::Vec3f32 position, Args... args), bool use_last_partition, Args... args) noexcept {
         std::size_t begin{ 0UL };
         std::size_t end{ use_last_partition ? _draw_cmds_parition_size - 1UL : _draw_cmds.size() - 1UL };
 

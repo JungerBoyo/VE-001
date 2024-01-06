@@ -18,7 +18,9 @@
 
 #include <logger/logger.h>
 
+#ifdef ENGINE_TEST
 #include "testing_context.h"
+#endif
 
 #include <CLI/CLI.hpp>
 
@@ -136,7 +138,9 @@ struct CLIAppConfig {
     vmath::i32 voxel_states_count; 
 };
 
+#ifdef ENGINE_TEST
 static TestingContext testing_context(5000);
+#endif
 
 int main(int argc, const char* const* argv) {
     CLI::App app("CLI app for running benchmarks on ve001 engine", "ve001-benchmark");
@@ -171,7 +175,9 @@ int main(int argc, const char* const* argv) {
     ve001::window.setKeyCallback(keyCallback);
     ve001::window.setMousePositionCallback(mousePosCallback);
 
+#ifdef ENGINE_TEST
     testing_context.init();
+#endif
 
     ve001::Engine engine({
         .world_size = cli_app_config.world_size,
@@ -249,11 +255,11 @@ int main(int argc, const char* const* argv) {
                 .1F, 1000.F, static_cast<vmath::f32>(window_width), static_cast<vmath::f32>(window_height)
             );
 
-
+#ifdef ENGINE_TEST
         if (start_testing) {
             testing_context.beginMeasure();
         }
-
+#endif
         general_data.vp = vmath::Mat4f32::mul(proj_mat, (chosen_camera ? camera : sky_camera).lookAt());
         general_data.camera_pos = camera.position;
         general_ubo.write(static_cast<const void*>(&general_data));
@@ -291,12 +297,16 @@ int main(int argc, const char* const* argv) {
             camera_rotated = false;
         }
 
+#ifdef ENGINE_TEST
         if (engine.pollChunksUpdates() && start_testing) {
             testing_context.saveMeshingSample({
                 engine._world_grid._chunk_pool._meshing_engine.result_gpu_meshing_time_ns,
                 engine._world_grid._chunk_pool._meshing_engine.result_real_meshing_time_ns
             });
         }
+#else
+        engine.pollChunksUpdates();
+#endif
 
         engine.updateDrawState();
 
@@ -307,6 +317,7 @@ int main(int argc, const char* const* argv) {
 
         engine.draw();
 
+#ifdef ENGINE_TEST
         if (start_testing) {
             testing_context.endMeasure(
                 engine._world_grid._chunk_pool.chunks_used,
@@ -317,17 +328,19 @@ int main(int argc, const char* const* argv) {
                 static_cast<vmath::u64>(engine._world_grid._chunk_pool._chunks_count) * engine._engine_context.chunk_voxel_data_size
             );
         }
-
+#endif
         ve001::window.swapBuffers();
         ve001::window.pollEvents();
     }
 
+#ifdef ENGINE_TEST
     if (start_testing) {
         testing_context.dumpFrameSamples();
         testing_context.dumpMeshingSamples();
     }
-
     testing_context.deinit();
+#endif
+
 
     general_ubo.deinit();
     shader.deinit();

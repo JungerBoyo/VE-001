@@ -103,40 +103,38 @@ struct MeshingEngine {
 
     const EngineContext& _engine_context;
 
-    MeshingEngine(const EngineContext& engine_context, vmath::u32 max_chunks) 
-        : _engine_context(engine_context), 
-          _commands(max_chunks, Command{}) {}
+    MeshingEngine(const EngineContext& engine_context, vmath::u32 max_chunks) noexcept;
 
-    void init(vmath::u32 vbo_id);
+    void init(vmath::u32 vbo_id) noexcept;
 
     /// @brief issues meshing command to the engine
     /// @param chunk_id id of processed chunk. Maps to chunk ids in ChunkPool
     /// @param chunk_position chunk position
     /// @param voxel_data pointer to voxel_data based on which the meshing will take place
-    void issueMeshingCommand(ChunkId chunk_id, vmath::Vec3f32 chunk_position, std::span<const vmath::u16> voxel_data);
+    void issueMeshingCommand(ChunkId chunk_id, vmath::Vec3f32 chunk_position, std::span<const vmath::u16> voxel_data) noexcept;
 
     /// @brief Function polls for the result from next command. It isn't waiting (the call
     // is non blocking), only checks once.
     /// @param result variable to which the function write result into
     /// @return true if valid value was written into the <future> param false if not
-    bool pollMeshingCommand(Result& result);
+    bool pollMeshingCommand(Result& result) noexcept;
 
     /// @brief updates metadata based on engine context and new vbo id
     /// @param new_vbo_id new vbo id to which to write meshes
-    void updateMetadata(vmath::u32 new_vbo_id);
+    void updateMetadata(vmath::u32 new_vbo_id) noexcept;
 
     /// @brief executes command meaning dispatches meshing based on parameters 
     /// in the <command>. It is first execution so the data is passed to the gpu here
     /// @param command command to be executed
-    void firstCommandExec(Command& command);
+    void firstCommandExec(Command& command) noexcept;
 
     /// @brief executes command meaning dispatches meshing based on parameters 
     /// in the <command>. It is subsequent command execution so the per command data
     /// isn't allocated.
     /// @param command command to be executed
-    void subsequentCommandExec(Command& command);
+    void subsequentCommandExec(Command& command) noexcept;
 
-    void deinit();
+    void deinit() noexcept;
 };
 
 }

@@ -13,12 +13,12 @@ struct GPUBuffer {
 
     GPUBuffer(vmath::u32 size) : _size(size) {}
 
-    Error init();
-    void write(const void* data);
-    void write(const void* data, vmath::u32 offset, vmath::u32 size);
-    void read(void* data, vmath::u32 offset, vmath::u32 size);
-    void bind(vmath::u32 target, vmath::u32 binding);
-    void deinit();
+    Error init() noexcept;
+    void write(const void* data) noexcept;
+    void write(const void* data, vmath::u32 offset, vmath::u32 size) noexcept;
+    void read(void* data, vmath::u32 offset, vmath::u32 size) noexcept;
+    void bind(vmath::u32 target, vmath::u32 binding) noexcept;
+    void deinit() noexcept;
 };
 
 }

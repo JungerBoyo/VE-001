@@ -8,16 +8,13 @@
 using namespace ve001;
 using namespace vmath;
 
-#define VE001_SH_CONFIG_ATTRIB_INDEX_POSITION 0
-#define VE001_SH_CONFIG_ATTRIB_INDEX_TEXCOORD 1
-
-static void rebindVaoToVbo(u32 vao, u32 vbo) {
+static void rebindVaoToVbo(u32 vao, u32 vbo) noexcept {
     constexpr u32 vertex_attrib_binding = 0U;
 
     glVertexArrayVertexBuffer(vao, vertex_attrib_binding, vbo, 0, sizeof(Vertex));
 }
 
-static void setVertexLayout(u32 vao, u32 vbo) {
+static void setVertexLayout(u32 vao, u32 vbo) noexcept {
     constexpr u32 vertex_attrib_binding = 0U;
 
     glEnableVertexArrayAttrib(vao, VE001_SH_CONFIG_ATTRIB_INDEX_POSITION);
@@ -150,7 +147,7 @@ vmath::u32 ChunkPool::allocateChunk(std::span<const vmath::u16> src, Vec3i32 pos
     return chunk.chunk_id;
 }
 
-void ChunkPool::completeChunk(MeshingEngine::Result result) {
+void ChunkPool::completeChunk(MeshingEngine::Result result) noexcept {
     const auto chunk_index = _chunk_id_to_index[result.chunk_id];
     if (chunk_index == INVALID_CHUNK_INDEX) {
         return;
@@ -188,7 +185,7 @@ void ChunkPool::completeChunk(MeshingEngine::Result result) {
     _draw_cmds_dirty = true;
 }
 
-void ChunkPool::update(bool use_partition) {
+void ChunkPool::update(bool use_partition) noexcept {
     if (_draw_cmds.size() > 0U) {
         if (use_partition && _draw_cmds_parition_size == 0U) {
             return;
@@ -205,7 +202,7 @@ void ChunkPool::update(bool use_partition) {
     }
 }
 
-void ChunkPool::recreatePool(MeshingEngine::Result overflow_result) {
+void ChunkPool::recreatePool(MeshingEngine::Result overflow_result) noexcept {
     const auto max_written_indices_x_axis = std::max(overflow_result.written_indices[X_POS], overflow_result.written_indices[X_NEG]);
     const auto max_written_indices_y_axis = std::max(overflow_result.written_indices[Y_POS], overflow_result.written_indices[Y_NEG]);
     const auto max_written_indices_z_axis = std::max(overflow_result.written_indices[Z_POS], overflow_result.written_indices[Z_NEG]);
@@ -252,7 +249,7 @@ void ChunkPool::recreatePool(MeshingEngine::Result overflow_result) {
     _meshing_engine.issueMeshingCommand(chunk.chunk_id, chunk.position, chunk.cpu_region);
 }
 
-void ChunkPool::drawAll(bool use_partition) {
+void ChunkPool::drawAll(bool use_partition) noexcept {
     if (_draw_cmds.size() > 0U) {
         if (use_partition && _draw_cmds_parition_size == 0U) {
             return;
@@ -266,7 +263,7 @@ void ChunkPool::drawAll(bool use_partition) {
         );
     }
 }
-bool ChunkPool::poll() {
+bool ChunkPool::poll() noexcept {
     if (MeshingEngine::Result result{}; _meshing_engine.pollMeshingCommand(result)) {
         completeChunk(result);
         return true;
@@ -310,7 +307,7 @@ void ChunkPool::deallocateChunk(u32 chunk_id) noexcept {
     --chunks_used;
 #endif
 }
-void ChunkPool::deallocateChunkDrawCommands(ChunkId chunk_id) {
+void ChunkPool::deallocateChunkDrawCommands(ChunkId chunk_id) noexcept {
     const auto& chunk = _chunks[_chunk_id_to_index[chunk_id]];
     for (u32 i{ 0U }; i < 6; ++i) {
         const auto draw_cmd_index = chunk.draw_cmd_indices[i];
@@ -332,7 +329,7 @@ void ChunkPool::deallocateChunkDrawCommands(ChunkId chunk_id) {
     _draw_cmds_dirty = true;
 }
 
-void ChunkPool::deinit() {
+void ChunkPool::deinit() noexcept {
     _meshing_engine.deinit();
 
     glBindVertexArray(0);

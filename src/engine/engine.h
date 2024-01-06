@@ -52,7 +52,7 @@ struct Engine {
 
     /// @brief constructor doesn't initialize any opengl resources
     /// @param config confiugration structure 
-    Engine(Config config);
+    Engine(Config config) noexcept;
 
     /// @brief applies frustum culling based on separating axis theorem
     /// @param use_last_partition wether to use last partitioning
@@ -70,7 +70,7 @@ struct Engine {
         vmath::f32 x_near,
         vmath::f32 y_near,
         vmath::Mat4f32 view_matrix
-    );
+    ) noexcept;
 
     /// @brief passes the custom partitioning call to internal partition function
     /// @tparam ...Args types of aux arguments to pass to unary_op function
@@ -78,26 +78,26 @@ struct Engine {
     /// @param use_last_partition If true then the previous parition will be paritioned again
     /// @param args Aux arguments to pass to unary_op function
     template<typename ...Args> 
-    void applyCustomPartition(bool(*unary_op)(Face orientation, vmath::Vec3f32 position, Args... args), bool use_last_partition, Args... args) {
+    void applyCustomPartition(bool(*unary_op)(Face orientation, vmath::Vec3f32 position, Args... args), bool use_last_partition, Args... args) noexcept {
         _world_grid._chunk_pool.partitionDrawCommands(unary_op, use_last_partition, args...);
     }
 
     /// @brief initalization of the opengl resources
     /// @return true if there were errors during engine's initialization
-    bool init();
+    bool init() noexcept;
     /// @brief updates world grid state based on camera position
     /// @param position new camera position
-    void updateCameraPosition(vmath::Vec3f32 position);
+    void updateCameraPosition(vmath::Vec3f32 position) noexcept;
     /// @brief polls for chunks updates (non blocking!)
     /// @return true if new chunk was loaded
-    bool pollChunksUpdates();
+    bool pollChunksUpdates() noexcept;
     /// @brief updates draw state, binds vao, vbo. If draw command buffer is dirty
     /// supplies draw commands to gpu
-    void updateDrawState();
+    void updateDrawState() noexcept;
     /// @brief draws a scene
-    void draw();
+    void draw() noexcept;
     /// @brief deinitializes opengl resources
-    void deinit();
+    void deinit() noexcept;
 };
 
 }

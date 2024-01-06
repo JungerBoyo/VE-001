@@ -11,10 +11,10 @@ struct SimpleTerrainGenerator : public ChunkGenerator {
     static thread_local std::vector<vmath::u16> _data;
     vmath::Vec3i32 _chunk_size;
 
-    SimpleTerrainGenerator(vmath::Vec3i32 chunk_size);
+    SimpleTerrainGenerator(vmath::Vec3i32 chunk_size) noexcept;
 
-    void threadInit() override;
-    std::optional<std::span<const vmath::u16>> gen(vmath::Vec3i32 chunk_position) override;
+    bool threadInit() noexcept override;
+    std::optional<std::span<const vmath::u16>> gen(vmath::Vec3i32 chunk_position) noexcept override;
 };
 
 }
