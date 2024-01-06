@@ -22,17 +22,6 @@
 
 #include <CLI/CLI.hpp>
 
-/*
-    TESTS VARIANTS:
-        * G - {simple, noise} x {(400,200,400)} x {2} x {fb} x {64^3} (+2)
-        * W - {(200,200,200), (400,200,400), (500,250,500)} x {10} x {noise} x {fb} x {64^3} (+3)
-        * O - {none,f,fb}x{(500,200,500)}x{10}x{noise}x{64^3} (+3)
-        * S - {10,50,200,1000}x{(400,200,400)}x{noise}x{fb}x{64^3} (+4)
-        * C - {32^3,64^3}x{(400,200,400)}x{10}x{noise}x{fb} (+2)
-        ___________________________________________________________
-            (+14)
-*/
-
 //////////////////////////////// CONSTANTS //////////////////////////////////
 static constexpr std::string_view vsh_path{ "shaders/bin/basic_test_shader/vert.spv" };
 static constexpr std::string_view fsh_path{ "shaders/bin/basic_test_shader/frag.spv" };
