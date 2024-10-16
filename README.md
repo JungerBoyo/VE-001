@@ -29,6 +29,3 @@ Below two screenshots were presented. One how does it look from camera 1st perso
 Projection camera view |  Ortographic  3rd person view
 :-------------------------:|:-------------------------:
 ![](showcase/_1.png)  |  ![](showcase/_2.png)
-
-
-Thesis can be found [here](thesis/19-INFDZN19-43614-80723-109969%20(watermarked).pdf), but be aware - it's in polish.
