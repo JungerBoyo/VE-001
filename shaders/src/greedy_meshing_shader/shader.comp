@@ -98,7 +98,7 @@ void main() {
         states[i] = 0;
     }
 
-    const int plane_size = chunk_size.x * chunk_size.y;
+    const int plane_size = logical_extent[0] * logical_extent[1];
     ivec3 i = ivec3(0, 0, int(axis_step));
     
     bool any_visible = false;
