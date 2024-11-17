@@ -33,6 +33,10 @@ struct Engine {
         /// @brief meshing shader step/local group size. It should be the same
         /// as local_size_x in greedy meshing shader
         vmath::i32 meshing_shader_local_group_size{ 64 };
+		/// @brief if to use GPU based meshing engine
+		bool use_gpu_meshing_engine;
+		/// @brief if to use GPU based meshing engine
+		vmath::i32 cpu_mesher_threads_count;
         /// @brief path to meshing shader src
         std::filesystem::path meshing_shader_src_path{"/home/regu/codium_repos/VE-001/shaders/src/greedy_meshing_shader/shader.comp"};
         /// @brief path to meshing shader bin in spirv (optional)        

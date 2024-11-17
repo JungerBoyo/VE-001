@@ -136,6 +136,8 @@ struct CLIAppConfig {
     vmath::i32 number_of_streamer_threads{ 0 };
     vmath::Vec3f32 world_size{ 100.F, 100.F, 100.F };
     vmath::i32 voxel_states_count; 
+    bool use_gpu_meshing_engine{ false };
+    vmath::i32 number_of_cpu_mesher_threads{ 2 };
 };
 
 #ifdef ENGINE_TEST
@@ -152,6 +154,8 @@ int main(int argc, const char* const* argv) {
     app.add_flag("-f,--frustum-culling", cli_app_config.frustum_culling, "turn on frustum culling");
     app.add_flag("-b,--backface-culling", cli_app_config.back_face_culling, "turn on backface culling");
     app.add_option("-t,--threads-count", cli_app_config.number_of_streamer_threads, "number of threads used by chunk data streamer");
+    app.add_option("-m,--mesher-threads-count", cli_app_config.number_of_cpu_mesher_threads, "number of threads used by cpu mesher");
+    app.add_flag("-g,--use-gpu-meshing", cli_app_config.use_gpu_meshing_engine, "use gpu-based meshing engine");
     app.add_option("-w,--voxel-states-count", cli_app_config.voxel_states_count, "number of voxel states used")->required();
     app.add_option("-x,--chunk-size-x", cli_app_config.chunk_size[0], "size of chunk in X axis")->required();
     app.add_option("-y,--chunk-size-y", cli_app_config.chunk_size[1], "size of chunk in Y axis")->required();
@@ -192,19 +196,21 @@ int main(int argc, const char* const* argv) {
                 new ve001::NoiseTerrainGenerator({
                     .terrain_size = cli_app_config.chunk_size,
                     .noise_frequency = .0038F,
-                    .quantize_values = cli_app_config.voxel_states_count,
+                    .quantize_values = static_cast<vmath::u32>(cli_app_config.voxel_states_count),
                     .seed = 0xC0000B99,
                     .visibilty_threshold = .3F,
                 })
-            )
+            ),
 #else
         .chunk_data_generator = std::unique_ptr<ve001::ChunkGenerator>(
             new ve001::SimpleTerrainGenerator(cli_app_config.chunk_size)
-        )
+        ),
 #endif
-        ,
+        .chunk_data_streamer_threads_count = static_cast<vmath::u32>(cli_app_config.number_of_streamer_threads),
         .chunk_pool_growth_coefficient = 1.5F,
-        .meshing_shader_local_group_size = 64
+        .meshing_shader_local_group_size = 64,
+		.use_gpu_meshing_engine = cli_app_config.use_gpu_meshing_engine,
+		.cpu_mesher_threads_count = cli_app_config.number_of_cpu_mesher_threads
     });
     engine.init();
 
@@ -299,10 +305,10 @@ int main(int argc, const char* const* argv) {
 
 #ifdef ENGINE_TEST
         if (engine.pollChunksUpdates() && start_testing) {
-            testing_context.saveMeshingSample({
-                engine._world_grid._chunk_pool._meshing_engine.result_gpu_meshing_time_ns,
-                engine._world_grid._chunk_pool._meshing_engine.result_real_meshing_time_ns
-            });
+			const auto[meshing_time, real_meshing_time, meshing_setup_time] =
+				engine._world_grid._chunk_pool._meshing_engine->getBenchmarkData();
+
+            testing_context.saveMeshingSample({meshing_time, real_meshing_time, meshing_setup_time});
         }
 #else
         engine.pollChunksUpdates();

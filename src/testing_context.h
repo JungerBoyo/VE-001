@@ -26,6 +26,7 @@ struct TestingContext {
     struct SampleMeshing {
         vmath::u64 gpu_meshing_time_elapsed_ns{ 0U };
         vmath::u64 real_meshing_time_elapsed_ns{ 0U };
+        vmath::u64 gpu_meshing_setup_time_elapsed_ns{ 0U };
     };
 
     vmath::u32 _prims_generated_query{ 0U };
@@ -141,14 +142,16 @@ struct TestingContext {
 
         const std::string header = 
             std::string("gpu_meshing_time_elapsed_ns,") +
-            std::string("real_meshing_time_elapsed_ns\n");
+            std::string("real_meshing_time_elapsed_ns,") +
+			std::string("meshing_setup_time_elapsed_ns\n");
 
         stream.write(header.data(), header.size());
 
         for (const auto& sample : _meshing_samples) {
             const std::string line = 
                 std::to_string(sample.gpu_meshing_time_elapsed_ns) + ',' +
-                std::to_string(sample.real_meshing_time_elapsed_ns) + '\n';
+                std::to_string(sample.real_meshing_time_elapsed_ns) + ',' +
+                std::to_string(sample.gpu_meshing_setup_time_elapsed_ns) + '\n';
             stream.write(line.data(), line.size());
         }
     }

@@ -1,5 +1,7 @@
 #include "chunk_data_streamer.h"
 
+#include <iostream>
+
 using namespace ve001;
 using namespace vmath;
 
@@ -19,7 +21,9 @@ ChunkDataStreamer::ChunkDataStreamer(EngineContext& engine_context, u32 threads_
             final_threads_count = std::thread::hardware_concurrency() == 0 ? 1 : std::thread::hardware_concurrency();
         }
         for (std::uint32_t i{ 0U }; i < final_threads_count; ++i) {
-            _threads.push_back(std::jthread(&ChunkDataStreamer::thread, this));
+			auto t = std::jthread(&ChunkDataStreamer::thread, this);
+			std::cout << "Hello I'm thread " << t.get_id() << ", my job is generating" << std::endl;
+            _threads.push_back(std::move(t));
         }
     } catch(const std::exception&) {
         _engine_context.error |= Error::CHUNK_DATA_STREAMER_THREAD_ALLOCATION_FAILED;
@@ -27,17 +31,15 @@ ChunkDataStreamer::ChunkDataStreamer(EngineContext& engine_context, u32 threads_
     }
 }
 
-static std::mutex _m;
-
 void ChunkDataStreamer::thread() noexcept {
     if (_done) {
         return;
     }
     if (_chunk_generator->threadInit()) {
-        _done = true;
-
-        std::lock_guard<std::mutex> lock(_m);
-        _engine_context.error |= Error::CHUNK_DATA_STREAMER_THREAD_INITIALIZATION_FAILED;
+		if (!_done) {
+        	_done = true;
+        	_engine_context.error |= Error::CHUNK_DATA_STREAMER_THREAD_INITIALIZATION_FAILED;
+		}
         return;
     }
 
@@ -60,7 +62,10 @@ std::future<std::optional<std::span<const vmath::u16>>> ChunkDataStreamer::gen(V
     std::future<std::optional<std::span<const vmath::u16>>> result(promise.get_future());
     
     /// will never return false since size == max chunks count
-    _gen_promises.write({std::move(promise), chunk_position});
+    _gen_promises.write(std::move(promise), chunk_position);
 
     return result;
 }
+
+
+

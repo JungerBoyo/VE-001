@@ -3,12 +3,13 @@
 
 #include <vector>
 #include <span>
+#include <memory>
 #include <vmath/vmath_types.h>
 
-#include "vertex.h"
 #include "enums.h"
 #include "ringbuffer.h"
-#include "meshing_engine.h"
+#include "meshing_engine_gpu.h"
+#include "meshing_engine_cpu.h"
 #include "engine_context.h"
 #include "chunk_id.h"
 
@@ -161,11 +162,17 @@ struct ChunkPool {
     EngineContext& _engine_context;
 
     /// @brief meshing engine of the chunk pool. It schedules meshing
-    /// tasks on the GPU
-    MeshingEngine _meshing_engine{ _engine_context, _chunks_count };
+    /// tasks on the GPU/CPU
+	std::unique_ptr<MeshingEngineBase> _meshing_engine{ nullptr };
 
     ChunkPool(EngineContext& engine_context, vmath::u32 max_chunks) noexcept : 
-        _chunks_count(max_chunks), _engine_context(engine_context) {}
+        _chunks_count(max_chunks), _engine_context(engine_context) {
+		if (_engine_context.use_gpu_meshing_engine) {
+			_meshing_engine = std::make_unique<MeshingEngineGPU>(_engine_context, _chunks_count);
+		} else {
+			_meshing_engine = std::make_unique<MeshingEngineCPU>(_engine_context, _chunks_count, 2);
+		}
+	}
     /// @brief initializes chunk pool
     /// @param max_chunks number of chunks in a pool
     void init() noexcept;
@@ -177,7 +184,7 @@ struct ChunkPool {
     /// @brief completes chunk eg. chunk starts to be drawn by the drawAll command 
     /// called by poll() function if chunk's mesh is finished
     /// @param result holds data from meshing_engine with which to update the chunk
-    void completeChunk(MeshingEngine::Result result) noexcept;
+    void completeChunk(MeshingEngineBase::Result result) noexcept;
     /// @brief deallocates chunk
     /// @param chunk_id chunk's id to deallocate
     void deallocateChunk(ChunkId chunk_id) noexcept;
@@ -193,7 +200,7 @@ struct ChunkPool {
     void drawAll(bool use_partition) noexcept;
     /// @brief recreates chunk pool based on the meshing result which caused overflow
     /// @param overflow_result meshing result which contains info about overflow
-    void recreatePool(MeshingEngine::Result overflow_result) noexcept;
+    void recreatePool(MeshingEngineBase::Result overflow_result) noexcept;
 
     /// @brief polls for chunks that are meshed and are ready to be completed (one at a time)
     /// @return true if chunk was completed false otherwise

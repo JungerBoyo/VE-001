@@ -1,25 +1,14 @@
 add_library(ve001 STATIC
     chunk_data_streamer.cpp
-    chunk_data_streamer.h
-    chunk_generator.h
-    chunk_id.h
     chunk_pool.cpp
-    chunk_pool.h
-    engine_context.h
     engine.cpp
-    engine.h
-    enums.h
     gpu_buffer.cpp
-    gpu_buffer.h
-    meshing_engine.cpp
-    meshing_engine.h
-    ringbuffer.h
+    meshing_engine_base.cpp
+    meshing_engine_gpu.cpp
+    cpu_mesher.cpp
+    meshing_engine_cpu.cpp
     shader.cpp
-    shader.h
-    threadsafe_ringbuffer.h
-    vertex.h
     world_grid.cpp
-    world_grid.h
 )
 
 if (DEFINED ENGINE_TEST)

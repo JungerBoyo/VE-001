@@ -1,4 +1,4 @@
-#include "meshing_engine.h"
+#include "meshing_engine_gpu.h"
 
 #include "vertex.h"
 
@@ -11,8 +11,10 @@
 using namespace ve001;
 using namespace vmath;
 
-MeshingEngine::MeshingEngine(const EngineContext& engine_context, vmath::u32 max_chunks) noexcept 
-    : _engine_context(engine_context) {
+//#define ENGINE_MEMORY_TEST
+
+MeshingEngineGPU::MeshingEngineGPU(const EngineContext& engine_context, vmath::u32 max_chunks) noexcept 
+    : MeshingEngineBase(engine_context) {
     try {
         _commands.resize(max_chunks);
     } catch(const std::exception&) {
@@ -33,7 +35,7 @@ static bool deviceSupportsARBSpirv() noexcept {
 	return false;
 }
 
-void MeshingEngine::init(u32 vbo_id) noexcept {
+void MeshingEngineGPU::init(u32 vbo_id) noexcept {
     _vbo_id = vbo_id;
 
     glCreateBuffers(1, &_ssbo_voxel_data_id);
@@ -88,6 +90,12 @@ void MeshingEngine::init(u32 vbo_id) noexcept {
     _ssbo_meshing_temp.write(static_cast<const void*>(&meshing_temp));
 
     _meshing_shader.init();
+#ifdef ENGINE_TEST
+	if (!_meshing_shader.attach(_engine_context.meshing_shader_src_path, false)) {
+		_engine_context.error |= Error::SHADER_ATTACH_FAILED;
+		return;
+	}
+#else
     if (_engine_context.meshing_shader_bin_path.has_value() && deviceSupportsARBSpirv()) {
         if (!_meshing_shader.attach(_engine_context.meshing_shader_bin_path.value(), true)) {
             _engine_context.error |= Error::SHADER_ATTACH_FAILED;
@@ -99,6 +107,7 @@ void MeshingEngine::init(u32 vbo_id) noexcept {
             return;
         }
     }
+#endif
 #ifdef ENGINE_TEST
     u32 tmp[2] = { 0U, 0U };
     glCreateQueries(GL_TIMESTAMP, 2, tmp);
@@ -107,7 +116,7 @@ void MeshingEngine::init(u32 vbo_id) noexcept {
 #endif
 }
 
-void MeshingEngine::issueMeshingCommand(u32 chunk_id, Vec3f32 chunk_position, std::span<const u16> voxel_data) noexcept {
+void MeshingEngineGPU::issueMeshingCommand(ChunkId chunk_id, vmath::Vec3f32 chunk_position, std::span<const vmath::u16> voxel_data) noexcept {
     Command cmd = {
         .chunk_id       = chunk_id,
         .chunk_position = chunk_position,
@@ -126,7 +135,7 @@ void MeshingEngine::issueMeshingCommand(u32 chunk_id, Vec3f32 chunk_position, st
     _commands.write(std::move(cmd));
 }
 
-bool MeshingEngine::pollMeshingCommand(Result& result) noexcept {
+bool MeshingEngineGPU::pollMeshingCommand(Result& result) noexcept {
     if (_active_command.fence == nullptr) {
         return false;
     }
@@ -186,7 +195,7 @@ bool MeshingEngine::pollMeshingCommand(Result& result) noexcept {
     return true;
 }
 
-void MeshingEngine::updateMetadata(vmath::u32 new_vbo_id) noexcept {
+void MeshingEngineGPU::updateMetadata(vmath::u32 new_vbo_id) noexcept {
     _vbo_id = new_vbo_id;
 
     Descriptor meshing_descriptor = {
@@ -208,7 +217,7 @@ void MeshingEngine::updateMetadata(vmath::u32 new_vbo_id) noexcept {
     _ssbo_meshing_temp.write(static_cast<const void*>(&meshing_temp));
 }
 
-void MeshingEngine::firstCommandExec(Command& command) noexcept {
+void MeshingEngineGPU::firstCommandExec(Command& command) noexcept {
 #ifdef ENGINE_TEST
     glQueryCounter(gpu_meshing_time_query, GL_TIMESTAMP);
     glGetQueryObjectui64v(gpu_meshing_time_query, GL_QUERY_RESULT, &begin_meshing_time_ns);
@@ -234,6 +243,14 @@ void MeshingEngine::firstCommandExec(Command& command) noexcept {
     command.axis_progress += _engine_context.meshing_axis_progress_step;
 
     _meshing_shader.bind();
+
+#ifdef ENGINE_MEMORY_TEST
+	glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT|GL_UNIFORM_BARRIER_BIT);
+	glFlushMappedNamedBufferRange(_ssbo_voxel_data_id, 0, _engine_context.chunk_voxel_data_size);
+	glQueryCounter(gpu_meshing_time_query, GL_TIMESTAMP);
+    glGetQueryObjectui64v(gpu_meshing_time_query, GL_QUERY_RESULT, &end_meshing_time_ns);
+	result_gpu_meshing_setup_time_ns = end_meshing_time_ns - begin_meshing_time_ns;
+#endif
     glDispatchCompute(6, 1, 1);
 #ifdef ENGINE_TEST
     glQueryCounter(gpu_meshing_time_query, GL_TIMESTAMP);
@@ -241,7 +258,7 @@ void MeshingEngine::firstCommandExec(Command& command) noexcept {
     command.fence = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
 }
 
-void MeshingEngine::subsequentCommandExec(Command& command) noexcept {
+void MeshingEngineGPU::subsequentCommandExec(Command& command) noexcept {
     command.axis_progress += _engine_context.meshing_axis_progress_step;
 
     glDeleteSync(static_cast<GLsync>(command.fence));
@@ -251,7 +268,7 @@ void MeshingEngine::subsequentCommandExec(Command& command) noexcept {
     command.fence = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
 }
 
-void MeshingEngine::deinit() noexcept {
+void MeshingEngineGPU::deinit() noexcept {
 #ifdef ENGINE_TEST
     u32 tmp[2] = {gpu_meshing_time_query, real_meshing_time_query};
     glDeleteQueries(2, tmp);

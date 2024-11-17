@@ -33,6 +33,17 @@ struct RingBuffer {
 
         return true;
     }
+	template<typename ...Args>
+    bool write(Args&& ...args) noexcept {
+        if (_writer_index == _reader_index && !_empty) {
+            return false;
+        }
+        _empty = false;
+        _buffer[_writer_index] = {std::forward<Args>(args)...};
+        _writer_index = (_writer_index + 1) % _buffer.size();
+
+        return true;
+    }
 
     bool read(T& value) noexcept {
         if (_empty) {

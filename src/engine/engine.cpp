@@ -32,8 +32,10 @@ Engine::Engine(Config config) noexcept : _engine_context(EngineContext{
 			sizeof(Vertex) * static_cast<u64>(24/6),
 		.chunk_pool_growth_coefficient = config.chunk_pool_growth_coefficient,
 		.meshing_axis_progress_step = config.meshing_shader_local_group_size,
+		.use_gpu_meshing_engine = config.use_gpu_meshing_engine,
+		.cpu_mesher_threads_count = config.cpu_mesher_threads_count,
 		.meshing_shader_src_path = config.meshing_shader_src_path,
-		.meshing_shader_bin_path = config.meshing_shader_bin_path 	
+		.meshing_shader_bin_path = config.meshing_shader_bin_path,
   	}),
   	_world_grid(_engine_context, config.world_size, config.initial_position, config.chunk_data_streamer_threads_count, std::move(config.chunk_data_generator))
 {}

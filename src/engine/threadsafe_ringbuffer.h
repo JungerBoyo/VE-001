@@ -25,7 +25,37 @@ struct ThreadSafeRingBuffer {
         _buffer.resize(new_size);
     }
 
-    bool write(T value) noexcept {
+    bool write(const T& value) noexcept {
+        std::lock_guard<std::mutex> lock(_mutex);
+        
+        if (_writer_index == _reader_index && !_empty) {
+            return false;
+        }
+        _empty = false;
+        _buffer[_writer_index] = value;
+        _writer_index = (_writer_index + 1) % _buffer.size();
+        
+        _cond_var.notify_one();
+
+        return true;
+    }
+
+	template<typename ...Args>
+    bool write(Args&& ...args) noexcept {
+        std::lock_guard<std::mutex> lock(_mutex);
+        
+        if (_writer_index == _reader_index && !_empty) {
+            return false;
+        }
+        _empty = false;
+        _buffer[_writer_index] = {std::forward<Args>(args)...};
+        _writer_index = (_writer_index + 1) % _buffer.size();
+        
+        _cond_var.notify_one();
+
+        return true;
+    }
+	bool write(T&& value) && noexcept { 
         std::lock_guard<std::mutex> lock(_mutex);
         
         if (_writer_index == _reader_index && !_empty) {
@@ -38,7 +68,7 @@ struct ThreadSafeRingBuffer {
         _cond_var.notify_one();
 
         return true;
-    }
+	}
 
     bool read(T& value) noexcept {
         std::lock_guard<std::mutex> lock(_mutex);
@@ -73,7 +103,6 @@ struct ThreadSafeRingBuffer {
     }
 
     void clear() noexcept {
-        _buffer.clear();
         _writer_index = 0U;
         _reader_index = 0U;
         _empty = true;
