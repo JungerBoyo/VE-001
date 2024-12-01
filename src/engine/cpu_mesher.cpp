@@ -28,8 +28,6 @@ CpuMesher::CpuMesher(const EngineContext& engine_context, vmath::u32 threads_cou
 				staging_buffer.resize(mesh_size, {0});
 
 			t.jthread = std::jthread(&CpuMesher::thread, this, i);
-			
-			std::cout << "Hello I'm thread " << t.jthread.get_id() << ", my job is meshing" << std::endl;
         }
     } catch(const std::exception&) {
         _engine_context.error |= Error::CPU_MESHING_ENGINE_THREAD_ALLOCATION_FAILED;

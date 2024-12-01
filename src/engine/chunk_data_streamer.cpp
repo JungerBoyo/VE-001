@@ -22,7 +22,6 @@ ChunkDataStreamer::ChunkDataStreamer(EngineContext& engine_context, u32 threads_
         }
         for (std::uint32_t i{ 0U }; i < final_threads_count; ++i) {
 			auto t = std::jthread(&ChunkDataStreamer::thread, this);
-			std::cout << "Hello I'm thread " << t.get_id() << ", my job is generating" << std::endl;
             _threads.push_back(std::move(t));
         }
     } catch(const std::exception&) {
