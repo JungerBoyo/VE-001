@@ -41,9 +41,9 @@ struct EngineContext {
 	/// @brief if to use GPU based meshing engine
 	vmath::i32 cpu_mesher_threads_count;
     /// @brief path to meshing shader src
-    std::filesystem::path meshing_shader_src_path{"./shaders/src/greedy_meshing_shader/shader.comp"};
+    std::filesystem::path meshing_shader_src_path;
     /// @brief path to meshing shader bin in spirv (optional)        
-    std::optional<std::filesystem::path> meshing_shader_bin_path{"./shaders/src/greedy_meshing_shader/shader.comp"};
+    std::optional<std::filesystem::path> meshing_shader_bin_path;
 };
 
 }
