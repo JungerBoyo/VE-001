@@ -104,6 +104,10 @@ void ChunkPool::init() noexcept {
         }
         glNamedBufferStorage(_ibo_id, static_cast<i64>(_engine_context.chunk_max_possible_submesh_indices_size), static_cast<const void*>(indices.data()), 0);
 
+		if (glGetError() == GL_OUT_OF_MEMORY) {
+			_engine_context.error |= Error::GPU_ALLOCATION_FAILED;
+			return;
+    	}
     } catch ([[maybe_unsused]] const std::exception& e) {
         glDeleteBuffers(3, tmp);
         glDeleteVertexArrays(1, &_vao_id);
@@ -218,16 +222,16 @@ void ChunkPool::recreatePool(MeshingEngineBase::Result overflow_result) noexcept
         _engine_context.chunk_max_current_submesh_size = _engine_context.chunk_max_possible_submesh_size;
     }
     _engine_context.chunk_max_current_mesh_size = _engine_context.chunk_max_current_submesh_size * 6U;
-
+	
     glDeleteBuffers(1, &_vbo_id);
     glCreateBuffers(1, &_vbo_id);
 
     glNamedBufferStorage(_vbo_id, static_cast<u64>(_chunks_count) * _engine_context.chunk_max_current_mesh_size, nullptr, 0);
 
-    if (glGetError() == GL_OUT_OF_MEMORY) {
-        _engine_context.error |= Error::GPU_ALLOCATION_FAILED;
-        return;
-    }
+	if (glGetError() == GL_OUT_OF_MEMORY) {
+		_engine_context.error |= Error::GPU_ALLOCATION_FAILED;
+		return;
+	}
 
     rebindVaoToVbo(_vao_id, _vbo_id);
 
