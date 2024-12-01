@@ -37,10 +37,17 @@ struct Engine {
 		bool use_gpu_meshing_engine;
 		/// @brief if to use GPU based meshing engine
 		vmath::i32 cpu_mesher_threads_count;
-        /// @brief path to meshing shader src
-        std::filesystem::path meshing_shader_src_path{"/home/regu/codium_repos/VE-001/shaders/src/greedy_meshing_shader/shader.comp"};
-        /// @brief path to meshing shader bin in spirv (optional)        
-        std::optional<std::filesystem::path> meshing_shader_bin_path{"/home/regu/codium_repos/VE-001/shaders/bin/greedy_meshing_shader/comp.spv"};
+#ifdef USE_VOLUME_TEXTURE_3D
+		/// @brief path to meshing shader src
+		std::filesystem::path meshing_shader_src_path{"./shaders/src/greedy_meshing_shader/optshader.comp"};
+		/// @brief path to meshing shader bin in spirv (optional)        
+		std::optional<std::filesystem::path> meshing_shader_bin_path{"./shaders/bin/greedy_meshing_shader/optcomp.spv"};
+#else
+		/// @brief path to meshing shader src
+		std::filesystem::path meshing_shader_src_path{"./shaders/src/greedy_meshing_shader/shader.comp"};
+		/// @brief path to meshing shader bin in spirv (optional)        
+		std::optional<std::filesystem::path> meshing_shader_bin_path{"./shaders/bin/greedy_meshing_shader/comp.spv"};
+#endif
     };
 
     /// @brief engine's error flags 
