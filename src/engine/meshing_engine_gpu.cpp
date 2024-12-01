@@ -11,8 +11,6 @@
 using namespace ve001;
 using namespace vmath;
 
-//#define ENGINE_MEMORY_TEST
-
 MeshingEngineGPU::MeshingEngineGPU(const EngineContext& engine_context, vmath::u32 max_chunks) noexcept 
     : MeshingEngineBase(engine_context) {
     try {
@@ -38,6 +36,14 @@ static bool deviceSupportsARBSpirv() noexcept {
 void MeshingEngineGPU::init(u32 vbo_id) noexcept {
     _vbo_id = vbo_id;
 
+#ifdef USE_VOLUME_TEXTURE_3D
+	glCreateTextures(GL_TEXTURE_3D, 1, &_volume_3d_texture_id);
+	glTextureStorage3D(
+			_volume_3d_texture_id, 1, GL_R16UI,
+			_engine_context.chunk_size[0],
+			_engine_context.chunk_size[1],
+			_engine_context.chunk_size[2]);
+#else
     glCreateBuffers(1, &_ssbo_voxel_data_id);
     glNamedBufferStorage(
         _ssbo_voxel_data_id,
@@ -50,7 +56,7 @@ void MeshingEngineGPU::init(u32 vbo_id) noexcept {
         _engine_context.error |= Error::GPU_ALLOCATION_FAILED;
         return;
     }
-
+	
     _ssbo_voxel_data_ptr = glMapNamedBufferRange(
         _ssbo_voxel_data_id,
         0U,
@@ -65,6 +71,7 @@ void MeshingEngineGPU::init(u32 vbo_id) noexcept {
     }
 
     glBindBufferBase(GL_SHADER_STORAGE_BUFFER, VE001_SH_CONFIG_SSBO_BINDING_VOXEL_DATA, _ssbo_voxel_data_id);
+#endif
 
     _engine_context.error |= _ubo_meshing_descriptor.init();
     _ubo_meshing_descriptor.bind(GL_UNIFORM_BUFFER, VE001_SH_CONFIG_UBO_BINDING_MESHING_DESCRIPTOR);
@@ -90,7 +97,7 @@ void MeshingEngineGPU::init(u32 vbo_id) noexcept {
     _ssbo_meshing_temp.write(static_cast<const void*>(&meshing_temp));
 
     _meshing_shader.init();
-#ifdef ENGINE_TEST
+#ifdef FORCE_USE_SHADER_FROM_SRC
 	if (!_meshing_shader.attach(_engine_context.meshing_shader_src_path, false)) {
 		_engine_context.error |= Error::SHADER_ATTACH_FAILED;
 		return;
@@ -222,7 +229,18 @@ void MeshingEngineGPU::firstCommandExec(Command& command) noexcept {
     glQueryCounter(gpu_meshing_time_query, GL_TIMESTAMP);
     glGetQueryObjectui64v(gpu_meshing_time_query, GL_QUERY_RESULT, &begin_meshing_time_ns);
 #endif
+
+#ifdef USE_VOLUME_TEXTURE_3D
+	glTextureSubImage3D(_volume_3d_texture_id, 0, 0, 0, 0, 
+			_engine_context.chunk_size[0],
+			_engine_context.chunk_size[1],
+			_engine_context.chunk_size[2],
+			GL_RED_INTEGER, GL_UNSIGNED_SHORT,
+			static_cast<const void*>(command.voxel_data.data()));
+	glBindImageTexture(VE001_SH_CONFIG_IMAGE_BINDING_VOLUME_3D, _volume_3d_texture_id, 0, GL_TRUE, 0, GL_READ_ONLY, GL_R16UI);
+#else
     std::memcpy(_ssbo_voxel_data_ptr, static_cast<const void*>(command.voxel_data.data()), _engine_context.chunk_voxel_data_size);
+#endif
 
     Temp meshing_temp{};
     _ssbo_meshing_temp.write(static_cast<const void*>(&meshing_temp));
@@ -274,11 +292,15 @@ void MeshingEngineGPU::deinit() noexcept {
     glDeleteQueries(2, tmp);
 #endif
     _meshing_shader.deinit();
+#ifdef USE_VOLUME_TEXTURE_3D
+	glDeleteTextures(1, &_volume_3d_texture_id);
+#else
     if (_ssbo_voxel_data_ptr != nullptr) {
         glUnmapNamedBuffer(_ssbo_voxel_data_id);
     }
     _ssbo_voxel_data_ptr = nullptr;
     glDeleteBuffers(1, &_ssbo_voxel_data_id);
+#endif
     _ubo_meshing_descriptor.deinit();
     _ssbo_meshing_temp.deinit();
 }

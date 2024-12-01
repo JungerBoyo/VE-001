@@ -56,11 +56,16 @@ struct MeshingEngineGPU : public MeshingEngineBase {
         vmath::u32 overflow_flag{ 0U };
     };
 
+
+#ifdef USE_VOLUME_TEXTURE_3D
+	vmath::u32 _volume_3d_texture_id{ 0U };
+#else
     /// @brief id of buffer holding voxel data for subsequent meshing command execution
     /// (WRITE_ONLY, PERSISTENT, COHERENT)
     vmath::u32 _ssbo_voxel_data_id{ 0U };
     /// @brief pointer to mapped _ssbo_voxel_data_id (persistent)
     void* _ssbo_voxel_data_ptr{ nullptr };
+#endif
     /// @brief gpu buffer for <MeshingDescriptor> data
     GPUBuffer _ubo_meshing_descriptor{ sizeof(Descriptor) };
     /// @brief gpu buffer for <MeshingTemp> data
