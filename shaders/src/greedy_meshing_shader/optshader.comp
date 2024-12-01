@@ -1,0 +1,289 @@
+#version 450 core
+
+layout(local_size_x = 64, local_size_y = 1, local_size_z = 1) in;
+
+layout(std140, binding = 2) uniform MeshingDescriptor {
+    uint vbo_offsets[6];
+    uint max_submesh_size_in_quads;
+    vec3 chunk_position;
+    ivec3 chunk_size;
+};
+
+layout(binding = 0, r16ui) uniform readonly uimage3D volume;
+
+struct Vertex {
+    vec3 position;
+    vec3 texcoord;
+};
+
+layout(std430, binding = 6) buffer MeshingTemp {
+    uint written_quads[6]; // = { +x, -x, +y, -y, +z, -z }
+    uint axes_steps[6];
+    uint overflow_flag;
+};
+
+layout(std430, binding = 7) writeonly buffer MeshData {
+    float vbo[];
+};
+
+shared uint local_mesh_quads_count;
+
+const vec3 VERTICES[8] = {
+    vec3(0.0, 0.0, 0.0), // 0
+    vec3(0.0, 0.0, 1.0), // 1
+    vec3(0.0, 1.0, 0.0), // 2 
+    vec3(0.0, 1.0, 1.0), // 3
+    vec3(1.0, 0.0, 0.0), // 4
+    vec3(1.0, 0.0, 1.0), // 5
+    vec3(1.0, 1.0, 0.0), // 6
+    vec3(1.0, 1.0, 1.0)  // 7
+};
+const vec2 TEX_COORDS[4] = {
+    vec2(0.0, 0.0),
+    vec2(1.0, 0.0),
+    vec2(1.0, 1.0),
+    vec2(0.0, 1.0)
+};
+const uint QUADS[6][4] = {
+    { 5, 4, 6, 7 },
+    { 0, 1, 3, 2 },
+    { 2, 3, 7, 6 },
+    { 4, 5, 1, 0 },
+    { 1, 5, 7, 3 },
+    { 4, 0, 2, 6 }
+};
+
+const int side_size = 64;
+const int plane_size = 64 * 64;
+const uint axis_step_step = 1;
+
+struct FaceMetadata {
+	uint face_id_in_indices;
+	uint axis_id;
+	uvec3 logical_indices;
+	uvec3 real_indices;
+	int edge_value;
+	int polarity;
+	uvec2 squashed_extent_logical_indices;
+};
+
+const FaceMetadata face_metadata[6] = {
+	FaceMetadata( 0, 0, uvec3(1, 2, 0), uvec3(2, 0, 1), side_size-1, 1, uvec2(1, 0) ),	
+	FaceMetadata( 6, 0, uvec3(1, 2, 0), uvec3(2, 0, 1), 0, 			-1, uvec2(1, 0) ),	
+	FaceMetadata(12, 1, uvec3(2, 0, 1), uvec3(1, 2, 0), side_size-1, 1, uvec2(0, 1) ),	
+	FaceMetadata(18, 1, uvec3(2, 0, 1), uvec3(1, 2, 0), 0, 			-1, uvec2(0, 1) ),	
+	FaceMetadata(24, 2, uvec3(0, 1, 2), uvec3(0, 1, 2), side_size-1, 1, uvec2(0, 1) ),	
+	FaceMetadata(30, 2, uvec3(0, 1, 2), uvec3(0, 1, 2), 0, 			-1, uvec2(0, 1) )
+};
+
+void main() {
+	// decl. constants
+    const uint face_id = gl_WorkGroupID.x;
+    const uint face_id_in_indices = face_metadata[face_id].face_id_in_indices;
+    const uint axis_id = face_metadata[face_id].axis_id;
+    const uvec3 logical_indices = face_metadata[face_id].logical_indices;
+    const uvec3 real_indices = face_metadata[face_id].real_indices;
+    const uvec3 logical_extent = face_metadata[face_id].logical_indices;
+    const int edge_value = face_metadata[face_id].edge_value;
+    const int polarity = face_metadata[face_id].polarity;
+    const uvec2 squashed_extent_logical_indices = face_metadata[face_id].squashed_extent_logical_indices;
+	const uint axis_step = gl_LocalInvocationID.x;
+    uint states[128];
+
+    if (gl_LocalInvocationIndex == 0) {
+        local_mesh_quads_count = 0;
+    }
+    memoryBarrierShared();
+    barrier();
+
+	for (uint s = axis_step * axis_step_step; s < (axis_step+1) * axis_step_step; ++s) {
+
+    ivec3 i = ivec3(0, 0, int(s));
+    for (;i[1] < side_size; ++i[1]) {
+        i[0] = 0;
+		states[2 * i[1] + 0] = 0;
+		states[2 * i[1] + 1] = 0;
+        for (;i[0] < side_size; ++i[0]) {
+            ivec3 voxel_index = ivec3(
+				i[real_indices[0]], 
+				i[real_indices[1]],
+				i[real_indices[2]]);
+			i[2] += polarity;
+            ivec3 nearby_voxel_index = ivec3(
+				i[real_indices[0]], 
+				i[real_indices[1]],
+				i[real_indices[2]]);
+			i[2] -= polarity;
+			uint state_index = i[0] + i[1] * side_size;
+			uint state_index_h = state_index >> 5;
+			uint state_index_l = (state_index & uint(31));
+			uint voxel_state = uint(imageLoad(volume, voxel_index).r > 0);
+			uint nearby_voxel_state = (i[2] == edge_value) ? 1 : uint(imageLoad(volume, nearby_voxel_index).r == 0);
+			states[state_index_h] |= (uint(voxel_state & nearby_voxel_state) << state_index_l);
+        }
+    }
+	// algorithm
+	i[1] = 0;
+    for (;i[1] < side_size; ++i[1]) {
+		i[0] = 0;
+		while (i[0] < side_size) {
+			uint state_index = i[0] + i[1] * side_size;
+			uint state_index_h = state_index >> 5;
+			uint state_index_l = (state_index & uint(31));
+
+			if ((states[state_index_h] & (uint(1) << state_index_l)) == 0) {
+				++i[0];
+				continue;
+			}
+
+            ivec3 voxel_index = ivec3(
+				i[real_indices[0]], 
+				i[real_indices[1]],
+				i[real_indices[2]]);
+			uint voxel_value = imageLoad(volume, voxel_index).r;
+
+			ivec3 mesh_region = ivec3(1, 0, 0);
+
+			for (;i[0] + mesh_region[0] < side_size; ++mesh_region[0]) {
+				state_index = (i[0] + mesh_region[0]) + i[1] * side_size;
+				state_index_h = state_index >> 5;
+				state_index_l = (state_index & uint(31));
+
+				if ((states[state_index_h] & (uint(1) << (state_index_l))) == 0)
+					break;
+
+				voxel_index = ivec3(
+					(i[real_indices[0]] + mesh_region[real_indices[0]]),
+					(i[real_indices[1]] + mesh_region[real_indices[1]]), 
+					(i[real_indices[2]] + mesh_region[real_indices[2]]));
+				uint next_voxel_value = imageLoad(volume, voxel_index).r;
+
+				if (next_voxel_value != voxel_value)
+				   break;
+
+				states[state_index_h] &= ~(uint(1) << (state_index_l));
+			}
+
+			int mesh_region_0 = mesh_region[0];
+
+			mesh_region[0] = 0;
+			mesh_region[1] = 1;
+
+			for (;i[1] + mesh_region[1] < side_size; ++mesh_region[1]) {
+				uvec3 tmp_mesh_region = uvec3(0);
+				bool _break = false;
+
+				state_index = (i[0] + tmp_mesh_region[0]) + (i[1] + mesh_region[1]) * side_size;
+				state_index_h = state_index >> 5;
+				state_index_l = (state_index & uint(31));
+				uint tmp_state_index = state_index;
+				uint tmp_state_index_h = state_index_h;
+				uint tmp_state_index_l = state_index_l;
+
+				uint saved_states[2];
+				saved_states[0] = states[state_index_h];
+				saved_states[1] = states[state_index_h + 1];
+				for (;i[0] + tmp_mesh_region[0] < i[0] + mesh_region_0; ++tmp_mesh_region[0]) {
+					if ((states[tmp_state_index_h] & (uint(1) << (tmp_state_index_l))) == 0) {
+						_break = true;
+						break;
+					}
+
+					voxel_index = ivec3(
+						(i[real_indices[0]] + tmp_mesh_region[real_indices[0]] + mesh_region[real_indices[0]]), 
+						(i[real_indices[1]] + tmp_mesh_region[real_indices[1]] + mesh_region[real_indices[1]]), 
+						(i[real_indices[2]] + tmp_mesh_region[real_indices[2]] + mesh_region[real_indices[2]]));
+					uint next_voxel_value = imageLoad(volume, voxel_index).r;
+					if (next_voxel_value != voxel_value) {
+						_break = true;
+						break;
+					}
+
+					states[tmp_state_index_h] &= ~(uint(1) << (tmp_state_index_l));
+
+					tmp_state_index = (i[0] + tmp_mesh_region[0]) + (i[1] + mesh_region[1]) * side_size;
+					tmp_state_index_h = tmp_state_index >> 5;
+					tmp_state_index_l = (tmp_state_index & uint(31));
+				}
+				if (_break) {
+					states[state_index_h] = saved_states[0];
+					states[state_index_h+1] = saved_states[1];
+					break;
+				}
+			}
+			mesh_region[0] = mesh_region_0;
+
+			ivec3 region_extent = ivec3(0);
+			region_extent[logical_indices[2]] = 1;
+			region_extent[logical_indices[1]] = mesh_region[1];
+			region_extent[logical_indices[0]] = mesh_region[0];
+
+			ivec2 squashed_region_extent = ivec2(
+				mesh_region[squashed_extent_logical_indices[0]],
+				mesh_region[squashed_extent_logical_indices[1]]
+			);
+
+			vec3 region_offset = chunk_position;
+			region_offset[logical_indices[2]] += float(i[2]);
+			region_offset[logical_indices[1]] += float(i[1]);
+			region_offset[logical_indices[0]] += float(i[0]);
+
+			uint base_quad_index = atomicAdd(local_mesh_quads_count, 1);
+
+			if (base_quad_index >= max_submesh_size_in_quads) {
+				overflow_flag = 1;
+				i[0] += mesh_region[0];
+				continue;
+			}
+			uint base_vertices_index = base_quad_index * 24; // (6 * 4) == 24
+			float voxel_value_encoded = float(6 * (voxel_value - 1));
+
+			Vertex vertex;
+
+			vertex.position = vec3(region_extent) * VERTICES[QUADS[face_id][0]] + region_offset;
+			vertex.texcoord = vec3(vec2(squashed_region_extent * TEX_COORDS[0]), voxel_value_encoded + float(face_id));
+			vbo[vbo_offsets[face_id] + base_vertices_index + (0*6) + 0] = vertex.position[0];
+			vbo[vbo_offsets[face_id] + base_vertices_index + (0*6) + 1] = vertex.position[1];
+			vbo[vbo_offsets[face_id] + base_vertices_index + (0*6) + 2] = vertex.position[2];
+			vbo[vbo_offsets[face_id] + base_vertices_index + (0*6) + 3] = vertex.texcoord[0];
+			vbo[vbo_offsets[face_id] + base_vertices_index + (0*6) + 4] = vertex.texcoord[1];
+			vbo[vbo_offsets[face_id] + base_vertices_index + (0*6) + 5] = vertex.texcoord[2];
+			
+			vertex.position = vec3(region_extent) * VERTICES[QUADS[face_id][1]] + region_offset;
+			vertex.texcoord = vec3(vec2(squashed_region_extent * TEX_COORDS[1]), voxel_value_encoded + float(face_id));
+			vbo[vbo_offsets[face_id] + base_vertices_index + (1*6) + 0] = vertex.position[0];
+			vbo[vbo_offsets[face_id] + base_vertices_index + (1*6) + 1] = vertex.position[1];
+			vbo[vbo_offsets[face_id] + base_vertices_index + (1*6) + 2] = vertex.position[2];
+			vbo[vbo_offsets[face_id] + base_vertices_index + (1*6) + 3] = vertex.texcoord[0];
+			vbo[vbo_offsets[face_id] + base_vertices_index + (1*6) + 4] = vertex.texcoord[1];
+			vbo[vbo_offsets[face_id] + base_vertices_index + (1*6) + 5] = vertex.texcoord[2];
+			
+			vertex.position = vec3(region_extent) * VERTICES[QUADS[face_id][2]] + region_offset;
+			vertex.texcoord = vec3(vec2(squashed_region_extent * TEX_COORDS[2]), voxel_value_encoded + float(face_id));
+			vbo[vbo_offsets[face_id] + base_vertices_index + (2*6) + 0] = vertex.position[0];
+			vbo[vbo_offsets[face_id] + base_vertices_index + (2*6) + 1] = vertex.position[1];
+			vbo[vbo_offsets[face_id] + base_vertices_index + (2*6) + 2] = vertex.position[2];
+			vbo[vbo_offsets[face_id] + base_vertices_index + (2*6) + 3] = vertex.texcoord[0];
+			vbo[vbo_offsets[face_id] + base_vertices_index + (2*6) + 4] = vertex.texcoord[1];
+			vbo[vbo_offsets[face_id] + base_vertices_index + (2*6) + 5] = vertex.texcoord[2];
+			
+			vertex.position = vec3(region_extent) * VERTICES[QUADS[face_id][3]] + region_offset;
+			vertex.texcoord = vec3(vec2(squashed_region_extent * TEX_COORDS[3]), voxel_value_encoded + float(face_id));
+			vbo[vbo_offsets[face_id] + base_vertices_index + (3*6) + 0] = vertex.position[0];
+			vbo[vbo_offsets[face_id] + base_vertices_index + (3*6) + 1] = vertex.position[1];
+			vbo[vbo_offsets[face_id] + base_vertices_index + (3*6) + 2] = vertex.position[2];
+			vbo[vbo_offsets[face_id] + base_vertices_index + (3*6) + 3] = vertex.texcoord[0];
+			vbo[vbo_offsets[face_id] + base_vertices_index + (3*6) + 4] = vertex.texcoord[1];
+			vbo[vbo_offsets[face_id] + base_vertices_index + (3*6) + 5] = vertex.texcoord[2];
+
+			i[0] += mesh_region[0];
+		}
+	}
+	}
+	
+    memoryBarrierShared();
+    barrier();
+    if (gl_LocalInvocationIndex == 0) {
+        written_quads[face_id] += local_mesh_quads_count;
+    }
+}

@@ -19,3 +19,7 @@ build $BIN_DIR/basic_test_shader/frag.spv: glsl $SRC_DIR/basic_test_shader/shade
 build $BIN_DIR/greedy_meshing_shader: mkdir
 
 build $BIN_DIR/greedy_meshing_shader/comp.spv: glsl $SRC_DIR/greedy_meshing_shader/shader.comp | $BIN_DIR/greedy_meshing_shader
+
+build $BIN_DIR/greedy_meshing_optshader: mkdir
+
+build $BIN_DIR/greedy_meshing_shader/optcomp.spv: glsl $SRC_DIR/greedy_meshing_shader/optshader.comp | $BIN_DIR/greedy_meshing_shader
