@@ -17,6 +17,6 @@ pip install conan
 
 conan install . --output-folder=build-rel-glfw3-testing -g CMakeToolchain -pr:b conanprofile.linux.txt -pr:h conanprofile.linux.txt --build=missing
 
-cmake -S . -B build-rel-glfw3-testing -G Ninja --toolchain conan_toolchain.cmake -DCMAKE_BUILD_TYPE=Release -DENGINE_TEST=ON
+cmake -S . -B build-rel-glfw3-testing -G Ninja --toolchain conan_toolchain.cmake -DCMAKE_BUILD_TYPE=Release -DENGINE_TEST=ON -DENGINE_TEST_NONINTERACTIVE=ON
 
 cmake --build build-rel-glfw3-testing
