@@ -121,9 +121,10 @@ std::future<CpuMesher::Promise> CpuMesher::mesh(vmath::Vec3f32 chunk_position, s
     return result;
 }
 
-#define GREEDY_MESHING_DONT_USE_FUTURES
+//#define GREEDY_MESHING_DONT_USE_FUTURES
 
-CpuMesher::Promise CpuMesher::greedyMeshing(std::vector<Vertex>& out, 
+CpuMesher::Promise CpuMesher::greedyMeshing(
+		std::vector<Vertex>& out, 
 		vmath::Vec3f32 chunk_position,
 		std::span<const vmath::u16> voxel_data) noexcept {
 	CpuMesher::Promise result;
