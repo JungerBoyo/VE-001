@@ -13,7 +13,6 @@
 #include "engine_context.h"
 
 #include "vertex.h"
-#include "meshing_engine_base.h"
 
 #ifdef ENGINE_TEST
 #include <timer.h>
