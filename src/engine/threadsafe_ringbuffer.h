@@ -103,6 +103,7 @@ struct ThreadSafeRingBuffer {
     }
 
     void clear() noexcept {
+        std::lock_guard<std::mutex> lock(_mutex);
         _writer_index = 0U;
         _reader_index = 0U;
         _empty = true;
