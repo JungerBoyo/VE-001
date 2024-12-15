@@ -292,8 +292,12 @@ void MeshingEngineGPU::firstCommandExec(Command& command) noexcept {
     _meshing_shader.bind();
 
 #ifdef ENGINE_MEMORY_TEST
+#ifdef USE_VOLUME_TEXTURE_3D
+	glMemoryBarrier(GL_TEXTURE_UPDATE_BARRIER_BIT|GL_SHADER_STORAGE_BARRIER_BIT|GL_UNIFORM_BARRIER_BIT);
+#else
 	glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT|GL_UNIFORM_BARRIER_BIT);
 	glFlushMappedNamedBufferRange(_ssbo_voxel_data_id, 0, _engine_context.chunk_voxel_data_size);
+#endif
 	glQueryCounter(gpu_meshing_time_query, GL_TIMESTAMP);
     glGetQueryObjectui64v(gpu_meshing_time_query, GL_QUERY_RESULT, &end_meshing_time_ns);
 	result_gpu_meshing_setup_time_ns = end_meshing_time_ns - begin_meshing_time_ns;
