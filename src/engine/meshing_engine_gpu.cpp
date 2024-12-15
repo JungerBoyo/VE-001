@@ -73,6 +73,35 @@ void MeshingEngineGPU::init(u32 vbo_id) noexcept {
     glBindBufferBase(GL_SHADER_STORAGE_BUFFER, VE001_SH_CONFIG_SSBO_BINDING_VOXEL_DATA, _ssbo_voxel_data_id);
 #endif
 
+#ifdef ENGINE_SHADERS_TEST
+    glCreateBuffers(1, &_ssbo_timings_data_id);
+    glNamedBufferStorage(
+        _ssbo_timings_data_id,
+		(6 * _engine_context.chunk_size[0]) * sizeof(float),
+        nullptr,
+        GL_MAP_READ_BIT|GL_MAP_PERSISTENT_BIT|GL_MAP_COHERENT_BIT
+    );
+
+    if (glGetError() == GL_OUT_OF_MEMORY) {
+        _engine_context.error |= Error::GPU_ALLOCATION_FAILED;
+        return;
+    }
+	
+    _ssbo_timings_data_ptr = glMapNamedBufferRange(
+        _ssbo_timings_data_id,
+        0U,
+		(6 * _engine_context.chunk_size[0]) * sizeof(float),
+        GL_MAP_READ_BIT|GL_MAP_PERSISTENT_BIT|GL_MAP_COHERENT_BIT
+    );
+
+    if (_ssbo_timings_data_ptr == nullptr) {
+        glDeleteBuffers(1, &_ssbo_timings_data_id);
+        _engine_context.error |= Error::GPU_BUFFER_MAPPING_FAILED;
+        return;
+    }
+
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, VE001_SH_CONFIG_SSBO_BINDING_TIMINGS_DATA, _ssbo_timings_data_id);
+#endif
     _engine_context.error |= _ubo_meshing_descriptor.init();
     _ubo_meshing_descriptor.bind(GL_UNIFORM_BUFFER, VE001_SH_CONFIG_UBO_BINDING_MESHING_DESCRIPTOR);
     _engine_context.error |= _ssbo_meshing_temp.init();
@@ -300,6 +329,13 @@ void MeshingEngineGPU::deinit() noexcept {
     }
     _ssbo_voxel_data_ptr = nullptr;
     glDeleteBuffers(1, &_ssbo_voxel_data_id);
+#endif
+#ifdef ENGINE_SHADERS_TEST
+    if (_ssbo_timings_data_ptr != nullptr) {
+        glUnmapNamedBuffer(_ssbo_timings_data_id);
+    }
+    _ssbo_timings_data_ptr = nullptr;
+    glDeleteBuffers(1, &_ssbo_timings_data_id);
 #endif
     _ubo_meshing_descriptor.deinit();
     _ssbo_meshing_temp.deinit();

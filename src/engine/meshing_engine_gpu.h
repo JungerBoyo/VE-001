@@ -66,6 +66,13 @@ struct MeshingEngineGPU : public MeshingEngineBase {
     /// @brief pointer to mapped _ssbo_voxel_data_id (persistent)
     void* _ssbo_voxel_data_ptr{ nullptr };
 #endif
+#ifdef ENGINE_SHADERS_TEST
+    /// @brief id of buffer holding timings from shaders
+    /// (WRITE_ONLY, PERSISTENT, COHERENT)
+    vmath::u32 _ssbo_timings_data_id{ 0U };
+    /// @brief pointer to mapped _ssbo_timings_data_id (persistent)
+    void* _ssbo_timings_data_ptr{ nullptr };
+#endif
     /// @brief gpu buffer for <MeshingDescriptor> data
     GPUBuffer _ubo_meshing_descriptor{ sizeof(Descriptor) };
     /// @brief gpu buffer for <MeshingTemp> data

@@ -22,6 +22,10 @@
 #include "testing_context.h"
 #endif
 
+#ifdef ENGINE_SHADERS_TEST
+#include "shader_testing_context.h"
+#endif
+
 #include <CLI/CLI.hpp>
 
 //////////////////////////////// CONSTANTS //////////////////////////////////
@@ -142,6 +146,10 @@ struct CLIAppConfig {
 
 #ifdef ENGINE_TEST
 static TestingContext testing_context(5000);
+#endif
+
+#ifdef ENGINE_SHADERS_TEST
+static ShaderTestingContext shader_testing_context(2000);
 #endif
 
 int main(int argc, const char* const* argv) {
@@ -310,6 +318,17 @@ int main(int argc, const char* const* argv) {
 
             testing_context.saveMeshingSample({meshing_time, real_meshing_time, meshing_setup_time});
         }
+#elif defined(ENGINE_SHADERS_TEST)
+        if (engine.pollChunksUpdates() && start_testing) {
+			auto* gpu_meshing_engine = dynamic_cast<ve001::MeshingEngineGPU*>(
+				engine._world_grid._chunk_pool._meshing_engine.get());
+			if (gpu_meshing_engine) {
+				static constexpr vmath::u32 GPU_CLK_FREQ_MHZ{ 1100 };
+				shader_testing_context.saveMeshingSample(
+						static_cast<const vmath::f32*>(gpu_meshing_engine->_ssbo_timings_data_ptr),
+						cli_app_config.chunk_size[0], GPU_CLK_FREQ_MHZ);
+			}
+        }
 #else
         engine.pollChunksUpdates();
 #endif
@@ -345,6 +364,10 @@ int main(int argc, const char* const* argv) {
         testing_context.dumpMeshingSamples();
     }
     testing_context.deinit();
+#endif
+#ifdef ENGINE_SHADERS_TEST
+	if (start_testing)
+		shader_testing_context.dumpMeshingSamples();
 #endif
 
 
