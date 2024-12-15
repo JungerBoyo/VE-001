@@ -238,6 +238,14 @@ int main(int argc, const char* const* argv) {
 
     const auto half_chunk_size = vmath::Vec3f32::divScalar(vmath::Vec3f32::cast(cli_app_config.chunk_size), 2.F);
 
+#ifdef ENGINE_TEST_NONINTERACTIVE
+	chosen_camera = !chosen_camera;
+	move_camera = !move_camera;
+	sky_camera.looking_dir = {.545288F, -.359514F, -.757239F};
+	start_testing = true;
+	int aux_frames_counter{ 180 };
+#endif
+
     vmath::f32 prev_frame_time{0.F};
     while (!ve001::window.shouldClose()) {
         const auto [window_width, window_height] = ve001::window.size();
@@ -268,7 +276,7 @@ int main(int argc, const char* const* argv) {
             vmath::misc<vmath::f32>::symmetricOrthographicProjection(
                 .1F, 1000.F, static_cast<vmath::f32>(window_width), static_cast<vmath::f32>(window_height)
             );
-
+		
 #ifdef ENGINE_TEST
         if (start_testing) {
             testing_context.beginMeasure();
@@ -354,6 +362,11 @@ int main(int argc, const char* const* argv) {
             );
         }
 #endif
+#ifdef ENGINE_TEST_NONINTERACTIVE
+		if (engine._world_grid._chunk_pool._meshing_engine->idle() && aux_frames_counter-- == 0)
+			break;
+#endif
+
         ve001::window.swapBuffers();
         ve001::window.pollEvents();
     }

@@ -68,6 +68,12 @@ struct MeshingEngineCPU : public MeshingEngineBase {
 		return {result_meshing_time_ns, result_real_meshing_time_ns, 0};
 	}
 #endif
+
+#ifdef ENGINE_TEST_NONINTERACTIVE
+	virtual bool idle() const noexcept override {
+		return _commands.empty();
+	}
+#endif
     void deinit() noexcept override;
 };
 

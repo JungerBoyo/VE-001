@@ -69,6 +69,10 @@ struct MeshingEngineBase {
 		getBenchmarkData() const noexcept = 0;
 #endif
 
+#ifdef ENGINE_TEST_NONINTERACTIVE
+	virtual bool idle() const noexcept = 0;
+#endif
+
     virtual void deinit() noexcept {}
 };
 

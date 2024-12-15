@@ -136,6 +136,12 @@ struct MeshingEngineGPU : public MeshingEngineBase {
 			result_gpu_meshing_setup_time_ns};
 	}
 #endif
+#ifdef ENGINE_TEST_NONINTERACTIVE
+	virtual bool idle() const noexcept override {
+		return _commands.empty() && _active_command.fence == nullptr;
+	}
+#endif
+
     void deinit() noexcept override;
 };
 
