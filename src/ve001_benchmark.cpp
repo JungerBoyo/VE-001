@@ -390,38 +390,64 @@ int main(int argc, const char* const* argv) {
 }
 
 //////////////////////// INPUT ON EVENT FUNCTIONS cd. ////////////////////////
+//#define DEBUG_GLFW_INPUT
+#ifdef DEBUG_GLFW_INPUT
+static int INPUT_DBG_PRINT_RATE{ 3 };
+static int input_dbg_print_counter = 0;
+#endif
+#ifdef DEBUG_GLFW_INPUT
+#define PRINT_DBG_GLFW_INPUT(c) \
+	if (input_dbg_print_counter == 0) { \
+		ve001::logger->info("[GLFW] Received input {}", c); \
+		++input_dbg_print_counter; \
+	} else if (input_dbg_print_counter++ == INPUT_DBG_PRINT_RATE) \
+		input_dbg_print_counter = 0
+#else
+#define PRINT_DBG_GLFW_INPUT(s) 
+#endif
+
+
 void keyCallback(GLFWwindow *win_handle, vmath::i32 key, vmath::i32, vmath::i32 action, vmath::i32) {
     switch (key)
     {
     case GLFW_KEY_W:
         keys[0].pressed = (action == GLFW_PRESS || action == GLFW_REPEAT);
+		PRINT_DBG_GLFW_INPUT('W');
         break;
     case GLFW_KEY_A:
         keys[1].pressed = (action == GLFW_PRESS || action == GLFW_REPEAT);
+		PRINT_DBG_GLFW_INPUT('A');
         break;
     case GLFW_KEY_Q:
         keys[2].pressed = (action == GLFW_PRESS || action == GLFW_REPEAT);
+		PRINT_DBG_GLFW_INPUT('Q');
         break;
     case GLFW_KEY_S:
         keys[3].pressed = (action == GLFW_PRESS || action == GLFW_REPEAT);
+		PRINT_DBG_GLFW_INPUT('S');
         break;
     case GLFW_KEY_D:
         keys[4].pressed = (action == GLFW_PRESS || action == GLFW_REPEAT);
+		PRINT_DBG_GLFW_INPUT('D');
         break;
     case GLFW_KEY_E:
         keys[5].pressed = (action == GLFW_PRESS || action == GLFW_REPEAT);
+		PRINT_DBG_GLFW_INPUT('E');
         break;
     case GLFW_KEY_U:
+		PRINT_DBG_GLFW_INPUT('U');
         if ((action == GLFW_PRESS || action == GLFW_REPEAT)) {
             chosen_camera = !chosen_camera;
         }
         break;
     case GLFW_KEY_M:
+		PRINT_DBG_GLFW_INPUT('M');
         if ((action == GLFW_PRESS || action == GLFW_REPEAT)) {
             move_camera = !move_camera;
         }
         break;
     case GLFW_KEY_P:
+		PRINT_DBG_GLFW_INPUT('P');
         if ((action == GLFW_PRESS || action == GLFW_REPEAT)) {
             start_testing = true;
         }
@@ -454,5 +480,8 @@ void mousePosCallback(GLFWwindow *win_handle, vmath::f64 x_pos, vmath::f64 y_pos
     }
     prev_mouse_pos[0] = static_cast<vmath::f32>(x_pos);
     prev_mouse_pos[1] = static_cast<vmath::f32>(y_pos);
+
+	PRINT_DBG_GLFW_INPUT(x_pos);
+	PRINT_DBG_GLFW_INPUT(y_pos);
 }
 //////////////////////////////////////////////////////////////////////////////
