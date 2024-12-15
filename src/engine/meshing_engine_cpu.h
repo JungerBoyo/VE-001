@@ -25,6 +25,8 @@ struct MeshingEngineCPU : public MeshingEngineBase {
 		std::future<CpuMesher::Promise> future;
 	};
 
+	void* _fence{ nullptr };
+
 	void* _staging_buffer_ptr{ nullptr };
 	vmath::u32 _staging_buffer_id{ 0U };
 

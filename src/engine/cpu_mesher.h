@@ -24,6 +24,7 @@ namespace ve001 {
 struct CpuMesher {
 	struct Promise {
 		std::span<const Vertex> staging_buffer_ptr;
+		std::atomic<bool>* staging_buffer_in_use_flag{ nullptr };
 		std::array<vmath::u32, 6> written_quads{{0}};
         bool overflow_flag{ false };
 #ifdef ENGINE_TEST
@@ -37,9 +38,20 @@ struct CpuMesher {
 		std::span<const vmath::u16> voxel_data;
 	};
 	struct Thread {
-		std::array<std::vector<Vertex>, 3> staging_buffers;
+		std::array<std::vector<Vertex>, 1> staging_buffers;
+		std::array<std::atomic<bool>, 1> staging_buffer_in_use_flags;
 		std::size_t current_buffer{ 0UL };
 		std::jthread jthread;
+		Thread() : staging_buffer_in_use_flags{}  {
+			for (auto& f : staging_buffer_in_use_flags)
+				f.store(false, std::memory_order_relaxed);
+		}
+		Thread(const Thread& other) {
+			for (std::size_t i{ 0 }; i < staging_buffer_in_use_flags.size(); ++i)
+				staging_buffer_in_use_flags[i].store(
+						other.staging_buffer_in_use_flags[i].load(std::memory_order_relaxed),
+						std::memory_order_relaxed);
+		}
 	};
 	struct GreedyMeshingPromise {
 		vmath::u32 written_quads{ 0 };

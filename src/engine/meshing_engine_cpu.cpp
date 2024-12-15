@@ -72,14 +72,31 @@ bool MeshingEngineCPU::pollMeshingCommand(Result& result) noexcept {
     result.written_indices[Z_POS] = value.written_quads[Z_POS] * 6U;
     result.written_indices[Z_NEG] = value.written_quads[Z_NEG] * 6U;
 	result.overflow_flag = value.overflow_flag;
-	
+
 	if (!result.overflow_flag) {
-		memcpy(_staging_buffer_ptr, static_cast<const void*>(value.staging_buffer_ptr.data()),
+		if (_fence != nullptr) {
+			const auto wait_result = glClientWaitSync(static_cast<GLsync>(_fence), 0, UINT64_MAX);
+			if (wait_result == GL_WAIT_FAILED) {
+				_engine_context.error |= Error::FENCE_WAIT_FAILED;
+				_fence = nullptr;
+				return false;
+			}
+			if (wait_result == GL_TIMEOUT_EXPIRED) {
+				_fence = nullptr;
+				return false;
+			}
+    		glDeleteSync(static_cast<GLsync>(_fence));
+		}
+
+		memcpy(_staging_buffer_ptr, static_cast<const void*>(value.staging_buffer_ptr.data()), 
 				_engine_context.chunk_max_current_mesh_size);
+		value.staging_buffer_in_use_flag->store(false, std::memory_order_release);
 		glCopyNamedBufferSubData(_staging_buffer_id, _vbo_id, 0, 
-			static_cast<GLintptr>(static_cast<u64>(result.chunk_id) * _engine_context.chunk_max_current_mesh_size),
+			static_cast<GLintptr>(static_cast<u64>(result.chunk_id) * 
+				_engine_context.chunk_max_current_mesh_size),
 			static_cast<GLintptr>(_engine_context.chunk_max_current_mesh_size)
 		);
+		_fence = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
 	}
 #ifdef ENGINE_TEST
 	value.cmd_timer_real.stop();

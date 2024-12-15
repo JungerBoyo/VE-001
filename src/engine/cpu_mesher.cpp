@@ -52,6 +52,12 @@ void CpuMesher::thread(std::size_t thread_index) noexcept {
 	auto& self = _threads[thread_index];
 
 	while (!_done) {
+		auto* use_flag = &self.staging_buffer_in_use_flags[self.current_buffer];
+		while (use_flag->load(std::memory_order_acquire)) {
+			self.current_buffer = (self.current_buffer + 1) % self.staging_buffers.size();
+			use_flag = &self.staging_buffer_in_use_flags[self.current_buffer];
+		}
+
 		MeshingTask meshing_task;
 		if (_meshing_tasks.read(meshing_task)) {
 			auto& staging_buffer = self.staging_buffers[self.current_buffer];
@@ -59,6 +65,8 @@ void CpuMesher::thread(std::size_t thread_index) noexcept {
 
 			auto value = greedyMeshing(staging_buffer,
 						meshing_task.chunk_position, meshing_task.voxel_data);
+
+			value.staging_buffer_in_use_flag = use_flag;
 #ifdef ENGINE_TEST	
 			value.cmd_timer_meshing.stop();
 #endif
@@ -69,10 +77,12 @@ void CpuMesher::thread(std::size_t thread_index) noexcept {
 				// be served again after limits are updated
 				_meshing_tasks.write(std::move(meshing_task));
 			} else {
-				meshing_task.promise.set_value(std::move(value));
-
-				if (value.overflow_flag)
+				if (value.overflow_flag) {
 					overflowed = true;
+				} else {
+					value.staging_buffer_in_use_flag->store(true, std::memory_order_relaxed);
+				}
+				meshing_task.promise.set_value(std::move(value));
 			}
 		} else {
             std::this_thread::yield();
@@ -97,6 +107,7 @@ void CpuMesher::thread(std::size_t thread_index) noexcept {
 			++_ready_counter;
 		}
 	}
+
 }
 
 std::future<CpuMesher::Promise> CpuMesher::mesh(vmath::Vec3f32 chunk_position, std::span<const vmath::u16> voxel_data) noexcept {
