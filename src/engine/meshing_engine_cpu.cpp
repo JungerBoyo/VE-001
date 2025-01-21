@@ -75,7 +75,7 @@ bool MeshingEngineCPU::pollMeshingCommand(Result& result) noexcept {
 
 	if (!result.overflow_flag) {
 		if (_fence != nullptr) {
-			const auto wait_result = glClientWaitSync(static_cast<GLsync>(_fence), 0, UINT64_MAX);
+			const auto wait_result = glClientWaitSync(static_cast<GLsync>(_fence), 0, 0);
 			if (wait_result == GL_WAIT_FAILED) {
 				_engine_context.error |= Error::FENCE_WAIT_FAILED;
 				_fence = nullptr;
