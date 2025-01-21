@@ -463,7 +463,7 @@ void mousePosCallback(GLFWwindow *win_handle, vmath::f64 x_pos, vmath::f64 y_pos
     if (x_pos == dw / 2.0 && y_pos == dh / 2.0) {
         return;
     }
-    glfwSetCursorPos(win_handle, dw / 2.0, dh / 2.0);
+    //glfwSetCursorPos(win_handle, dw / 2.0, dh / 2.0);
 
     const auto aspect_ratio = static_cast<vmath::f32>(dw) / static_cast<vmath::f32>(dh);
 
